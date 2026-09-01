@@ -2,393 +2,229 @@
 
 **Video_Tunner** es una aplicación portable para Windows 10/11 x64 orientada a la limpieza automática, inteligente, auditable y reversible de vídeo hablado.
 
-El objetivo es convertir material bruto en una versión limpia sin alterar el significado: primero se resuelve la fuente audiovisual y su sincronización, después se analiza, se generan **candidatos y decisiones estructuradas**, y sólo entonces se renderiza un **Edit Plan** aprobado. Los originales nunca se sobrescriben.
+El producto debe aceptar vídeo con audio embebido o vídeo + audio externo. Antes de cualquier transcripción o decisión temporal debe existir un **master audio** correctamente asociado a la línea temporal del vídeo. Los originales nunca se sobrescriben.
 
-## Requisitos estructurales no negociables
+## Requisitos estructurales
 
-### 1. Aplicación portable
+### Portable real
 
-El producto final debe poder utilizarse como:
+Objetivo de distribución:
 
 ```text
 ZIP → descomprimir → ejecutar
 ```
 
-Sin instalador, sin permisos de administrador y sin requerir Python, FFmpeg u otros runtimes preinstalados.
+Sin instalador, permisos de administrador, Python preinstalado ni FFmpeg/ffprobe preinstalados. En modo portable las herramientas, modelos, configuración, temporales, cachés y logs deben resolverse desde el propio árbol de Video_Tunner.
 
-La arquitectura debe trabajar desde rutas relativas al runtime y mantener bajo control de la aplicación sus dependencias, modelos, configuración, temporales, cachés y logs. La portabilidad no se considera una tarea cosmética al final del proyecto: debe demostrarse progresivamente desde las primeras fases.
-
-### 2. Dos modos de entrada de audio
-
-Video_Tunner debe soportar obligatoriamente:
-
-**A. Vídeo con audio embebido**
+### Dos modos de entrada
 
 ```text
-video.mp4 → video + audio embebido
+A) vídeo + audio embebido → master audio
+B) vídeo + audio externo → sync → master audio
 ```
 
-**B. Vídeo + audio externo**
+El modo B deberá admitir auto-sync con confianza, offset manual/override y detección/corrección validada de drift. Si no existe referencia suficiente, Video_Tunner no debe adivinar la sincronización.
 
-```text
-video.mp4 + audio.wav
-        ↓
-   sincronización
-        ↓
-video + master audio sincronizado
-```
-
-Cuando se proporciona audio externo, éste será el **master audio** para transcripción, VAD, decisiones y render final. El audio de cámara, si existe, podrá utilizarse como referencia para estimar automáticamente el offset.
-
-La sincronización debe contemplar:
-
-- offset positivo o negativo;
-- estimación automática por correlación de señal cuando exista referencia suficiente;
-- medida de confianza;
-- fallback/override manual;
-- detección de drift progresivo en grabaciones largas;
-- corrección de drift sólo después de validarla;
-- registro auditable de los parámetros de sincronización.
-
-Si no existe audio de referencia o la confianza es insuficiente, Video_Tunner **no debe adivinar** una sincronización.
-
-Ver `ROADMAP.md` para la planificación revisada.
+Ver `ROADMAP.md` para la secuencia técnica vigente.
 
 ## Estado actual
 
 **Versión de desarrollo:** `0.1.0-dev`
 
 - Fase 0 — Bootstrap: **implementada**.
-- Fase 0.5 — Technology harvest: **decisión arquitectónica cerrada**.
-- Fase 1A — Portable Foundation: **pendiente / siguiente bloque crítico**.
-- Fase 1B — Ingesta dual + sincronización A/V: **pendiente / siguiente bloque funcional**.
-- Fase 1C — Transcripción + VAD: **parcialmente implementada**, pendiente de adaptación a `master audio` y validación runtime real.
+- Fase 0.5 — Technology harvest: **cerrada**.
+- Fase 1A — Portable Foundation: **implementación del spike preparada; validación Windows real pendiente**.
+- Fase 1B — Ingesta dual + sincronización A/V: **pendiente**.
+- Fase 1C — Transcripción + VAD: **parcialmente implementada**; pendiente de master audio y validación runtime real.
 - Release pública: **ninguna**.
 
-Video_Tunner continúa como producto y repositorio propios. No es un fork. `vcut`, `Cadence-Lab` y `ai-video-editor` se mantienen como upstreams de referencia; ver `UPSTREAM_SOURCES.md`.
+Video_Tunner sigue siendo un producto/repo propio. `vcut`, `Cadence-Lab`, `ai-video-editor` y dependencias upstream se estudian mediante technology harvest selectivo y trazable.
 
-### Validado en el entorno de desarrollo
+## Fase 1A — Portable Foundation
 
-- CLI `video-tunner`.
-- Detección de `FFmpeg` y `ffprobe`.
-- Inspección real de vídeo mediante `ffprobe`.
-- Detección de silencios mediante `FFmpeg silencedetect`.
-- Modos `conservative` y `aggressive` para el Cleaner determinista actual.
-- Generación de `edit_plan.json` auditable.
-- Render desde el Edit Plan sin sobrescribir el original.
-- Extracción de WAV de análisis mono / 16 kHz / PCM 16-bit.
-- Escritura de transcripción JSON/TXT y SRT a partir de timestamps.
-- Modelo de candidatos auditable que **no aplica cortes automáticamente**.
-- Hash SHA-256 del source en el informe de análisis.
-- Tests unitarios y end-to-end sintéticos sin almacenar vídeos de prueba en Git.
+### Decisión de empaquetado
 
-### Implementado en código, pendiente de validación runtime con modelos reales
+El spike usa **PyInstaller `onedir`**, actualmente fijado a `6.22.2` para la prueba.
 
-- Transcripción local con `faster-whisper` y timestamps palabra a palabra.
-- Modelo por defecto `large-v3-turbo`.
-- Detección de actividad de voz con `silero-vad`.
-- Generación conjunta de candidatos de pausa y posibles muletillas vocales.
+Motivos:
 
-Estas funciones requieren las dependencias opcionales de análisis y, en el caso de Whisper, descargar el modelo la primera vez. **No se afirma todavía que el pipeline completo Whisper + Silero esté validado en Windows o en un paquete portable.**
+- incluye el runtime Python sin exigir Python instalado al usuario;
+- mantiene un árbol explícito y auditable en lugar de extraer todo a temporales como un `onefile`;
+- permite situar `Tools/`, `Models/`, `Config/`, `Temp/`, `Cache/`, `Logs/` y `Output/` junto al ejecutable;
+- simplifica diagnosticar DLLs y dependencias antes de una Release.
 
-### Requisitos ya fijados pero todavía no implementados
+Nuitka queda como alternativa si PyInstaller demuestra problemas reales con CTranslate2/ONNX Runtime; no se introduce esa complejidad antes de necesitarla.
 
-- ZIP portable autocontenido para Windows x64.
-- Resolución de runtime sin Python/FFmpeg externos.
-- Ingesta de vídeo + audio externo.
-- Sincronización automática de audio externo contra audio de cámara.
-- Offset manual como fallback/override.
-- Detección y corrección validada de drift.
-- Abstracción de `master audio` común a análisis y render.
-- Decisión semántica `KEEP / TRIM / CUT / REVIEW`.
-- Detección fiable de errores, retomas y repeticiones.
-- Protección semántica completa.
-- Conversión explícita de candidatos semánticos en Edit Plan aprobado.
-- Normalización de volumen y tratamiento de ruido.
-- Informe HTML de edición.
-- GUI mínima de aplicación.
-
-## Arquitectura objetivo revisada
+### Árbol portable objetivo del spike
 
 ```text
-                ENTRADA
-                  │
-        ┌─────────┴─────────┐
-        │                   │
- vídeo + audio          vídeo + audio
-   embebido               externo
-        │                   │
-        │             auto/manual sync
-        │                   │
-        └─────────┬─────────┘
-                  ↓
-             MASTER AUDIO
-                  ↓
-     transcripción + VAD + análisis
-                  ↓
-          candidatos auditables
-                  ↓
-        KEEP / TRIM / CUT / REVIEW
-                  ↓
-          protección semántica
-                  ↓
-              Edit Plan
-                  ↓
-         render video + master audio
-                  ↓
-              auditoría
+Video_Tunner/
+├── Video_Tunner.exe
+├── _internal/                runtime empaquetado por PyInstaller
+├── Tools/
+│   └── ffmpeg/
+│       └── bin/
+│           ├── ffmpeg.exe
+│           └── ffprobe.exe
+├── Models/
+├── Config/
+├── Temp/
+├── Cache/
+├── Logs/
+├── Output/
+└── portable-manifest.json
 ```
 
-El `master audio` es una decisión de ingest/sync y debe quedar resuelto **antes** de que Whisper, VAD o la lógica semántica tomen decisiones temporales.
+### Modo portable estricto
 
-## Dos flujos de código actuales
+Cuando Video_Tunner está congelado por PyInstaller —o durante pruebas con `VIDEO_TUNNER_PORTABLE_STRICT=1`—:
 
-### Cleaner determinista existente
+- FFmpeg/ffprobe sólo se buscan en `Tools/ffmpeg/bin`;
+- no existe fallback al `PATH`;
+- `Models/` se resuelve dentro del runtime;
+- `doctor` crea/verifica el layout local.
+
+En desarrollo no congelado se mantiene, temporalmente, soporte para `VIDEO_TUNNER_FFMPEG_DIR` y `PATH`.
+
+### FFmpeg del spike
+
+El script `build_portable_windows.ps1` descarga para el spike un build Windows x64 de la rama estable FFmpeg 9.0 de `BtbN/FFmpeg-Builds`, copia únicamente `ffmpeg.exe` y `ffprobe.exe` y registra la versión real en `portable-manifest.json`.
+
+**Importante:** el URL usado durante el spike es flotante dentro de la rama estable. Una Release final deberá fijar un asset/digest inmutable y cerrar la revisión de licencia/notices.
+
+### VAD: decisión de portabilidad
+
+Se elimina la dependencia directa `silero-vad` del extra `analysis`.
+
+Motivo: la distribución Python oficial de `silero-vad` añade Torch + torchaudio, mientras que `faster-whisper` ya incluye:
+
+- ONNX Runtime como dependencia;
+- su implementación de Silero VAD;
+- el asset `silero_vad_v6.onnx`.
+
+Video_Tunner reutiliza ese backend ONNX de `faster-whisper`, evitando duplicar un stack PyTorch pesado sólo para VAD.
+
+## Pipeline objetivo
 
 ```text
-Vídeo original
-    ↓
-ffprobe
-    ↓
-FFmpeg silencedetect
-    ↓
-Edit Plan JSON
-    ↓
-FFmpeg
-    ↓
-vídeo limpio
+vídeo + audio embebido
+          O
+vídeo + audio externo
+          ↓
+       ingest/sync
+          ↓
+      MASTER AUDIO
+          ↓
+transcripción + VAD + análisis
+          ↓
+ candidatos auditables
+          ↓
+ KEEP / TRIM / CUT / REVIEW
+          ↓
+ protección semántica
+          ↓
+       Edit Plan
+          ↓
+ render + auditoría
 ```
 
-Este flujo sigue disponible con `video-tunner clean` mientras se construye la arquitectura revisada.
+Candidato ≠ decisión ≠ edición.
 
-### Análisis inteligente actual — sin cortes automáticos
+## Funcionalidad ya existente
 
-```text
-Vídeo original
-    ↓
-WAV mono 16 kHz
-    ├── faster-whisper → palabras + timestamps → TXT / JSON / SRT
-    └── Silero VAD → segmentos de habla
-                  ↓
-          candidatos auditables
-                  ↓
-          *_analysis.json
-                  ↓
-       NINGÚN corte automático
-```
+Validada en el entorno de desarrollo previo:
 
-Antes de cerrar esta fase, este pipeline se adaptará para consumir un `master audio` embebido o externo ya sincronizado.
+- CLI `video-tunner`;
+- FFmpeg/ffprobe + `probe`;
+- Cleaner determinista de silencios;
+- `edit_plan.json`;
+- render H.264/AAC sin sobrescribir el original;
+- extracción WAV mono 16 kHz PCM16;
+- modelos/serialización de transcripción word-level;
+- TXT/JSON/SRT;
+- Candidate Analysis review-only;
+- SHA-256 del source;
+- tests unitarios y E2E sintéticos.
 
-Separar **detección** de **decisión** es obligatorio: un candidato no es una edición.
+Implementado pero aún pendiente de inferencia real:
 
-## Desarrollo local actual
+- `faster-whisper` + `large-v3-turbo`;
+- timestamps word-level reales;
+- VAD Silero ONNX mediante `faster-whisper`;
+- `video-tunner analyze` completo con backends reales.
 
-Mientras se construye el empaquetado portable, los requisitos de desarrollo siguen siendo:
-
-- Python 3.11 o superior.
-- FFmpeg + ffprobe accesibles mediante uno de estos mecanismos, por orden:
-  1. variable `VIDEO_TUNNER_FFMPEG_DIR`;
-  2. `Tools/ffmpeg/bin` dentro de Video_Tunner;
-  3. `PATH`.
-
-Esto es un requisito **de desarrollo actual**, no del producto final.
-
-Instalación base:
+## Desarrollo local
 
 ```powershell
 python -m pip install -e .
 ```
 
-Para usar `analyze`:
+Análisis:
 
 ```powershell
 python -m pip install -e ".[analysis]"
 ```
 
-Esto añade `faster-whisper` y `silero-vad`. El modelo Whisper se guarda por defecto en `Models/whisper/`, excluido de Git. Puede cambiarse con `VIDEO_TUNNER_MODEL_DIR`.
+Packaging del spike:
 
-La primera ejecución puede necesitar conexión para descargar un modelo durante desarrollo. Para el producto portable, cualquier modelo adquirido debe quedar dentro del árbol portable `Models/` y no depender de cachés globales. Antes de Release se decidirá, con datos de tamaño/licencia, si el modelo por defecto se incluye en el ZIP o se descarga localmente en primer arranque.
+```powershell
+python -m pip install -e ".[packaging]"
+.\.github\scripts\build_portable_windows.ps1
+```
 
-## Comandos actuales
-
-Comprobar entorno:
+### Comandos
 
 ```powershell
 video-tunner doctor
-```
-
-Inspeccionar un vídeo:
-
-```powershell
-video-tunner probe "C:\ruta\video.mp4"
-```
-
-Generar el Edit Plan de silencios actual:
-
-```powershell
+video-tunner probe "video.mp4"
 video-tunner plan "video.mp4" --mode conservative --output edit_plan.json
-```
-
-Ejecutar el análisis local actual:
-
-```powershell
-video-tunner analyze "video.mp4" --mode conservative --language es --output-dir Output
-```
-
-Opcionalmente:
-
-```powershell
-video-tunner analyze "video.mp4" --model large-v3-turbo --device cuda
-```
-
-El valor por defecto de `--device` es `cpu` para mantener un baseline reproducible. CUDA es opt-in hasta que la aceleración GPU esté validada en el empaquetado Windows.
-
-Salida actual del comando `analyze`:
-
-```text
-Output/
-├── video_analysis.json
-├── video_transcript.json
-├── video_transcript.txt
-└── video.srt
-```
-
-`video_analysis.json` contiene actualmente:
-
-- SHA-256 del source;
-- motor/modelo de transcripción;
-- idioma detectado;
-- segmentos de habla de Silero;
-- candidatos de pausa;
-- candidatos de muletilla vocal obvia;
-- evidencia temporal/contextual;
-- estado `undecided`;
-- `auto_apply=false`.
-
-La futura revisión del schema añadirá la procedencia del master audio y metadata de sincronización cuando exista audio externo.
-
-Renderizar un Edit Plan existente:
-
-```powershell
+video-tunner clean "video.mp4" --mode conservative --output-dir Output
+video-tunner analyze "video.mp4" --language es --output-dir Output
 video-tunner render "video.mp4" edit_plan.json "video_clean.mp4"
 ```
 
-Cleaner de silencios actual:
+`analyze` todavía consume el audio embebido del vídeo; se adaptará al concepto de `master audio` en Fase 1B/1C.
 
-```powershell
-video-tunner clean "video.mp4" --mode conservative --output-dir Output
-```
+## Validación del portable spike
 
-## Modos
+Workflow manual: `.github/workflows/portable-spike.yml`.
 
-### Cleaner FFmpeg actual
+Debe comprobar en Windows:
 
-| Modo | Silencio mínimo | Pausa conservada | Intención |
-|---|---:|---:|---|
-| `conservative` | 0,65 s | 0,20 s | Priorizar naturalidad |
-| `aggressive` | 0,35 s | 0,10 s | Ritmo más compacto |
+1. tests source;
+2. build `onedir`;
+3. FFmpeg + ffprobe propios;
+4. copia a una ruta aislada con espacios;
+5. eliminación de Python y FFmpeg del `PATH` de la prueba;
+6. `Video_Tunner.exe doctor`;
+7. creación de fixture con el FFmpeg empaquetado;
+8. `probe` desde el ejecutable;
+9. `clean` y render real;
+10. validación con el `ffprobe` empaquetado;
+11. tamaño + SHA-256 de un ZIP temporal;
+12. **no subir el ZIP como artifact de Actions**.
 
-### Candidatos de análisis
+Hasta que ese workflow pase no se afirmará que la base portable está validada.
 
-Los umbrales de VAD/word-gap se usan sólo para **proponer revisión**, no para cortar. Son provisionales y se tunearán con vídeo hablado real.
+## Próximos pasos
 
-## Portabilidad — criterio de aceptación
-
-No se afirmará que Video_Tunner es portable hasta demostrar como mínimo:
-
-- ejecución desde ZIP descomprimido en Windows 10/11 x64;
-- máquina sin Python instalado o sin utilizarlo;
-- máquina sin FFmpeg/ffprobe en PATH;
-- runtime y herramientas resueltos desde el árbol de Video_Tunner;
-- rutas con espacios;
-- modelos resueltos desde `Models/` local;
-- temporales/cachés controlados;
-- ausencia de rutas del entorno de build;
-- cierre limpio de procesos;
-- funcionamiento local después de disponer de los modelos requeridos.
-
-## Sincronización A/V — criterio de aceptación
-
-La futura ingesta de audio externo no se considerará completa sólo porque permita indicar un offset.
-
-Debe validar progresivamente:
-
-- audio embebido;
-- audio externo con offset positivo/negativo;
-- auto-sync con referencia suficiente;
-- baja confianza → no aplicar silenciosamente;
-- override manual;
-- audio externo que empieza antes/después del vídeo;
-- detección de drift en grabaciones largas;
-- corrección de drift verificada;
-- cortes posteriores sin perder A/V sync.
-
-## Validación actual
-
-En la iteración transcription/VAD se comprobaron en entorno de desarrollo:
-
-- tests unitarios de timestamps/transcripción/SRT;
-- complemento y fusión de segmentos VAD;
-- creación y enriquecimiento de candidatos;
-- garantía `candidate != edit`;
-- SHA-256 del source;
-- orquestación del pipeline mediante backends simulados;
-- extracción real de WAV 16 kHz mono PCM con FFmpeg;
-- regresión end-to-end del Cleaner de silencios existente;
-- compilación Python del source.
-
-**No se ha ejecutado todavía una transcripción real `large-v3-turbo` ni una inferencia real Silero VAD en esa iteración. Tampoco se ha validado todavía la portabilidad ni la sincronización con audio externo.**
-
-La CI del repositorio sigue siendo deliberadamente `workflow_dispatch`: no se ejecuta automáticamente en cada commit para evitar consumo innecesario de cuota de GitHub Actions.
-
-## Upstreams y licencia
-
-Video_Tunner no se convierte en fork. Se adopta un modelo de **technology harvest selectivo**:
-
-- estudiar fixes y patrones útiles;
-- portar o reimplementar únicamente lo relevante;
-- registrar commit y licencia upstream;
-- revisar periódicamente evoluciones interesantes.
-
-`vcut` es también referencia para el soporte de audio externo/offset, pero Video_Tunner deberá implementar además su propia sincronización automática y manejo de drift con criterios de confianza.
-
-Ver `UPSTREAM_SOURCES.md` para provenance técnico.
-
-## Estructura
-
-```text
-Archive/                 Histórico final sustituido
-Source/video_tunner/     Código fuente vigente
-Validation/              Evidencias técnicas ligeras
-.github/workflows/       CI permanente mínima
-README.md                Producto y uso
-AGENTS.md                Contexto técnico permanente
-ROADMAP.md               Plan técnico vigente
-UPSTREAM_SOURCES.md       Referencias/provenance de technology harvest
-RELEASE_STATUS.md        Estado real de releases
-SHA256SUMS.txt            Hashes de paquetes publicados
-```
-
-## Orden inmediato revisado
-
-1. **Portable Foundation spike**.
-2. **Ingesta dual + sincronización A/V**.
-3. Adaptar `analyze` al concepto de `master audio`.
-4. Validar Whisper + VAD reales sobre vídeo hablado.
-5. Después: retomas, repeticiones y clasificación semántica.
+1. Ejecutar y corregir el Portable Foundation spike en Windows.
+2. Evaluar empaquetado del perfil ML (`faster-whisper` + CTranslate2 + ONNX Runtime) dentro del mismo `onedir`.
+3. Cerrar Fase 1A con evidencia real.
+4. Implementar Fase 1B: vídeo + audio externo, master audio, auto-sync, offset manual y drift.
+5. Adaptar `analyze` al master audio y validar Whisper/VAD reales.
+6. Sólo después construir retomas/repeticiones y la capa semántica.
 
 ## Principios
 
-- Video_Tunner debe ser portable por diseño.
-- El original y el audio externo nunca se modifican.
-- Una línea temporal A/V fiable precede a cualquier decisión semántica.
-- Candidato ≠ decisión ≠ edición.
-- Toda edición debe ser auditable y reversible.
-- El modo por defecto es conservador.
-- Ante ambigüedad semántica o de sincronización, se conserva/revisa en lugar de adivinar.
-- Procesamiento local siempre que sea razonable.
-- No se suben vídeos del usuario a servicios externos de forma silenciosa.
-- GitHub es la fuente de verdad técnica.
-- Las Actions pesadas sólo se ejecutan cuando aportan evidencia nueva.
+- portable por diseño;
+- procesamiento local por defecto;
+- originales intactos;
+- línea temporal A/V fiable antes de IA;
+- candidato ≠ decisión ≠ edición;
+- modo Conservador por defecto;
+- ante duda semántica o de sync, conservar/revisar;
+- GitHub como fuente de verdad;
+- CI deliberada y sin artifacts pesados ordinarios.
 
-Consulta `AGENTS.md` para arquitectura y reglas permanentes y `ROADMAP.md` para la secuencia técnica vigente.
+Consulta `AGENTS.md`, `ROADMAP.md`, `UPSTREAM_SOURCES.md` y `Validation/` para el contexto técnico y la evidencia.
