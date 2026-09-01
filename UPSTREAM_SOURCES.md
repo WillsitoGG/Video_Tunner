@@ -14,7 +14,7 @@ Para cada upstream:
 4. portar sólo lo necesario para Video_Tunner;
 5. no asumir que una mejora upstream es segura: debe volver a validarse en nuestro contexto.
 
-En la iteración `phase1-transcription-vad` **no se ha copiado ni vendorizado código fuente** de los tres proyectos auditados. Las nuevas implementaciones son propias y están informadas por los patrones observados.
+En la iteración `phase1-transcription-vad` **no se copió ni vendorizó código fuente** de los tres proyectos auditados. Las implementaciones son propias e informadas por patrones observados.
 
 ## Railly/vcut
 
@@ -32,7 +32,16 @@ Ideas/patrones que queremos conservar:
 - render reproducible y validado contra el plan;
 - experiencia agent-first;
 - detección/diagnóstico específico de repeticiones y retomas;
-- aprendizaje empírico sobre timestamps de Whisper, especialmente en español.
+- aprendizaje empírico sobre timestamps de Whisper, especialmente en español;
+- soporte conceptual de audio externo y `audio-offset`, útil como referencia para nuestro master-audio pipeline.
+
+Para Video_Tunner el alcance será mayor en sincronización:
+
+- auto-sync por señal cuando exista audio de cámara como referencia;
+- score/confianza de alineación;
+- fallback/override manual;
+- detección de drift en grabaciones largas;
+- corrección del drift sólo después de validación.
 
 No adoptamos automáticamente:
 
@@ -86,7 +95,21 @@ La implementación actual añade como dependencias opcionales:
 - `faster-whisper` — transcripción local y timestamps por palabra;
 - `silero-vad` — voice activity detection local.
 
-Antes del empaquetado/release portable se realizará una revisión específica de licencias, binarios, modelos y notices de todas las dependencias transitivas incluidas en el ZIP.
+### Riesgo de portabilidad de Silero
+
+La distribución oficial `silero-vad` 6.2.1 declara `torch` y `torchaudio` como dependencias base y ofrece `onnxruntime` como extra. Dado que Video_Tunner debe ser portable, no damos por cerrada la elección de runtime VAD.
+
+Antes de ampliar el pipeline semántico se realizará un spike comparativo de:
+
+- Torch;
+- ONNX Runtime;
+- tamaño final del paquete;
+- DLLs/transitivas;
+- compatibilidad Windows;
+- rendimiento CPU;
+- facilidad de actualización y licencia/notices.
+
+La decisión se tomará con medidas reales, no por preferencia teórica.
 
 ## Seguimiento futuro
 
@@ -97,3 +120,14 @@ No necesitamos ser fork para aprovechar nuevas mejoras. Cuando alguno de estos u
 3. adaptar o reimplementar el cambio en Video_Tunner;
 4. añadir tests propios;
 5. actualizar este documento con el nuevo commit de referencia cuando corresponda.
+
+## Revisión de licencia para portable
+
+Antes de cualquier Release portable se revisarán específicamente licencias/notices de:
+
+- FFmpeg;
+- faster-whisper;
+- CTranslate2;
+- Silero VAD / ONNX Runtime o runtime finalmente elegido;
+- modelos incluidos o descargables;
+- dependencias transitivas efectivamente distribuidas.
