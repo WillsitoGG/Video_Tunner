@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-tunner"
+version = "0.1.0.dev0"
+description = "Auditable, reversible spoken-video cleaner for Windows."
+requires-python = ">=3.11"
+authors = [{name = "WillsitoGG"}]
+dependencies = []
+
+[project.scripts]
+video-tunner = "video_tunner.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "Source"}
+
+[tool.setuptools.packages.find]
+where = ["Source"]

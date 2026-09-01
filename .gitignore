@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Build / packaging
+build/
+dist/
+out/
+*-build-output/
+*-release-output/
+
+# Video_Tunner runtime/output
+Output/
+output/
+Temp/
+temp/
+Cache/
+cache/
+Logs/
+logs/
+Models/
+models/
+
+# User media
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.m4v
+*.wav
+*.mp3
+*.flac
+*.aac
+*.srt
+
+# Allow deliberately versioned tiny test assets if ever needed
+!tests/fixtures/**/*.srt
+
+# Bundled/runtime dependencies are produced by packaging; do not commit downloaded payloads by accident
+Tools/ffmpeg/bin/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets
+.env
+.env.*
+!.env.example
