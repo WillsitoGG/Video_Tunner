@@ -11,7 +11,14 @@ from .edit_plan import MODE_SETTINGS, build_silence_plan, load_plan, save_plan
 from .media import probe_media
 from .render import render_from_plan
 from .silence import detect_silences
-from .tools import ToolNotFoundError, model_root, runtime_root, tool_version
+from .tools import (
+    ToolNotFoundError,
+    ensure_runtime_layout,
+    model_root,
+    portable_strict_mode,
+    runtime_root,
+    tool_version,
+)
 from .transcription import TranscriptionDependencyError
 from .vad import VadDependencyError
 
@@ -25,13 +32,16 @@ def _module_status(module: str) -> str:
 
 
 def cmd_doctor(_: argparse.Namespace) -> int:
+    layout = ensure_runtime_layout()
     report = {
         "video_tunner": __version__,
+        "portable_mode": portable_strict_mode(),
         "runtime_root": str(runtime_root()),
+        "runtime_layout": {key: str(value) for key, value in layout.items() if key != "root"},
         "model_root": str(model_root()),
         "analysis_dependencies": {
             "faster_whisper": _module_status("faster_whisper"),
-            "silero_vad": _module_status("silero_vad"),
+            "vad_backend": "faster-whisper Silero ONNX",
         },
     }
     for tool in ("ffmpeg", "ffprobe"):
@@ -107,7 +117,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    doctor = sub.add_parser("doctor", help="Comprueba FFmpeg/ffprobe, modelos y dependencias opcionales.")
+    doctor = sub.add_parser("doctor", help="Comprueba runtime portable, FFmpeg/ffprobe y análisis opcional.")
     doctor.set_defaults(func=cmd_doctor)
 
     probe = sub.add_parser("probe", help="Inspecciona un archivo audiovisual con ffprobe.")
@@ -122,7 +132,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     analyze = sub.add_parser(
         "analyze",
-        help="Transcribe, ejecuta Silero VAD y genera candidatos de edición sin aplicar cortes.",
+        help="Transcribe, ejecuta VAD Silero ONNX y genera candidatos sin aplicar cortes.",
     )
     analyze.add_argument("input")
     analyze.add_argument("--mode", choices=MODE_SETTINGS, default="conservative")
