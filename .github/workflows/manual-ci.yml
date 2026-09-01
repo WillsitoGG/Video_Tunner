@@ -1,0 +1,46 @@
+name: Manual CI
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-manual-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-core:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ensure FFmpeg is available for development validation
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --no-progress -y
+          }
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
+
+      - name: Install editable package
+        run: python -m pip install -e .
+
+      - name: Run unit and synthetic end-to-end tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Runtime doctor
+        run: video-tunner doctor
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "This workflow validates the development core only."
+          Write-Host "It does not claim portable Windows validation because FFmpeg may come from the runner/Chocolatey."
