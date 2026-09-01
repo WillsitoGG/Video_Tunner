@@ -1,6 +1,6 @@
 param(
     [string]$Python = "python",
-    [string]$FfmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl.zip"
+    [string]$FfmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip"
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,6 +19,8 @@ if ($LASTEXITCODE -ne 0) { throw "No se pudieron instalar dependencias de packag
 
 Write-Host "Downloading FFmpeg portable build..."
 Invoke-WebRequest -Uri $FfmpegUrl -OutFile $ffmpegZip
+$ffmpegArchiveSha256 = (Get-FileHash $ffmpegZip -Algorithm SHA256).Hash.ToLowerInvariant()
+Write-Host "FFMPEG_ARCHIVE_SHA256=$ffmpegArchiveSha256"
 Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtract -Force
 
 $ffmpegExe = Get-ChildItem $ffmpegExtract -Filter "ffmpeg.exe" -Recurse | Select-Object -First 1
@@ -56,6 +58,7 @@ $manifest = [ordered]@{
     pyinstaller = "6.22.2"
     python_build = (& $Python --version 2>&1 | Out-String).Trim()
     ffmpeg_source = $FfmpegUrl
+    ffmpeg_archive_sha256 = $ffmpegArchiveSha256
     ffmpeg = $ffmpegVersion
     ffprobe = $ffprobeVersion
     analysis_stack_included = $false
