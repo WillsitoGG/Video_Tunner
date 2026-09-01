@@ -17,6 +17,13 @@ def runtime_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def model_root() -> Path:
+    env_dir = os.getenv("VIDEO_TUNNER_MODEL_DIR")
+    if env_dir:
+        return Path(env_dir).expanduser().resolve()
+    return runtime_root() / "Models"
+
+
 def _tool_filename(name: str) -> str:
     return f"{name}.exe" if os.name == "nt" else name
 

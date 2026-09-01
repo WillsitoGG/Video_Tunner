@@ -8,7 +8,8 @@
 - ZIP portable validado: **no**
 - Windows 10/11 x64 validado manualmente: **no**
 - Fase 0: bootstrap implementado
-- Fase 1: parcial — probe, silencios, Edit Plan y render
+- Fase 0.5: technology harvest y estrategia de upstream definida
+- Fase 1: parcial — probe, silencios, Edit Plan, render, artefactos de transcripción/candidatos implementados; runtime real Whisper + Silero pendiente de validación
 
 No existe todavía ningún paquete que deba figurar en `SHA256SUMS.txt` ni ninguna versión sustituida que deba entrar en `Archive/`.
 

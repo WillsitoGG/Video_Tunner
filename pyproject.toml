@@ -10,6 +10,12 @@ requires-python = ">=3.11"
 authors = [{name = "WillsitoGG"}]
 dependencies = []
 
+[project.optional-dependencies]
+analysis = [
+    "faster-whisper>=1.2,<2",
+    "silero-vad>=6.2,<7",
+]
+
 [project.scripts]
 video-tunner = "video_tunner.cli:main"
 
