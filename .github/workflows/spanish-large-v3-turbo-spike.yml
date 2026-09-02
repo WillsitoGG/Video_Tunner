@@ -2,6 +2,11 @@ name: Spanish Large V3 Turbo Spike
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase1c-large-v3-turbo-spanish
+    paths:
+      - Validation/spanish-large-v3-turbo.trigger
 
 concurrency:
   group: video-tunner-spanish-large-v3-turbo-${{ github.ref }}
@@ -221,7 +226,6 @@ jobs:
             throw "Master/video divergen: video=$videoDuration master=$masterDuration"
           }
 
-          # Restore only the harness PATH after the product process has exited.
           $env:PATH = $originalPath
           $evaluationText = (& $buildPython .\.github\scripts\evaluate_asr_reference.py `
             $transcriptPath $reference --timeline-duration $videoDuration --max-wer 0.15 --min-word-ratio 0.80 | Out-String)
