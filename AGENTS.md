@@ -34,9 +34,9 @@ Completado:
 - transcript TXT/JSON/SRT word-level;
 - Candidate Analysis review-only;
 - Fase 1A Portable Foundation core + ML PASS Windows;
-- Fase 1B sync foundation implementada y validada en caso nominal positivo.
+- **Fase 1B dual ingest + master audio + sync/drift COMPLETADA y hardening Windows PASS**.
 
-Fase 1B sigue **EN CURSO** hasta hardening de negativos, drift E2E, ambigüedad, manual y coverage.
+Siguiente: **Fase 1C — migrar `analyze` a master audio y validar `large-v3-turbo` sobre contenido real en español.**
 
 ## 3. Evidencia portable
 
@@ -94,7 +94,7 @@ video-tunner model status MODEL
 video-tunner model fetch MODEL [--replace]
 ```
 
-## 6. Fase 1B — ingesta/sync
+## 6. Fase 1B — ingesta/sync — COMPLETADA
 
 ### Contrato temporal
 
@@ -114,27 +114,19 @@ Esta convención no debe reinterpretarse en otros módulos.
 video-tunner ingest VIDEO [--audio EXTERNAL] [--offset SEC] [--drift-ppm PPM] [--output-dir DIR]
 ```
 
-### Auto-sync actual
+### Auto-sync
 
 `sync.py`:
 
 1. FFmpeg → audio mono 8 kHz;
 2. log-RMS envelope 50 Hz;
-3. coarse ZNCC ~10 Hz;
-4. fine anchors en 7 ventanas;
+3. coarse ZNCC;
+4. fine anchors multi-window;
 5. fit `video = intercept + scale * external`;
 6. outliers por MAD;
 7. confidence por score, uniqueness, residual y anchor count.
 
-`SyncEstimate` registra:
-
-- offset;
-- time_scale;
-- drift_ppm;
-- confidence;
-- residual_rms;
-- coarse offset/score;
-- anchors con score/margin/residual.
+`SyncEstimate` registra offset, time_scale, drift_ppm, confidence, residual RMS, coarse result y anchors.
 
 ### Política de aceptación
 
@@ -149,9 +141,9 @@ coverage >= 0.98
 uncovered edge <= 5 s
 ```
 
-Son thresholds provisionales que requieren datos reales antes de Release.
+Thresholds provisionales hasta disponer de corpus real.
 
-Evidence insuficiente => `review_required`, sin master.
+Evidencia insuficiente => `review_required`, sin master.
 
 Sin audio de cámara => no auto-sync; requiere offset manual.
 
@@ -179,42 +171,41 @@ External master:
 
 No volver a usar `apad` indefinido + `atrim` timestamp-only: produjo masters cortos aunque el sync fuese correcto.
 
-### Evidencia sync
+### Evidencia foundation
 
-Runs:
+- `33633846344` — failure de aserción inicial;
+- `33634121264` — failure útil: master 88.756 s vs vídeo 90 s;
+- `33634775313` — SUCCESS tras fix de timeline.
 
-- `33633846344` failure de aserción inicial;
-- `33634121264` failure útil: vídeo 90 s, master 88.756 s;
-- `33634775313` SUCCESS tras fix.
+### Evidencia hardening
 
-Run final:
+Run `33639009841` — **SUCCESS**:
 
-- 33 tests PASS;
-- +1.500 s recuperado exactamente;
-- confidence 1.000;
-- 7 anchors;
-- drift 0 ppm;
-- video/master 90/90 s;
+- 37 tests PASS;
+- negative offset E2E PASS;
+- media-level drift con objetivo +1000 ppm PASS dentro de tolerancia;
+- flat/insufficient signal => REVIEW/no master PASS;
+- manual override sin camera audio PASS;
+- partial coverage + warning PASS;
+- nominal +1.5 s sigue PASS;
 - 0 artifacts.
 
-Ver `Validation/sync-foundation-spike.md`.
+Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
-### Hardening restante 1B
+## 7. Fase 1C — transcripción/VAD sobre master audio
 
-Obligatorio antes de cerrar:
+`analyze` todavía toma audio embebido directamente del vídeo. Ese comportamiento debe desaparecer como supuesto estructural.
 
-- negative offset E2E;
-- drift E2E;
-- low/ambiguous signal => REVIEW;
-- manual override E2E;
-- external shorter/longer;
-- acoustic mismatch/noise;
-- embedded timeline no trivial;
-- post-sync residual validation.
+Objetivo inmediato:
 
-## 7. Transcripción / candidates
-
-`analyze` todavía toma audio embebido del vídeo. No migrar semántica antes de adaptar a master audio tras hardening de 1B.
+1. `analyze` recibe/resuelve master audio;
+2. si no existe master pre-resuelto, puede invocar la capa de ingest de forma explícita;
+3. Whisper y VAD consumen el mismo master;
+4. timestamps siguen referidos a la timeline del vídeo;
+5. transcript/candidates registran qué ingest/master los originó;
+6. no duplicar outputs ni volver a sincronizar de forma silenciosa;
+7. validar embedded + external synchronized;
+8. después validar `large-v3-turbo` con vídeo real en español.
 
 Artefactos actuales:
 
@@ -276,10 +267,10 @@ Cambios de arquitectura/dependencias/build/validación => README + AGENTS sincro
 
 ## 12. Orden inmediato
 
-1. hardening Fase 1B;
-2. cerrar master/sync con casos negativos y failure-safe;
-3. adaptar `analyze` al master audio;
-4. validar `large-v3-turbo`/VAD en español;
+1. migrar `analyze` a master audio;
+2. validar ingest → master → Whisper/VAD/candidates;
+3. validar `large-v3-turbo` en español real;
+4. cerrar Fase 1C;
 5. Fase 2 semantic cleaner.
 
 ## 13. Changelog técnico
@@ -293,5 +284,5 @@ Word timestamps, transcript artifacts, Silero VAD, candidates.
 ### portable core/ML
 PyInstaller onedir, local tools/models, offline frozen inference Windows PASS.
 
-### sync foundation
-Dual ingest, multi-anchor offset/drift estimator, confidence/coverage policy, manual override, master FLAC e ingest audit; Windows nominal +1.5 s PASS after master-timeline regression fix.
+### sync foundation + hardening
+Dual ingest, multi-anchor offset/drift estimator, confidence/coverage policy, manual override, failure-safe review, master FLAC e ingest audit; positive/negative offset, media-level drift y no-reference behavior validados en Windows.
