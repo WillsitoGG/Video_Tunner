@@ -3,9 +3,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$repo = "h2oai/faster-whisper-large-v3-turbo"
-$revision = "d9e74de5094e9b435ce024f77e90c8cbb8d1afe1"
+$repo = "rtlingo/mobiuslabsgmbh-faster-whisper-large-v3-turbo"
+$revision = "6bd64462dd562f8062828f585c3709aa52df0083"
 $userAgent = "Video_Tunner-CI/0.1 (+https://github.com/WillsitoGG/Video_Tunner)"
+$expectedModelBytes = 1617884929L
+$expectedModelSha256 = "E76620F83D5F5B69EFD3D87E3DC180C1BD21DF9FBEBACFD4335E5E1EFCC018DA"
 
 $files = @(
     @{ name = "config.json"; min_bytes = 1000L },
@@ -53,14 +55,23 @@ foreach ($item in $files) {
     if ($size -lt [long]$item.min_bytes) {
         throw "$name tiene un tamaño inesperado: $size bytes."
     }
-    $hash = (Get-FileHash $target -Algorithm SHA256).Hash
+    $hash = (Get-FileHash $target -Algorithm SHA256).Hash.ToUpperInvariant()
     Write-Host "TARGET_MODEL_FILE_${name}_BYTES=$size"
     Write-Host "TARGET_MODEL_FILE_${name}_SHA256=$hash"
+
+    if ($name -eq "model.bin") {
+        if ($size -ne $expectedModelBytes) {
+            throw "model.bin no coincide con el tamaño fijado: actual=$size esperado=$expectedModelBytes."
+        }
+        if ($hash -ne $expectedModelSha256) {
+            throw "model.bin no coincide con SHA-256 fijado: actual=$hash esperado=$expectedModelSha256."
+        }
+    }
 }
 
 $watch.Stop()
 $totalBytes = [long](Get-ChildItem $Destination -File | Measure-Object -Property Length -Sum).Sum
-$required = @("config.json", "model.bin", "tokenizer.json")
+$required = @("config.json", "model.bin", "preprocessor_config.json", "tokenizer.json", "vocabulary.json")
 foreach ($name in $required) {
     if (-not (Test-Path (Join-Path $Destination $name))) {
         throw "Falta archivo obligatorio del modelo: $name"
@@ -71,11 +82,13 @@ if ($env:GITHUB_ENV) {
     "SPANISH_TARGET_MODEL_STAGE=$Destination" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     "TARGET_MODEL_SOURCE_REPO=$repo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     "TARGET_MODEL_SOURCE_REVISION=$revision" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    "TARGET_MODEL_EXPECTED_SHA256=$expectedModelSha256" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     "TARGET_MODEL_STAGE_BYTES=$totalBytes" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     "TARGET_MODEL_DOWNLOAD_SECONDS=$($watch.Elapsed.TotalSeconds)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 }
 
 Write-Host "TARGET_MODEL_SOURCE_REPO=$repo"
 Write-Host "TARGET_MODEL_SOURCE_REVISION=$revision"
+Write-Host "TARGET_MODEL_EXPECTED_SHA256=$expectedModelSha256"
 Write-Host "TARGET_MODEL_STAGE_BYTES=$totalBytes"
 Write-Host "TARGET_MODEL_DOWNLOAD_SECONDS=$([Math]::Round($watch.Elapsed.TotalSeconds, 3))"
