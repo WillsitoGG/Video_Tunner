@@ -4,7 +4,7 @@ Fecha de diseño: 2026-09-02.
 
 ## Objetivo
 
-Cerrar Fase 1C con una única validación pesada y deliberada del modelo objetivo `large-v3-turbo` dentro del portable Windows, sobre voz humana real en español y con transcripción de referencia conocida.
+Cerrar Fase 1C con una validación pesada y deliberada del modelo objetivo `large-v3-turbo` dentro del portable Windows, sobre voz humana real en español y con transcripción de referencia conocida.
 
 No se pretende calibrar todavía un benchmark ASR general; se busca una evidencia reproducible de producto que permita comprobar precisión básica, word timestamps y coste local del modelo antes de entrar en semántica.
 
@@ -15,16 +15,20 @@ Se usarán únicamente durante CI cuatro diálogos reales de SpanishPod alojados
 Fuentes de audio:
 
 1. `SpanishPod_newbie_lesson_A0006_dialogue.ogg`
-   - Commons: `https://commons.wikimedia.org/wiki/Special:Redirect/file/SpanishPod_newbie_lesson_A0006_dialogue.ogg`
+   - Commons: `https://commons.wikimedia.org/wiki/File:SpanishPod_newbie_lesson_A0006_dialogue.ogg`
+   - direct original: `https://upload.wikimedia.org/wikipedia/commons/0/0a/SpanishPod_newbie_lesson_A0006_dialogue.ogg`
    - referencia Wikibooks: `Spanish by Choice/SpanishPod newbie lesson A0006`
 2. `SpanishPod_newbie_lesson_A0007_dialogue.ogg`
-   - Commons: `https://commons.wikimedia.org/wiki/Special:Redirect/file/SpanishPod_newbie_lesson_A0007_dialogue.ogg`
+   - Commons: `https://commons.wikimedia.org/wiki/File:SpanishPod_newbie_lesson_A0007_dialogue.ogg`
+   - direct original: `https://upload.wikimedia.org/wikipedia/commons/4/4c/SpanishPod_newbie_lesson_A0007_dialogue.ogg`
    - referencia Wikibooks: `Spanish by Choice/SpanishPod newbie lesson A0007`
 3. `SpanishPod_newbie_lesson_A0013_dialogue.ogg`
-   - Commons: `https://commons.wikimedia.org/wiki/Special:Redirect/file/SpanishPod_newbie_lesson_A0013_dialogue.ogg`
+   - Commons: `https://commons.wikimedia.org/wiki/File:SpanishPod_newbie_lesson_A0013_dialogue.ogg`
+   - direct original: `https://upload.wikimedia.org/wikipedia/commons/6/67/SpanishPod_newbie_lesson_A0013_dialogue.ogg`
    - referencia Wikibooks: `Spanish by Choice/SpanishPod newbie lesson A0013`
 4. `SpanishPod_newbie_lesson_A0116_dialogue.ogg`
-   - Commons: `https://commons.wikimedia.org/wiki/Special:Redirect/file/SpanishPod_newbie_lesson_A0116_dialogue.ogg`
+   - Commons: `https://commons.wikimedia.org/wiki/File:SpanishPod_newbie_lesson_A0116_dialogue.ogg`
+   - direct original: `https://upload.wikimedia.org/wikipedia/commons/5/54/SpanishPod_newbie_lesson_A0116_dialogue.ogg`
    - referencia Wikibooks: `Spanish by Choice/SpanishPod newbie lesson A0116`
 
 Los ficheros de SpanishPod publicados en Commons indican licencia Creative Commons Attribution 3.0 Unported. La validación registra SHA-256 de cada descarga.
@@ -102,11 +106,32 @@ Registrar, sin imponer todavía threshold de Release:
 
 ## Política de CI
 
-- un único run deliberado;
+- cada run pesado debe aportar evidencia nueva;
 - workflow manual-only fuera del instante de disparo;
 - sin artifacts;
 - sin guardar modelo, vídeos ni audio;
 - si falla, leer primero logs y corregir causa antes de cualquier rerun.
+
+## Intento 1 — infraestructura externa, no ASR
+
+Run `33652410474` — **FAILURE antes de descargar el modelo**:
+
+- smoke-test del evaluador: PASS;
+- build portable analysis: PASS;
+- A0006 descargado, SHA-256 `8868E068B1599C0010C3A2CF8B61D7EC3FDC2B8453EA0B97806EA2225DC19930`;
+- A0007 descargado, SHA-256 `2736966B5B1469FD030FBA15D61A44872A558C1F186592E6DAE27E86AE40D0E9`;
+- A0013 bloqueado por Wikimedia con HTTP `429 Too many requests` al usar `Special:Redirect/file` en peticiones consecutivas;
+- `large-v3-turbo` **no se descargó**;
+- inferencia ASR **no se ejecutó**;
+- por tanto, este run no constituye un resultado negativo del modelo ni del pipeline de análisis.
+
+Corrección para el siguiente intento:
+
+- URLs directas `upload.wikimedia.org` del fichero original;
+- User-Agent identificable;
+- retry/backoff limitado;
+- pausa entre descargas;
+- no modificar los thresholds ASR previamente fijados.
 
 ## Condición de cierre de 1C
 
