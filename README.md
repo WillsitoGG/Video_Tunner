@@ -2,19 +2,17 @@
 
 **Video_Tunner** es una aplicación portable para Windows 10/11 x64 orientada a la limpieza automática, inteligente, auditable y reversible de vídeo hablado.
 
-El producto debe aceptar vídeo con audio embebido o vídeo + audio externo. Antes de cualquier transcripción o decisión temporal debe existir un **master audio** correctamente asociado a la línea temporal del vídeo. Los originales nunca se sobrescriben.
+Debe aceptar vídeo con audio embebido o vídeo + audio externo. Antes de cualquier transcripción o decisión temporal debe existir un **master audio** correctamente asociado a la línea temporal del vídeo. Los originales nunca se sobrescriben.
 
 ## Requisitos estructurales
 
 ### Portable real
 
-Objetivo de distribución:
-
 ```text
 ZIP → descomprimir → ejecutar
 ```
 
-Sin instalador, permisos de administrador, Python preinstalado ni FFmpeg/ffprobe preinstalados. En modo portable las herramientas, modelos, configuración, temporales, cachés y logs deben resolverse desde el propio árbol de Video_Tunner.
+Sin instalador, permisos de administrador, Python preinstalado ni FFmpeg/ffprobe preinstalados. Herramientas, modelos, configuración, temporales, caches y logs deben resolverse desde el propio árbol portable.
 
 ### Dos modos de entrada
 
@@ -23,50 +21,69 @@ A) vídeo + audio embebido → master audio
 B) vídeo + audio externo → sync → master audio
 ```
 
-El modo B deberá admitir auto-sync con confianza, offset manual/override y detección/corrección validada de drift. Si no existe referencia suficiente, Video_Tunner no debe adivinar la sincronización.
-
-Ver `ROADMAP.md` para la secuencia técnica vigente.
+El modo B deberá admitir auto-sync con confidence, offset manual/override y detección/corrección validada de drift. Sin referencia suficiente, Video_Tunner no debe inventar la sincronización.
 
 ## Estado actual
 
-**Versión de desarrollo:** `0.1.0-dev`
+**Versión:** `0.1.0-dev`
 
-- Fase 0 — Bootstrap: **implementada**.
-- Fase 0.5 — Technology harvest: **cerrada**.
-- Fase 1A — Portable Foundation: **implementación del spike preparada; validación Windows real pendiente**.
-- Fase 1B — Ingesta dual + sincronización A/V: **pendiente**.
-- Fase 1C — Transcripción + VAD: **parcialmente implementada**; pendiente de master audio y validación runtime real.
-- Release pública: **ninguna**.
+- Fase 0 — Bootstrap: ✅
+- Fase 0.5 — Technology harvest: ✅
+- Fase 1A — Portable Foundation: **✅ core + stack ML frozen validados en Windows**
+- Fase 1B — Ingesta dual + sync/drift: **🔜 siguiente**
+- Fase 1C — Transcripción/VAD sobre master audio: 🟡 parte ya implementada
+- Release pública: ninguna
 
-Video_Tunner sigue siendo un producto/repo propio. `vcut`, `Cadence-Lab`, `ai-video-editor` y dependencias upstream se estudian mediante technology harvest selectivo y trazable.
+Video_Tunner sigue siendo un producto/repo propio. Los proyectos open source se aprovechan selectivamente y con trazabilidad; no se ha convertido en fork.
 
-## Fase 1A — Portable Foundation
+## Portable Foundation validada
 
-### Decisión de empaquetado
+### Core
 
-El spike usa **PyInstaller `onedir`**, actualmente fijado a `6.22.2` para la prueba.
+Run `33600174568`:
 
-Motivos:
+- PyInstaller 6.22.2 `onedir`;
+- `Video_Tunner.exe` con runtime Python empaquetado;
+- FFmpeg/ffprobe propios;
+- ejecución desde ruta aislada con espacios;
+- PATH sin Python ni FFmpeg externos;
+- `doctor`, `probe`, `clean`, render y ffprobe PASS;
+- ZIP temporal core: `122677058` bytes (~117 MiB);
+- 0 artifacts almacenados.
 
-- incluye el runtime Python sin exigir Python instalado al usuario;
-- mantiene un árbol explícito y auditable en lugar de extraer todo a temporales como un `onefile`;
-- permite situar `Tools/`, `Models/`, `Config/`, `Temp/`, `Cache/`, `Logs/` y `Output/` junto al ejecutable;
-- simplifica diagnosticar DLLs y dependencias antes de una Release.
+### Stack ML
 
-Nuitka queda como alternativa si PyInstaller demuestra problemas reales con CTranslate2/ONNX Runtime; no se introduce esa complejidad antes de necesitarla.
+Run `33621357438`:
 
-### Árbol portable objetivo del spike
+- `faster-whisper 1.2.1`;
+- `CTranslate2 4.8.1`;
+- `ONNX Runtime 1.29.0`;
+- `tokenizers 0.23.1`;
+- `PyAV 18.1.0`;
+- Silero VAD V6 ONNX dentro del frozen bundle;
+- imports y DLLs nativas PASS;
+- modelo `tiny` descargado dentro de `Models/whisper/tiny`;
+- inferencia posterior con `HF_HUB_OFFLINE=1` PASS;
+- 22 palabras transcritas;
+- 3 candidatos `pause`;
+- 0 ediciones automáticas;
+- ZIP runtime ML sin modelo: `212334854` bytes (~202.5 MiB);
+- 0 artifacts almacenados.
+
+Esto demuestra **viabilidad portable real del runtime ML CPU**. No valida todavía la calidad de `large-v3-turbo`, que se probará sobre master audio real.
+
+## Árbol portable
 
 ```text
 Video_Tunner/
 ├── Video_Tunner.exe
-├── _internal/                runtime empaquetado por PyInstaller
+├── _internal/
 ├── Tools/
-│   └── ffmpeg/
-│       └── bin/
-│           ├── ffmpeg.exe
-│           └── ffprobe.exe
+│   └── ffmpeg/bin/
+│       ├── ffmpeg.exe
+│       └── ffprobe.exe
 ├── Models/
+│   └── whisper/
 ├── Config/
 ├── Temp/
 ├── Cache/
@@ -75,34 +92,26 @@ Video_Tunner/
 └── portable-manifest.json
 ```
 
-### Modo portable estricto
+## Modelos Whisper
 
-Cuando Video_Tunner está congelado por PyInstaller —o durante pruebas con `VIDEO_TUNNER_PORTABLE_STRICT=1`—:
+Los modelos no se incrustan dentro del EXE:
 
-- FFmpeg/ffprobe sólo se buscan en `Tools/ffmpeg/bin`;
-- no existe fallback al `PATH`;
-- `Models/` se resuelve dentro del runtime;
-- `doctor` crea/verifica el layout local.
+```text
+Models/whisper/<modelo>/
+```
 
-En desarrollo no congelado se mantiene, temporalmente, soporte para `VIDEO_TUNNER_FFMPEG_DIR` y `PATH`.
+Comandos:
 
-### FFmpeg del spike
+```powershell
+Video_Tunner.exe model status large-v3-turbo
+Video_Tunner.exe model fetch large-v3-turbo
+```
 
-El script `build_portable_windows.ps1` descarga para el spike un build Windows x64 de la rama estable FFmpeg 9.0 de `BtbN/FFmpeg-Builds`, copia únicamente `ffmpeg.exe` y `ffprobe.exe` y registra la versión real en `portable-manifest.json`.
+`model fetch` usa staging bajo `Temp/model-downloads` y cache bajo `Cache/huggingface`. Un modelo no se considera disponible hasta encontrar al menos `config.json`, `model.bin` y `tokenizer.json`.
 
-**Importante:** el URL usado durante el spike es flotante dentro de la rama estable. Una Release final deberá fijar un asset/digest inmutable y cerrar la revisión de licencia/notices.
+En portable strict, `analyze` sólo usa el modelo si está completo bajo `Models/whisper`; no recurre silenciosamente a caches globales. La primera adquisición puede necesitar red; después la inferencia debe poder funcionar offline.
 
-### VAD: decisión de portabilidad
-
-Se elimina la dependencia directa `silero-vad` del extra `analysis`.
-
-Motivo: la distribución Python oficial de `silero-vad` añade Torch + torchaudio, mientras que `faster-whisper` ya incluye:
-
-- ONNX Runtime como dependencia;
-- su implementación de Silero VAD;
-- el asset `silero_vad_v6.onnx`.
-
-Video_Tunner reutiliza ese backend ONNX de `faster-whisper`, evitando duplicar un stack PyTorch pesado sólo para VAD.
+Modelo objetivo de producto: **`large-v3-turbo`**. `tiny` fue únicamente el fixture de validación del runtime portable.
 
 ## Pipeline objetivo
 
@@ -128,100 +137,77 @@ transcripción + VAD + análisis
  render + auditoría
 ```
 
-Candidato ≠ decisión ≠ edición.
+**Candidato ≠ decisión ≠ edición.**
 
-## Funcionalidad ya existente
+## Funcionalidad existente
 
-Validada en el entorno de desarrollo previo:
-
-- CLI `video-tunner`;
-- FFmpeg/ffprobe + `probe`;
+- CLI;
+- FFmpeg/ffprobe + probe;
 - Cleaner determinista de silencios;
-- `edit_plan.json`;
-- render H.264/AAC sin sobrescribir el original;
-- extracción WAV mono 16 kHz PCM16;
-- modelos/serialización de transcripción word-level;
+- Edit Plan + render;
+- WAV mono 16 kHz PCM16;
+- faster-whisper word-level;
 - TXT/JSON/SRT;
+- Silero VAD ONNX;
 - Candidate Analysis review-only;
 - SHA-256 del source;
-- tests unitarios y E2E sintéticos.
+- gestión local de modelos;
+- runtime portable core y ML Windows validados.
 
-Implementado pero aún pendiente de inferencia real:
+El `analyze` actual todavía parte del audio embebido del vídeo. Fase 1B/1C lo migrará a la abstracción de **master audio**.
 
-- `faster-whisper` + `large-v3-turbo`;
-- timestamps word-level reales;
-- VAD Silero ONNX mediante `faster-whisper`;
-- `video-tunner analyze` completo con backends reales.
-
-## Desarrollo local
+## Desarrollo
 
 ```powershell
 python -m pip install -e .
-```
-
-Análisis:
-
-```powershell
 python -m pip install -e ".[analysis]"
 ```
 
-Packaging del spike:
+Build core:
 
 ```powershell
-python -m pip install -e ".[packaging]"
-.\.github\scripts\build_portable_windows.ps1
+.\.github\scripts\build_portable_windows.ps1 -Profile core
 ```
 
-### Comandos
+Build ML:
+
+```powershell
+.\.github\scripts\build_portable_windows.ps1 -Profile analysis
+```
+
+Comandos principales:
 
 ```powershell
 video-tunner doctor
 video-tunner probe "video.mp4"
-video-tunner plan "video.mp4" --mode conservative --output edit_plan.json
+video-tunner model status large-v3-turbo
+video-tunner model fetch large-v3-turbo
 video-tunner clean "video.mp4" --mode conservative --output-dir Output
-video-tunner analyze "video.mp4" --language es --output-dir Output
+video-tunner analyze "video.mp4" --model large-v3-turbo --language es --output-dir Output
 video-tunner render "video.mp4" edit_plan.json "video_clean.mp4"
 ```
 
-`analyze` todavía consume el audio embebido del vídeo; se adaptará al concepto de `master audio` en Fase 1B/1C.
+## Siguiente paso: Fase 1B
 
-## Validación del portable spike
+Ahora toca construir la base de ingesta/sincronización antes de ampliar la IA:
 
-Workflow manual: `.github/workflows/portable-spike.yml`.
+1. contrato de entrada vídeo + audio embebido/externo;
+2. selección explícita de master audio;
+3. auto-sync por correlación con offset y confidence;
+4. offset manual/override;
+5. anchors multi-window y drift;
+6. corrección validada;
+7. metadata auditable de sync;
+8. tests sintéticos con offsets/drift conocidos.
 
-Debe comprobar en Windows:
-
-1. tests source;
-2. build `onedir`;
-3. FFmpeg + ffprobe propios;
-4. copia a una ruta aislada con espacios;
-5. eliminación de Python y FFmpeg del `PATH` de la prueba;
-6. `Video_Tunner.exe doctor`;
-7. creación de fixture con el FFmpeg empaquetado;
-8. `probe` desde el ejecutable;
-9. `clean` y render real;
-10. validación con el `ffprobe` empaquetado;
-11. tamaño + SHA-256 de un ZIP temporal;
-12. **no subir el ZIP como artifact de Actions**.
-
-Hasta que ese workflow pase no se afirmará que la base portable está validada.
-
-## Próximos pasos
-
-1. Ejecutar y corregir el Portable Foundation spike en Windows.
-2. Evaluar empaquetado del perfil ML (`faster-whisper` + CTranslate2 + ONNX Runtime) dentro del mismo `onedir`.
-3. Cerrar Fase 1A con evidencia real.
-4. Implementar Fase 1B: vídeo + audio externo, master audio, auto-sync, offset manual y drift.
-5. Adaptar `analyze` al master audio y validar Whisper/VAD reales.
-6. Sólo después construir retomas/repeticiones y la capa semántica.
+Después se adaptará `analyze` al master audio y se validará `large-v3-turbo` con vídeo hablado real en español.
 
 ## Principios
 
 - portable por diseño;
 - procesamiento local por defecto;
 - originales intactos;
-- línea temporal A/V fiable antes de IA;
-- candidato ≠ decisión ≠ edición;
+- sync fiable antes de IA temporal;
 - modo Conservador por defecto;
 - ante duda semántica o de sync, conservar/revisar;
 - GitHub como fuente de verdad;

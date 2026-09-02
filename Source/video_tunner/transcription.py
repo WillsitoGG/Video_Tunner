@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from .tools import model_root
+from .tools import model_root, portable_strict_mode, runtime_layout
 
 
 class TranscriptionDependencyError(RuntimeError):
+    pass
+
+
+class WhisperModelNotFoundError(RuntimeError):
     pass
 
 
@@ -42,6 +47,84 @@ class TranscriptResult:
         return sum(len(segment.words) for segment in self.segments)
 
 
+def _model_directory_name(model_name: str) -> str:
+    value = model_name.strip()
+    if not value:
+        raise ValueError("El nombre del modelo Whisper no puede estar vacío.")
+    return value.replace("\\", "__").replace("/", "__").replace(":", "_")
+
+
+def local_whisper_model_path(model_name: str) -> Path:
+    return model_root() / "whisper" / _model_directory_name(model_name)
+
+
+def whisper_model_status(model_name: str) -> dict[str, Any]:
+    path = local_whisper_model_path(model_name)
+    required = {
+        "config.json": (path / "config.json").is_file(),
+        "model.bin": (path / "model.bin").is_file(),
+        "tokenizer.json": (path / "tokenizer.json").is_file(),
+    }
+    return {
+        "model": model_name,
+        "path": str(path),
+        "available": path.is_dir() and all(required.values()),
+        "required_files": required,
+    }
+
+
+def download_whisper_model(model_name: str, *, replace: bool = False) -> Path:
+    """Download a faster-whisper model into the portable Models tree."""
+    try:
+        from faster_whisper.utils import download_model
+    except ImportError as exc:
+        raise TranscriptionDependencyError(
+            "Falta faster-whisper. El perfil portable de análisis debe incluir "
+            "las dependencias ML antes de descargar modelos."
+        ) from exc
+
+    destination = local_whisper_model_path(model_name)
+    if whisper_model_status(model_name)["available"] and not replace:
+        return destination
+
+    layout = runtime_layout()
+    cache_dir = layout["cache"] / "huggingface"
+    staging_root = layout["temp"] / "model-downloads"
+    staging = staging_root / f"{_model_directory_name(model_name)}.partial"
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    staging_root.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True, exist_ok=True)
+
+    try:
+        download_model(
+            model_name,
+            output_dir=str(staging),
+            cache_dir=str(cache_dir),
+        )
+        required = ("config.json", "model.bin", "tokenizer.json")
+        missing = [name for name in required if not (staging / name).is_file()]
+        if missing:
+            raise RuntimeError(
+                "La descarga del modelo Whisper está incompleta; faltan: "
+                + ", ".join(missing)
+            )
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            if not replace:
+                raise RuntimeError(
+                    f"Ya existe un modelo incompleto en {destination}. "
+                    "Usa --replace para sustituirlo."
+                )
+            shutil.rmtree(destination)
+        shutil.move(str(staging), str(destination))
+        return destination
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
 def _resolve_device_and_compute(device: str, compute_type: str) -> tuple[str, str]:
     if device not in {"auto", "cpu", "cuda"}:
         raise ValueError(f"Dispositivo Whisper no válido: {device}")
@@ -49,7 +132,6 @@ def _resolve_device_and_compute(device: str, compute_type: str) -> tuple[str, st
         return device if device != "auto" else "cpu", compute_type
     if device == "cuda":
         return "cuda", "float16"
-    # Conservative portable default. GPU selection will become explicit during packaging.
     return "cpu", "int8"
 
 
@@ -110,13 +192,28 @@ def transcribe_audio(
         ) from exc
 
     resolved_device, resolved_compute = _resolve_device_and_compute(device, compute_type)
+    local_model = local_whisper_model_path(model_name)
+    local_status = whisper_model_status(model_name)
+    if local_status["available"]:
+        model_source = str(local_model)
+        local_files_only = True
+    elif portable_strict_mode():
+        raise WhisperModelNotFoundError(
+            f"El modelo Whisper '{model_name}' no está disponible en {local_model}. "
+            f"Descárgalo primero con `video-tunner model fetch {model_name}`."
+        )
+    else:
+        model_source = model_name
+        local_files_only = False
+
     download_root = model_root() / "whisper"
     download_root.mkdir(parents=True, exist_ok=True)
     model = WhisperModel(
-        model_name,
+        model_source,
         device=resolved_device,
         compute_type=resolved_compute,
         download_root=str(download_root),
+        local_files_only=local_files_only,
     )
     raw_segments, info = model.transcribe(
         str(wav_path),

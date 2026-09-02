@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import importlib.util
 import json
 from pathlib import Path
@@ -19,7 +20,12 @@ from .tools import (
     runtime_root,
     tool_version,
 )
-from .transcription import TranscriptionDependencyError
+from .transcription import (
+    TranscriptionDependencyError,
+    WhisperModelNotFoundError,
+    download_whisper_model,
+    whisper_model_status,
+)
 from .vad import VadDependencyError
 
 
@@ -27,8 +33,27 @@ def _json(data: object) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False))
 
 
-def _module_status(module: str) -> str:
-    return "available" if importlib.util.find_spec(module) is not None else "missing"
+def _module_runtime_status(module: str) -> dict[str, str]:
+    if importlib.util.find_spec(module) is None:
+        return {"status": "missing"}
+    try:
+        loaded = importlib.import_module(module)
+    except Exception as exc:
+        return {"status": "error", "detail": f"{type(exc).__name__}: {exc}"}
+    version = getattr(loaded, "__version__", None)
+    return {"status": "available", **({"version": str(version)} if version else {})}
+
+
+def _silero_asset_status() -> dict[str, str | bool]:
+    if importlib.util.find_spec("faster_whisper") is None:
+        return {"available": False, "detail": "faster_whisper missing"}
+    try:
+        from faster_whisper.utils import get_assets_path
+
+        path = Path(get_assets_path()) / "silero_vad_v6.onnx"
+        return {"available": path.is_file(), "path": str(path)}
+    except Exception as exc:
+        return {"available": False, "detail": f"{type(exc).__name__}: {exc}"}
 
 
 def cmd_doctor(_: argparse.Namespace) -> int:
@@ -40,7 +65,12 @@ def cmd_doctor(_: argparse.Namespace) -> int:
         "runtime_layout": {key: str(value) for key, value in layout.items() if key != "root"},
         "model_root": str(model_root()),
         "analysis_dependencies": {
-            "faster_whisper": _module_status("faster_whisper"),
+            "faster_whisper": _module_runtime_status("faster_whisper"),
+            "ctranslate2": _module_runtime_status("ctranslate2"),
+            "onnxruntime": _module_runtime_status("onnxruntime"),
+            "tokenizers": _module_runtime_status("tokenizers"),
+            "av": _module_runtime_status("av"),
+            "silero_onnx": _silero_asset_status(),
             "vad_backend": "faster-whisper Silero ONNX",
         },
     }
@@ -55,6 +85,17 @@ def cmd_doctor(_: argparse.Namespace) -> int:
 
 def cmd_probe(args: argparse.Namespace) -> int:
     _json(probe_media(args.input))
+    return 0
+
+
+def cmd_model_status(args: argparse.Namespace) -> int:
+    _json(whisper_model_status(args.model))
+    return 0
+
+
+def cmd_model_fetch(args: argparse.Namespace) -> int:
+    path = download_whisper_model(args.model, replace=args.replace)
+    _json(whisper_model_status(args.model) | {"downloaded_to": str(path)})
     return 0
 
 
@@ -117,12 +158,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    doctor = sub.add_parser("doctor", help="Comprueba runtime portable, FFmpeg/ffprobe y análisis opcional.")
+    doctor = sub.add_parser("doctor", help="Comprueba runtime portable, FFmpeg/ffprobe y stack de análisis.")
     doctor.set_defaults(func=cmd_doctor)
 
     probe = sub.add_parser("probe", help="Inspecciona un archivo audiovisual con ffprobe.")
     probe.add_argument("input")
     probe.set_defaults(func=cmd_probe)
+
+    model = sub.add_parser("model", help="Gestiona modelos Whisper dentro del árbol local de Video_Tunner.")
+    model_sub = model.add_subparsers(dest="model_command", required=True)
+
+    model_status = model_sub.add_parser("status", help="Comprueba si un modelo Whisper local está completo.")
+    model_status.add_argument("model")
+    model_status.set_defaults(func=cmd_model_status)
+
+    model_fetch = model_sub.add_parser("fetch", help="Descarga un modelo Whisper dentro de Models/whisper.")
+    model_fetch.add_argument("model")
+    model_fetch.add_argument("--replace", action="store_true")
+    model_fetch.set_defaults(func=cmd_model_fetch)
 
     plan = sub.add_parser("plan", help="Detecta silencios con FFmpeg y genera un Edit Plan JSON.")
     plan.add_argument("input")
@@ -167,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         FileNotFoundError,
         ToolNotFoundError,
         TranscriptionDependencyError,
+        WhisperModelNotFoundError,
         VadDependencyError,
         ValueError,
         RuntimeError,

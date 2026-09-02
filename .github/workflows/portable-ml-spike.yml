@@ -1,0 +1,123 @@
+name: Portable ML Foundation Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-portable-ml-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-portable-ml:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build Python only
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run source tests with analysis dependencies
+        shell: pwsh
+        run: |
+          python -m pip install -e ".[analysis]"
+          python -m unittest discover -s tests -v
+
+      - name: Build analysis portable
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+
+      - name: Download small upstream speech fixture
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP "jfk.flac"
+          Invoke-WebRequest `
+            -Uri "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/v1.2.1/tests/data/jfk.flac" `
+            -OutFile $fixture
+          Write-Host "JFK_FIXTURE_SHA256=$((Get-FileHash $fixture -Algorithm SHA256).Hash)"
+
+      - name: Validate frozen ML stack and offline inference
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = Join-Path $PWD "dist\Video_Tunner"
+          $isolated = Join-Path $env:RUNNER_TEMP "Video Tunner ML Portable Test"
+          Remove-Item $isolated -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item $source $isolated -Recurse
+
+          $exe = Join-Path $isolated "Video_Tunner.exe"
+          $ffmpeg = Join-Path $isolated "Tools\ffmpeg\bin\ffmpeg.exe"
+          $fixture = Join-Path $env:RUNNER_TEMP "jfk.flac"
+          $video = Join-Path $isolated "Temp\spoken sample.mp4"
+          $output = Join-Path $isolated "Output\analysis with spaces"
+
+          $env:VIDEO_TUNNER_PORTABLE_STRICT = "1"
+          Remove-Item Env:VIDEO_TUNNER_FFMPEG_DIR -ErrorAction SilentlyContinue
+          Remove-Item Env:VIDEO_TUNNER_MODEL_DIR -ErrorAction SilentlyContinue
+          Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue
+          Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+          $env:HF_HOME = Join-Path $isolated "Cache\huggingface-home"
+          $env:HUGGINGFACE_HUB_CACHE = Join-Path $isolated "Cache\huggingface-hub"
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+
+          if (Get-Command python -ErrorAction SilentlyContinue) { throw "Python sigue disponible en PATH." }
+          if (Get-Command ffmpeg -ErrorAction SilentlyContinue) { throw "FFmpeg externo sigue disponible en PATH." }
+
+          $doctor = (& $exe doctor | Out-String | ConvertFrom-Json)
+          foreach ($module in @("faster_whisper", "ctranslate2", "onnxruntime", "tokenizers", "av")) {
+            if ($doctor.analysis_dependencies.$module.status -ne "available") {
+              throw "Dependencia frozen no operativa: $module"
+            }
+          }
+          if (-not $doctor.analysis_dependencies.silero_onnx.available) {
+            throw "El asset Silero ONNX no está disponible dentro del portable."
+          }
+
+          $before = (& $exe model status tiny | Out-String | ConvertFrom-Json)
+          if ($before.available) { throw "El spike esperaba empezar sin modelo tiny." }
+
+          & $exe model fetch tiny
+          if ($LASTEXITCODE -ne 0) { throw "La adquisición local del modelo tiny falló." }
+
+          $after = (& $exe model status tiny | Out-String | ConvertFrom-Json)
+          if (-not $after.available) { throw "El modelo tiny no quedó completo en Models/." }
+          if (-not $after.path.StartsWith((Join-Path $isolated "Models"))) {
+            throw "El modelo quedó fuera del árbol portable."
+          }
+
+          & $ffmpeg -hide_banner -loglevel error -y `
+            -f lavfi -i "color=c=black:s=320x240:r=25" `
+            -i $fixture -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac $video
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo crear el vídeo hablado de prueba." }
+
+          $env:HF_HUB_OFFLINE = "1"
+          & $exe analyze $video --model tiny --language en --device cpu --compute-type int8 --output-dir $output
+          if ($LASTEXITCODE -ne 0) { throw "Analyze frozen/offline falló." }
+
+          $transcriptPath = Join-Path $output "spoken sample_transcript.json"
+          $analysisPath = Join-Path $output "spoken sample_analysis.json"
+          if (-not (Test-Path $transcriptPath)) { throw "Falta transcript JSON." }
+          if (-not (Test-Path $analysisPath)) { throw "Falta analysis JSON." }
+
+          $transcript = Get-Content $transcriptPath -Raw | ConvertFrom-Json
+          if ($transcript.word_count -lt 5) { throw "La inferencia Whisper no produjo suficientes palabras." }
+
+          $analysis = Get-Content $analysisPath -Raw | ConvertFrom-Json
+          Write-Host "WHISPER_WORD_COUNT=$($transcript.word_count)"
+          Write-Host "ANALYSIS_CANDIDATES=$($analysis.summary.candidate_count)"
+
+      - name: Report ML package size and SHA without artifact
+        shell: pwsh
+        run: |
+          $portable = Join-Path $PWD "dist\Video_Tunner"
+          $zip = Join-Path $env:RUNNER_TEMP "Video_Tunner_portable_ml_spike.zip"
+          Compress-Archive -Path "$portable\*" -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+          $size = (Get-Item $zip).Length
+          Write-Host "PORTABLE_ML_SPIKE_BYTES=$size"
+          Write-Host "PORTABLE_ML_SPIKE_SHA256=$hash"
+          Write-Host "The ZIP is deliberately NOT uploaded as a GitHub Actions artifact."

@@ -1,254 +1,167 @@
 # ROADMAP — Video_Tunner
 
-Roadmap vigente tras fijar dos requisitos estructurales:
-
-1. aplicación portable Windows 10/11 x64;
-2. vídeo con audio embebido o vídeo + audio externo sincronizable.
-
-La prioridad es reducir riesgo técnico temprano: **portable + ingest/sync antes de ampliar IA semántica**.
-
 ## Principios
 
-- Portabilidad es invariante de arquitectura.
-- Master audio y relación temporal con vídeo deben resolverse antes de transcripción/VAD/semántica.
-- Originales intactos.
-- Sync/ediciones auditables.
-- Baja confianza => REVIEW/manual, no adivinar.
+- Windows 10/11 x64 portable: ZIP → descomprimir → ejecutar.
+- Vídeo con audio embebido o vídeo + audio externo.
+- Resolver master audio y sincronización antes de transcripción/VAD/semántica.
+- Originales intactos y decisiones auditables.
+- Ante baja confianza: revisión/manual, no adivinar.
 - CI pesada sólo cuando aporta evidencia nueva.
-
----
 
 ## Fase 0 — Bootstrap — COMPLETADA
 
-- repo/documentación;
-- Python CLI;
-- FFmpeg/ffprobe;
-- probe;
-- silence Cleaner;
-- Edit Plan;
-- render;
-- tests sintéticos;
-- CI manual.
+CLI, FFmpeg/ffprobe, probe, Cleaner de silencios, Edit Plan, render, tests y CI manual.
 
 ## Fase 0.5 — Technology Harvest — COMPLETADA
 
-- repo propio, no fork;
-- vcut/Cadence-Lab/ai-video-editor como referencias;
-- provenance trazable.
+Repo propio, no fork. vcut/Cadence-Lab/ai-video-editor como referencias selectivas y trazables.
 
----
+## Fase 1A — Portable Foundation — COMPLETADA
 
-## Fase 1A — Portable Foundation — EN CURSO
+### Core portable — PASS
 
-### 1A.1 Core portable spike — IMPLEMENTADO / RUN WINDOWS PENDIENTE
+Run `33600174568`:
 
-Decisiones:
+- PyInstaller 6.22.2 `onedir`;
+- `Video_Tunner.exe` + runtime Python;
+- FFmpeg/ffprobe locales;
+- layout `Models/Config/Temp/Cache/Logs/Output`;
+- PATH de prueba sin Python/FFmpeg externos;
+- `doctor`, `probe`, `clean`, render y ffprobe PASS;
+- ZIP temporal core `122677058` bytes;
+- 0 artifacts.
 
-- PyInstaller 6.22.2 `onedir` para el primer spike;
-- `Video_Tunner.exe` + `_internal/`;
-- FFmpeg/ffprobe locales en `Tools/ffmpeg/bin`;
-- `Models/Config/Temp/Cache/Logs/Output` locales;
-- frozen/strict runtime sin fallback a PATH;
-- workflow manual `portable-spike.yml`;
-- validación en ruta con espacios y PATH sin Python/FFmpeg;
-- ZIP temporal sólo para hash/tamaño, no artifact.
+### Stack ML portable — PASS
 
-FFmpeg del spike usa build Windows x64 GPL de la rama estable 9.0 de BtbN porque el renderer actual usa `libx264`. El URL flotante es aceptable sólo para el spike; Release debe fijar asset/digest.
+Run `33621357438`:
 
-### 1A.2 Simplificación VAD — IMPLEMENTADA
+- faster-whisper 1.2.1;
+- CTranslate2 4.8.1;
+- ONNX Runtime 1.29.0;
+- tokenizers 0.23.1;
+- PyAV 18.1.0;
+- Silero V6 ONNX bundled;
+- imports/DLLs frozen PASS;
+- modelo `tiny` adquirido dentro de `Models/whisper/tiny`;
+- `HF_HUB_OFFLINE=1` + `Video_Tunner.exe analyze` PASS;
+- 22 palabras y 3 candidatos pause;
+- 0 edits automáticos;
+- ZIP runtime ML sin modelo `212334854` bytes (~202.5 MiB);
+- 0 artifacts.
 
-Se elimina la dependencia directa `silero-vad`.
+### Decisiones 1A
 
-Nuevo backend:
+- PyInstaller `onedir` continúa como base provisional.
+- Modelos fuera del EXE bajo `Models/whisper/<modelo>`.
+- `model status` / `model fetch` y staging/cache locales.
+- Silero VAD vía faster-whisper/ONNX; no standalone Torch.
+- `large-v3-turbo` sigue siendo el modelo objetivo de producto; `tiny` sólo validó runtime.
+- La reducción del bundle ONNX queda para optimización posterior; no justifica otra Action ahora.
+
+## Fase 1B — Ingesta dual + sincronización A/V — SIGUIENTE
+
+### 1B.1 Contrato de ingesta
+
+Modo A:
 
 ```text
-faster-whisper
-  ├─ CTranslate2 → Whisper
-  └─ ONNX Runtime + silero_vad_v6.onnx → VAD
+video + audio embebido → master audio
 ```
 
-Esto evita empaquetar Torch + torchaudio sólo para VAD.
+Modo B:
 
-### 1A.3 Acceptance core
+```text
+video + audio externo → sincronización → audio externo sincronizado = master audio
+```
 
-El run Windows debe demostrar:
+Registrar vídeo, duración, pistas embebidas, audio externo opcional, propiedades de audio, master seleccionado, estado de sync y mapping temporal.
 
-- build `onedir`;
-- bundled FFmpeg/ffprobe;
-- no Python/FFmpeg externos;
-- doctor/probe/clean reales;
-- render validado con ffprobe bundled;
-- rutas con espacios;
-- package size/SHA.
+### 1B.2 Auto-sync por offset
 
-### 1A.4 ML frozen sub-spike — SIGUIENTE DENTRO DE 1A
+Cuando exista audio de referencia en cámara:
 
-Después de core PASS:
+1. extraer referencias mono;
+2. correlación gruesa;
+3. correlación fina;
+4. estimar offset positivo/negativo;
+5. calcular confidence;
+6. validar en varias ventanas.
 
-- instalar `.[analysis]` durante build;
-- congelar faster-whisper;
-- validar CTranslate2 DLLs;
-- validar ONNX Runtime DLLs;
-- comprobar inclusión/localización de `silero_vad_v6.onnx`;
-- comprobar modelo desde `<runtime>/Models`;
-- ejecutar VAD real mínimo;
-- ejecutar Whisper real con un modelo de prueba razonable;
-- medir tamaño portable core vs ML;
-- decidir si PyInstaller sigue siendo base o Nuitka aporta ventaja real.
+Debe tolerar niveles y ruido diferentes y audio externo empezando antes o después del vídeo.
 
-No descargar `large-v3-turbo` en CI ordinaria si un modelo menor puede demostrar exclusivamente packaging/runtime. La calidad STT se validará aparte con el modelo objetivo.
+### 1B.3 Fallback/manual
 
-### Cierre Fase 1A
+- CLI con audio externo opcional;
+- offset manual/override;
+- sin referencia suficiente no aplicar auto-sync;
+- metadata distingue estimación automática y override manual.
 
-No cerrar hasta demostrar:
+### 1B.4 Drift
 
-- core portable PASS Windows;
-- ML runtime portable viable;
-- estrategia de modelos local/offline definida;
-- dependencias/licencias principales identificadas;
-- tamaño y riesgos conocidos.
+- anchors en varias ventanas;
+- offset como función del tiempo;
+- drift estimado en ppm/ms por hora;
+- medir error residual;
+- aplicar corrección temporal sólo si mejora la alineación;
+- preservar pitch/calidad.
 
----
+### 1B.5 Metadata
 
-## Fase 1B — Ingesta dual + sincronización A/V
+Registrar método, offset, confidence, anchors, residuos, drift, corrección, override y avisos de cobertura.
 
-### Entradas
+### 1B.6 Tests
 
-A) vídeo con audio embebido → master audio.
+- embedded audio;
+- external ±offset conocido;
+- señal con niveles/ruido diferentes;
+- señal ambigua;
+- vídeo sin referencia de audio;
+- offset manual;
+- audio externo más corto/largo;
+- drift sintético;
+- consistencia temporal post-sync;
+- rutas con espacios.
 
-B) vídeo + audio externo → sync → master audio externo.
+### Cierre 1B
 
-### Auto-sync
+Master audio explícito, ingest embebido/externo, offset automático con confidence, fallback manual, drift validado y metadata auditable.
 
-- extracción de referencias mono;
-- correlación gruesa + fina;
-- offset positivo/negativo;
-- confidence;
-- validación multi-window;
-- anchors auditables;
-- manual override.
+## Fase 1C — Transcripción + VAD sobre master audio
 
-### Drift
-
-- estimar diferencia temporal progresiva;
-- registrar ppm/ms-h;
-- error residual;
-- corregir sólo si mejora validada;
-- preservar pitch y calidad.
-
-### Fallbacks
-
-- sin camera reference => manual offset/review;
-- low confidence => no auto-apply;
-- external audio shorter/longer => política explícita;
-- nunca alternar silenciosamente camera/external audio.
-
-### Tests
-
-- embedded;
-- external ±offset;
-- noisy signal;
-- ambiguous signal;
-- no reference;
-- manual override;
-- external coverage mismatch;
-- synthetic drift;
-- post-cut sync.
-
----
-
-## Fase 1C — Transcripción + VAD reales
-
-Sobre master audio ya resuelto:
-
-- faster-whisper `large-v3-turbo` como modelo objetivo;
-- word timestamps;
-- TXT/JSON/SRT;
-- Silero VAD ONNX via faster-whisper;
+- adaptar `analyze` a master audio;
+- `large-v3-turbo` como modelo objetivo;
+- word timestamps + TXT/JSON/SRT;
+- Silero VAD ONNX;
 - candidates;
-- cache local por hash cuando compense;
-- validación real en español y vídeo hablado.
-
-Parte del código ya existe; debe migrar de `video input audio` a abstracción de master audio.
-
----
+- validación real en español;
+- medir calidad/velocidad/tamaño del modelo objetivo.
 
 ## Fase 2 — Cleaner inteligente
 
-- retakes;
-- repetitions;
-- corrections/errors;
-- contextual fillers;
-- KEEP/TRIM/CUT/REVIEW;
-- semantic protection;
-- cifras/negaciones/nombres;
-- conservative/aggressive;
-- candidates → decisions → Edit Plan.
-
-No empezar antes de que 1A y 1B estén suficientemente demostradas.
-
----
+Retomas, repeticiones, correcciones, muletillas contextuales, KEEP/TRIM/CUT/REVIEW, protección semántica, confidence y modos Conservador/Agresivo.
 
 ## Fase 3 — Calidad audiovisual / auditoría
 
-- loudness normalization;
-- join smoothing;
-- denoise sólo con control/default seguro;
-- removedText;
-- join audit;
-- post-render verification;
-- informe HTML;
-- rendimiento.
-
----
+Normalización, joins, reducción de ruido controlada, removedText, audit, post-render verification, informe y rendimiento.
 
 ## Fase 4 — UX mínima
 
-- elegir vídeo;
-- audio externo opcional;
-- mostrar/confirmar sync;
-- conservative/aggressive;
-- analizar;
-- revisar;
-- renderizar;
-- abrir output/informe.
-
-CLI permanece para automation/tests.
-
----
+Seleccionar vídeo, audio externo opcional, confirmar sync, modo, analizar, revisar, renderizar y abrir outputs. Mantener CLI para tests/automatización.
 
 ## Fase 5 — Portable Release Hardening
 
-No inicia portabilidad; endurece lo probado desde 1A:
-
-- clean Windows build;
-- final ZIP;
-- immutable dependency versions/digests;
-- runtime/tools/models strategy;
-- zero-install;
-- offline after model acquisition;
-- SHA256 + manifest;
-- notices/licenses;
-- clean environment validation.
-
----
+Build Windows limpia, ZIP final, versiones/digests inmutables, optimización de bundle, estrategia final de modelos, SHA-256, manifest, notices/licencias y prueba zero-install/offline.
 
 ## Fase 6 — Extras
 
-Después del Cleaner fiable:
-
-- burned captions;
-- reframe;
-- zooms;
-- clips/shorts;
-- B-roll;
-- otras features editoriales.
+Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones sólo después de un Cleaner fiable.
 
 ## Orden inmediato
 
-1. Ejecutar/corregir **1A.1 portable core Windows**.
-2. Ejecutar/corregir **1A.4 ML frozen sub-spike**.
-3. Cerrar Fase 1A.
-4. Implementar **Fase 1B sync/master audio**.
-5. Adaptar `analyze` y validar Fase 1C real.
+1. Implementar Fase 1B: ingesta dual + master audio.
+2. Auto-sync offset + confidence + override manual.
+3. Drift multi-window + corrección validada.
+4. Adaptar `analyze` al master audio.
+5. Validar `large-v3-turbo` + VAD sobre vídeo hablado real en español.
 6. Entrar en Fase 2 semántica.
