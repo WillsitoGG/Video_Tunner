@@ -177,15 +177,48 @@ def build_analysis_report(
     *,
     mode: str,
     candidates: list[dict[str, Any]],
+    master_audio: str | Path | None = None,
+    master_probe: dict[str, Any] | None = None,
+    ingest_report: dict[str, Any] | None = None,
+    ingest_report_path: str | Path | None = None,
 ) -> dict[str, Any]:
     counts = Counter(candidate["kind"] for candidate in candidates)
+
+    master_block = None
+    if master_audio is not None:
+        master_path = Path(master_audio)
+        master_block = {
+            "file": master_path.name,
+            "duration_seconds": (
+                None if master_probe is None else master_probe.get("duration_seconds")
+            ),
+            "sha256": sha256_file(master_path),
+        }
+
+    ingest_block = None
+    if ingest_report is not None:
+        sync = ingest_report.get("sync") or {}
+        ingest_block = {
+            "report_file": (
+                None if ingest_report_path is None else Path(ingest_report_path).name
+            ),
+            "status": ingest_report.get("status"),
+            "input_mode": ingest_report.get("input_mode"),
+            "sync_method": sync.get("method"),
+            "timeline_convention": ingest_report.get("timeline_convention"),
+        }
+
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "source": {
             "file": Path(source).name,
             "duration_seconds": probe["duration_seconds"],
             "sha256": sha256_file(source),
+        },
+        "input": {
+            "master_audio": master_block,
+            "ingest": ingest_block,
         },
         "mode": mode,
         "engines": {
@@ -219,6 +252,7 @@ def build_analysis_report(
         "safety": {
             "candidates_are_not_edits": True,
             "semantic_protection_enabled": False,
+            "master_audio_is_timeline_source": master_audio is not None,
             "note": "Ningún candidato de esta fase se aplica automáticamente.",
         },
     }
