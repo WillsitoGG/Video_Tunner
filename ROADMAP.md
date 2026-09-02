@@ -40,26 +40,23 @@ La prioridad es reducir riesgo técnico temprano: **portable + ingest/sync antes
 
 ## Fase 1A — Portable Foundation — EN CURSO
 
-### 1A.1 Core portable spike — IMPLEMENTADO / RUN WINDOWS PENDIENTE
+### 1A.1 Core portable — PASS
 
-Decisiones:
+GitHub Actions run #1 (`33600174568`) validó en Windows:
 
-- PyInstaller 6.22.2 `onedir` para el primer spike;
+- PyInstaller 6.22.2 `onedir`;
 - `Video_Tunner.exe` + `_internal/`;
 - FFmpeg/ffprobe locales en `Tools/ffmpeg/bin`;
 - `Models/Config/Temp/Cache/Logs/Output` locales;
-- frozen/strict runtime sin fallback a PATH;
-- workflow manual `portable-spike.yml`;
-- validación en ruta con espacios y PATH sin Python/FFmpeg;
-- ZIP temporal sólo para hash/tamaño, no artifact.
+- ejecución desde ruta con espacios;
+- PATH de prueba sin Python ni FFmpeg externos;
+- `doctor`, `probe`, `clean`, render y ffprobe PASS;
+- ZIP temporal core `122677058` bytes;
+- no artifacts almacenados.
 
-FFmpeg del spike usa build Windows x64 GPL de la rama estable 9.0 de BtbN porque el renderer actual usa `libx264`. El URL flotante es aceptable sólo para el spike; Release debe fijar asset/digest.
+### 1A.2 Simplificación VAD — CERRADA
 
-### 1A.2 Simplificación VAD — IMPLEMENTADA
-
-Se elimina la dependencia directa `silero-vad`.
-
-Nuevo backend:
+Backend elegido:
 
 ```text
 faster-whisper
@@ -67,46 +64,67 @@ faster-whisper
   └─ ONNX Runtime + silero_vad_v6.onnx → VAD
 ```
 
-Esto evita empaquetar Torch + torchaudio sólo para VAD.
+No empaquetar standalone `silero-vad` + Torch/torchaudio salvo nueva evidencia que lo justifique.
 
-### 1A.3 Acceptance core
+### 1A.3 Modelo local/offline — IMPLEMENTADO / PENDIENTE DE RUN
 
-El run Windows debe demostrar:
+Estrategia:
 
-- build `onedir`;
-- bundled FFmpeg/ffprobe;
-- no Python/FFmpeg externos;
-- doctor/probe/clean reales;
-- render validado con ffprobe bundled;
-- rutas con espacios;
-- package size/SHA.
+```text
+Models/whisper/<modelo>/
+```
 
-### 1A.4 ML frozen sub-spike — SIGUIENTE DENTRO DE 1A
+- el modelo queda fuera del EXE y de `_internal`;
+- se puede cambiar de modelo sin recompilar;
+- `model fetch` descarga mediante staging local `Temp/model-downloads`;
+- cache de adquisición bajo `Cache/huggingface`;
+- sólo se publica como disponible tras verificar `config.json`, `model.bin`, `tokenizer.json`;
+- portable strict no resuelve silenciosamente modelos desde caches globales;
+- tras adquisición debe poder inferir offline.
 
-Después de core PASS:
+Modelo de producto previsto: `large-v3-turbo`.
+Modelo de spike: `tiny`, exclusivamente para demostrar packaging/runtime con coste razonable.
 
-- instalar `.[analysis]` durante build;
-- congelar faster-whisper;
-- validar CTranslate2 DLLs;
-- validar ONNX Runtime DLLs;
-- comprobar inclusión/localización de `silero_vad_v6.onnx`;
-- comprobar modelo desde `<runtime>/Models`;
-- ejecutar VAD real mínimo;
-- ejecutar Whisper real con un modelo de prueba razonable;
-- medir tamaño portable core vs ML;
-- decidir si PyInstaller sigue siendo base o Nuitka aporta ventaja real.
+### 1A.4 ML frozen sub-spike — SIGUIENTE VALIDACIÓN
 
-No descargar `large-v3-turbo` en CI ordinaria si un modelo menor puede demostrar exclusivamente packaging/runtime. La calidad STT se validará aparte con el modelo objetivo.
+Versiones críticas fijadas para reducir variabilidad:
+
+- faster-whisper 1.2.1;
+- CTranslate2 4.8.1;
+- ONNX Runtime 1.29.0;
+- tokenizers 0.23.1;
+- PyInstaller 6.22.2.
+
+Workflow manual: `.github/workflows/portable-ml-spike.yml`.
+
+Debe demostrar en una única ejecución deliberada:
+
+- source tests con stack analysis;
+- frozen imports reales, no sólo `find_spec`;
+- DLL loading CTranslate2 y ONNX Runtime;
+- PyAV/tokenizers;
+- asset Silero V6 ONNX empaquetado;
+- PATH aislado sin Python/FFmpeg externos;
+- `model fetch tiny` dentro de `Models/`;
+- fixture hablado upstream pequeño;
+- `HF_HUB_OFFLINE=1` después de adquirir modelo;
+- `analyze` frozen/offline con Whisper real + VAD real;
+- transcript con palabras;
+- analysis/candidates sin edits automáticos;
+- tamaño + SHA-256 del ZIP temporal;
+- cero artifacts pesados.
 
 ### Cierre Fase 1A
 
-No cerrar hasta demostrar:
+Cerrar cuando:
 
 - core portable PASS Windows;
-- ML runtime portable viable;
-- estrategia de modelos local/offline definida;
-- dependencias/licencias principales identificadas;
-- tamaño y riesgos conocidos.
+- ML runtime frozen PASS Windows;
+- estrategia Models local/offline demostrada;
+- dependencias principales/versiones conocidas;
+- tamaño y riesgos documentados.
+
+Si PyInstaller pasa el ML sub-spike, se mantiene como base provisional. Nuitka sólo se evalúa ante un problema o ventaja medible.
 
 ---
 
@@ -246,9 +264,8 @@ Después del Cleaner fiable:
 
 ## Orden inmediato
 
-1. Ejecutar/corregir **1A.1 portable core Windows**.
-2. Ejecutar/corregir **1A.4 ML frozen sub-spike**.
-3. Cerrar Fase 1A.
-4. Implementar **Fase 1B sync/master audio**.
-5. Adaptar `analyze` y validar Fase 1C real.
-6. Entrar en Fase 2 semántica.
+1. Ejecutar/corregir **1A.4 ML frozen sub-spike**.
+2. Cerrar Fase 1A si pasa.
+3. Implementar **Fase 1B sync/master audio**.
+4. Adaptar `analyze` y validar Fase 1C con `large-v3-turbo` sobre vídeo hablado real.
+5. Entrar en Fase 2 semántica.
