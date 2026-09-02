@@ -1,6 +1,8 @@
 param(
     [string]$Python = "python",
-    [string]$FfmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip"
+    [string]$FfmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip",
+    [ValidateSet("core", "analysis")]
+    [string]$Profile = "core"
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,8 +16,9 @@ Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $dist -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 
-& $Python -m pip install --disable-pip-version-check -e "${root}[packaging]"
-if ($LASTEXITCODE -ne 0) { throw "No se pudieron instalar dependencias de packaging." }
+$extras = if ($Profile -eq "analysis") { "analysis,packaging" } else { "packaging" }
+& $Python -m pip install --disable-pip-version-check -e "${root}[$extras]"
+if ($LASTEXITCODE -ne 0) { throw "No se pudieron instalar dependencias del perfil $Profile." }
 
 Write-Host "Downloading FFmpeg portable build..."
 Invoke-WebRequest -Uri $FfmpegUrl -OutFile $ffmpegZip
@@ -29,14 +32,23 @@ if (-not $ffmpegExe -or -not $ffprobeExe) {
     throw "El paquete FFmpeg descargado no contiene ffmpeg.exe y ffprobe.exe."
 }
 
-& $Python -m PyInstaller `
-    --noconfirm `
-    --clean `
-    --onedir `
-    --name Video_Tunner `
-    --paths (Join-Path $root "Source") `
-    --contents-directory "_internal" `
-    (Join-Path $root "packaging\entrypoint.py")
+$pyinstallerArgs = @(
+    "--noconfirm",
+    "--clean",
+    "--onedir",
+    "--name", "Video_Tunner",
+    "--paths", (Join-Path $root "Source"),
+    "--contents-directory", "_internal"
+)
+
+if ($Profile -eq "analysis") {
+    foreach ($package in @("faster_whisper", "ctranslate2", "onnxruntime", "tokenizers", "av")) {
+        $pyinstallerArgs += @("--collect-all", $package)
+    }
+}
+
+$pyinstallerArgs += (Join-Path $root "packaging\entrypoint.py")
+& $Python -m PyInstaller @pyinstallerArgs
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller no pudo generar el portable." }
 
 $portable = Join-Path $dist "Video_Tunner"
@@ -51,9 +63,15 @@ foreach ($folder in @("Models", "Temp", "Cache", "Config", "Logs", "Output")) {
 
 $ffmpegVersion = (& (Join-Path $ffmpegBin "ffmpeg.exe") -version | Select-Object -First 1)
 $ffprobeVersion = (& (Join-Path $ffmpegBin "ffprobe.exe") -version | Select-Object -First 1)
+$resolvedPackages = @{}
+foreach ($package in @("faster-whisper", "ctranslate2", "onnxruntime", "tokenizers", "av", "huggingface-hub")) {
+    $version = (& $Python -c "import importlib.metadata as m; print(m.version('$package'))" 2>$null)
+    if ($LASTEXITCODE -eq 0) { $resolvedPackages[$package] = ($version | Out-String).Trim() }
+}
+
 $manifest = [ordered]@{
-    schema_version = 1
-    profile = "portable-core-spike"
+    schema_version = 2
+    profile = "portable-$Profile-spike"
     created_utc = (Get-Date).ToUniversalTime().ToString("o")
     pyinstaller = "6.22.2"
     python_build = (& $Python --version 2>&1 | Out-String).Trim()
@@ -61,10 +79,12 @@ $manifest = [ordered]@{
     ffmpeg_archive_sha256 = $ffmpegArchiveSha256
     ffmpeg = $ffmpegVersion
     ffprobe = $ffprobeVersion
-    analysis_stack_included = $false
-    note = "Spike build only. FFmpeg URL floats within the n9.0 latest branch; final release must pin an immutable asset/digest."
+    analysis_stack_included = ($Profile -eq "analysis")
+    resolved_packages = $resolvedPackages
+    models_bundled = @()
+    note = "Spike build. Models are acquired into Models/ at runtime; final release must pin immutable dependency and FFmpeg provenance."
 }
-$manifest | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $portable "portable-manifest.json")
+$manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $portable "portable-manifest.json")
 
 Write-Host "Portable generated at: $portable"
 & (Join-Path $portable "Video_Tunner.exe") doctor
