@@ -105,14 +105,16 @@ jobs:
             throw "Drift espurio excesivo: $($report.sync.drift_ppm) ppm"
           }
 
+          $videoDuration = [double]$report.video.duration_seconds
           $masterDuration = [double](ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $masterPath)
-          if ([Math]::Abs($masterDuration - 90.0) -gt 0.10) {
-            throw "Duración master inesperada: $masterDuration"
+          if ([Math]::Abs($masterDuration - $videoDuration) -gt 0.10) {
+            throw "Master/timeline divergen: video=$videoDuration master=$masterDuration"
           }
 
           Write-Host "SYNC_OFFSET_SECONDS=$($report.sync.offset_seconds)"
           Write-Host "SYNC_CONFIDENCE=$($report.sync.confidence)"
           Write-Host "SYNC_DRIFT_PPM=$($report.sync.drift_ppm)"
           Write-Host "SYNC_ANCHORS=$($report.sync.anchors.Count)"
+          Write-Host "SYNC_VIDEO_DURATION=$videoDuration"
           Write-Host "SYNC_MASTER_DURATION=$masterDuration"
           Write-Host "No artifacts are uploaded by this workflow."
