@@ -111,10 +111,75 @@ La implementación Python de este milestone es propia de Video_Tunner.
 
 `tests/test_semantic_pipeline_integration.py` comprueba que `analyze` incorpora el candidato al `analysis.json`, le asigna ID estable y conserva `automatic_edits=0`.
 
-## Pendiente del milestone
+## Validación Windows
 
-- CI Windows ligera de source/tests;
-- prueba sobre transcript real con errores/retomas deliberados;
-- capa de decisión KEEP/TRIM/CUT/REVIEW;
-- protección de números, negaciones, sujeto, tiempo verbal y entidades;
-- ninguna promoción a Edit Plan hasta completar esas guardas.
+### Run `33659514611` — FAILURE de infraestructura de test, no regresión semántica
+
+El primer run ejecutó correctamente los 7 nuevos tests semánticos, pero falló en tres E2E preexistentes de auto-sync porque `Manual CI` instalaba sólo `pip install -e .` mientras esos tests requerían NumPy.
+
+Error observado:
+
+```text
+SyncDependencyError: La sincronización automática requiere NumPy.
+```
+
+No falló ningún detector semántico. La corrección fue mantener la CI ligera pero instalar explícitamente `numpy==2.5.2`; no se desactivó ni se omitió ningún E2E de sync.
+
+### Run `33659725847` — SUCCESS
+
+Configuración deliberadamente ligera:
+
+- Windows runner;
+- paquete editable;
+- NumPy 2.5.2 para sync;
+- FFmpeg/ffprobe de desarrollo;
+- sin faster-whisper/CTranslate2/ONNX;
+- sin build portable ni modelos.
+
+Resultado:
+
+```text
+Ran 48 tests in 6.469s
+OK
+```
+
+Incluye:
+
+- todos los tests previos de core;
+- sync positivo/negativo/drift/flat-signal;
+- los 6 tests unitarios de semantic candidates;
+- integración de semantic candidate en `analysis.json`;
+- `video-tunner doctor` PASS.
+
+Artifacts almacenados: `0`.
+
+El workflow quedó restaurado a `workflow_dispatch` únicamente y el marker one-shot fue eliminado.
+
+## Estado del milestone
+
+**Semantic Candidates v1: COMPLETADO y validado.**
+
+Este cierre demuestra detección review-only y trazabilidad, no calidad editorial final sobre un corpus de errores hablados reales.
+
+## Siguiente milestone
+
+Construir la capa de **semantic decisions / protection** antes de permitir cualquier promoción al Edit Plan.
+
+Protecciones mínimas:
+
+- números, importes, porcentajes y unidades;
+- negaciones;
+- sujeto/persona;
+- tiempo verbal/aspecto;
+- nombres/entidades relevantes cuando puedan identificarse;
+- correcciones explícitas y relación intento → versión corregida;
+- límites de word timing;
+- validación de que `removed_text` coincide exactamente con el span propuesto.
+
+Salida inicial permitida:
+
+```text
+KEEP / REVIEW / proposed TRIM / proposed CUT
+```
+
+pero `executable=false` y `auto_apply=false` hasta completar guardas y validación específica con habla que contenga retomas/errores deliberados.
