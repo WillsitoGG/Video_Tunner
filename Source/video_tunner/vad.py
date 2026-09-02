@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 
 class VadDependencyError(RuntimeError):
@@ -45,35 +44,37 @@ def detect_speech(
     min_silence_ms: int = 250,
     speech_pad_ms: int = 100,
 ) -> list[SpeechInterval]:
-    """Detect speech with the packaged silero-vad Python library.
+    """Detect speech using faster-whisper's bundled Silero VAD ONNX model.
 
-    No network call is performed by Video_Tunner. The dependency/model packaging
-    will be validated separately for the final Windows portable build.
+    This deliberately avoids the standalone ``silero-vad`` Python package,
+    whose default installation brings Torch and torchaudio. faster-whisper
+    already depends on ONNX Runtime and ships the Silero VAD ONNX asset needed
+    for its own VAD implementation, so reusing that backend keeps the portable
+    dependency graph smaller.
     """
     wav_path = Path(audio_wav)
     if not wav_path.is_file():
         raise FileNotFoundError(f"No existe el WAV de análisis: {wav_path}")
+
     try:
-        from silero_vad import get_speech_timestamps, load_silero_vad, read_audio
+        from faster_whisper.audio import decode_audio
+        from faster_whisper.vad import VadOptions, get_speech_timestamps
     except ImportError as exc:
         raise VadDependencyError(
-            "Falta silero-vad. Instala las dependencias de análisis con "
+            "Falta faster-whisper/ONNX Runtime. Instala las dependencias de análisis con "
             "`python -m pip install -e .[analysis]`."
         ) from exc
 
-    model = load_silero_vad()
-    audio = read_audio(str(wav_path), sampling_rate=16000)
-    timestamps: list[dict[str, Any]] = get_speech_timestamps(
-        audio,
-        model,
-        sampling_rate=16000,
+    audio = decode_audio(str(wav_path), sampling_rate=16000)
+    options = VadOptions(
         threshold=threshold,
+        min_speech_duration_ms=0,
         min_silence_duration_ms=min_silence_ms,
         speech_pad_ms=speech_pad_ms,
-        return_seconds=True,
     )
+    timestamps = get_speech_timestamps(audio, vad_options=options, sampling_rate=16000)
     return [
-        SpeechInterval(start=float(item["start"]), end=float(item["end"]))
+        SpeechInterval(start=float(item["start"]) / 16000.0, end=float(item["end"]) / 16000.0)
         for item in timestamps
         if float(item["end"]) > float(item["start"])
     ]

@@ -1,133 +1,130 @@
 # Upstream Sources / Technology Harvest
 
-Video_Tunner es un producto propio y **no es un fork** de ninguno de los proyectos siguientes.
+Video_Tunner es producto propio y **no es un fork**.
 
-Este documento registra proyectos open source estudiados como referencia para evitar reinventar trabajo ya resuelto y para poder revisar sus mejoras futuras de forma trazable.
+Política:
 
-## Política
-
-Para cada upstream:
-
-1. registrar repositorio, licencia y commit revisado;
-2. distinguir entre idea/referencia, código adaptado y código vendorizado;
-3. si se incorpora código, conservar las atribuciones/licencias exigibles;
-4. portar sólo lo necesario para Video_Tunner;
-5. no asumir que una mejora upstream es segura: debe volver a validarse en nuestro contexto.
-
-En la iteración `phase1-transcription-vad` **no se copió ni vendorizó código fuente** de los tres proyectos auditados. Las implementaciones son propias e informadas por patrones observados.
+1. registrar repositorio/licencia/commit de referencia;
+2. distinguir idea, integración, adaptación y vendorización;
+3. copiar sólo cuando sea necesario y mantener notices;
+4. toda mejora upstream se revalida en Video_Tunner;
+5. revisar nuevas releases/commits aunque no exista relación de fork.
 
 ## Railly/vcut
 
 - Repo: `Railly/vcut`
 - Licencia observada: MIT
-- Commit de referencia revisado: `2142cc54dc01a0d2272f1d99717b89cd1c7c9262` (2026-08-17)
-- Rol para Video_Tunner: upstream principal de referencia.
+- Referencia revisada: `2142cc54dc01a0d2272f1d99717b89cd1c7c9262` (2026-08-17)
+- Rol: EDL/auditabilidad/joins/repeats/retakes/agent-first/audio-offset.
 
-Ideas/patrones que queremos conservar:
+Patrones útiles:
 
-- EDL/Edit Plan como fuente de verdad de la edición;
-- original hasheado y protegido;
-- propuestas separadas de aprobación/render;
-- `removedText` y auditoría de joins;
-- render reproducible y validado contra el plan;
-- experiencia agent-first;
-- detección/diagnóstico específico de repeticiones y retomas;
-- aprendizaje empírico sobre timestamps de Whisper, especialmente en español;
-- soporte conceptual de audio externo y `audio-offset`, útil como referencia para nuestro master-audio pipeline.
+- edits as data;
+- source protection/hash;
+- proposals vs approval;
+- removedText/join checks;
+- reproducible render;
+- diagnostics sobre repeats/restarts en Whisper.
 
-Para Video_Tunner el alcance será mayor en sincronización:
-
-- auto-sync por señal cuando exista audio de cámara como referencia;
-- score/confianza de alineación;
-- fallback/override manual;
-- detección de drift en grabaciones largas;
-- corrección del drift sólo después de validación.
-
-No adoptamos automáticamente:
-
-- stack Node/TypeScript;
-- dependencia externa obligatoria de herramientas en PATH;
-- arquitectura completa del CLI;
-- cualquier heurística sin validación propia.
+No adoptamos stack Node completo ni herramientas externas obligatorias.
 
 ## timkulbaev/ai-video-editor
 
 - Repo: `timkulbaev/ai-video-editor`
 - Licencia observada: MIT
-- Commit de referencia revisado: `cce2114019ca237a5e38468789ddac5eb764b9bd` (2026-02-24)
-- Rol para Video_Tunner: referencia de pipeline Python talking-head.
+- Referencia revisada: `cce2114019ca237a5e38468789ddac5eb764b9bd` (2026-02-24)
+- Rol: referencia de pipeline Python talking-head.
 
-Ideas/patrones revisados:
+Útil:
 
-- separación `extract audio → VAD → Whisper → decisions → assembly`;
-- uso de Silero VAD;
-- uso de faster-whisper con timestamps por palabra;
-- configuración modular del pipeline.
+- extract audio → VAD → Whisper → decisions → assembly;
+- modularidad.
 
-No adoptamos su heurística de eliminar automáticamente bursts cortos: en Video_Tunner los candidatos no semánticos permanecen sin aplicar hasta disponer de protección suficiente.
+No adoptamos eliminación automática de bursts cortos.
 
 ## JosephLeon/Cadence-Lab
 
 - Repo: `JosephLeon/Cadence-Lab`
 - Licencia observada: MIT
-- Commit de referencia revisado: `e4302c58723db54dc2ff82e3d957159f5812d79c` (2026-06-19)
-- Rol para Video_Tunner: referencia para la futura capa semántica.
+- Referencia revisada: `e4302c58723db54dc2ff82e3d957159f5812d79c` (2026-06-19)
+- Rol: futura capa semántica.
 
-Ideas/patrones que interesan:
+Útil:
 
-- clasificar pausas por función, no sólo por amplitud;
-- distinguir `KEEP / TRIM / CUT`;
-- tratar respiraciones de forma diferente a silencios vacíos;
-- precomputar candidatos deterministas y pedir al modelo que clasifique un conjunto acotado;
-- detectar retomas mediante contexto completo;
-- cachear análisis por hash para no repetir trabajo caro.
+- clasificar función de pausas;
+- KEEP/TRIM/CUT;
+- context-aware retakes;
+- deterministic candidates + bounded model decision;
+- cache por content hash.
 
-No adoptamos como requisito:
+No adoptamos dependencia obligatoria Claude/Groq ni UI completa.
 
-- dependencia obligatoria de Claude/Groq;
-- su stack/UI completos;
-- decisiones semánticas automáticas sin modo conservador y trazabilidad propia.
+## SYSTRAN/faster-whisper
 
-## Dependencias directas de análisis
+- Repo: `SYSTRAN/faster-whisper`
+- Rol: dependencia directa de análisis y upstream de STT/VAD.
+- Rango actual Video_Tunner: `>=1.2,<2`.
 
-La implementación actual añade como dependencias opcionales:
+### STT
 
-- `faster-whisper` — transcripción local y timestamps por palabra;
-- `silero-vad` — voice activity detection local.
+Se utiliza para Whisper mediante CTranslate2 y word timestamps.
 
-### Riesgo de portabilidad de Silero
+### VAD — decisión Fase 1A
 
-La distribución oficial `silero-vad` 6.2.1 declara `torch` y `torchaudio` como dependencias base y ofrece `onnxruntime` como extra. Dado que Video_Tunner debe ser portable, no damos por cerrada la elección de runtime VAD.
+Video_Tunner deja de depender del paquete standalone `silero-vad`.
 
-Antes de ampliar el pipeline semántico se realizará un spike comparativo de:
+La implementación actual de faster-whisper contiene:
 
-- Torch;
-- ONNX Runtime;
-- tamaño final del paquete;
-- DLLs/transitivas;
-- compatibilidad Windows;
-- rendimiento CPU;
-- facilidad de actualización y licencia/notices.
+- `faster_whisper.vad` adaptado de Silero;
+- `SileroVADModel` ejecutado con ONNX Runtime;
+- asset `silero_vad_v6.onnx`;
+- `faster_whisper.audio.decode_audio` para entrada 16 kHz;
+- ONNX Runtime ya dentro de sus dependencias.
 
-La decisión se tomará con medidas reales, no por preferencia teórica.
+Esto permite compartir stack con STT y evita añadir Torch + torchaudio exclusivamente para VAD.
 
-## Seguimiento futuro
+La integración se hace mediante API Python del paquete; no se copia el código de faster-whisper a Video_Tunner.
 
-No necesitamos ser fork para aprovechar nuevas mejoras. Cuando alguno de estos upstreams evolucione:
+Riesgo portable pendiente: PyInstaller debe recopilar correctamente el asset ONNX y DLLs de onnxruntime/CTranslate2. Se validará en Fase 1A ML frozen sub-spike.
 
-1. comparar releases/commits relevantes con el commit de referencia anterior;
-2. identificar fixes transferibles;
-3. adaptar o reimplementar el cambio en Video_Tunner;
+## snakers4/silero-vad
+
+- Repo: `snakers4/silero-vad`
+- Licencia observada: MIT
+- Versión revisada durante Fase 1A: 6.2.1.
+- Rol actual: upstream conceptual del modelo VAD, **no dependencia Python directa** de Video_Tunner.
+
+Motivo: su paquete Python declara Torch + torchaudio como dependencias base. Para nuestro portable es redundante porque faster-whisper ya incorpora el modelo ONNX/engine necesario.
+
+## PyInstaller
+
+- Proyecto: PyInstaller
+- Versión fijada para spike: `6.22.2`.
+- Rol: empaquetado Windows `onedir` del runtime Python.
+
+Es una decisión provisional de Fase 1A, no compromiso irreversible. Nuitka se evalúa sólo si aparece un problema/ventaja medible.
+
+## BtbN/FFmpeg-Builds
+
+- Repo: `BtbN/FFmpeg-Builds`
+- Rol: proveedor del binario FFmpeg/ffprobe durante el portable spike.
+- Spike: Windows x64 GPL rama estable 9.0.
+
+El renderer actual necesita `libx264`, de ahí el perfil GPL del spike.
+
+El URL usado por el script es flotante en el spike. Antes de Release:
+
+- elegir asset inmutable;
+- verificar SHA/digest;
+- fijar versión;
+- revisar notices/licencia/obligaciones de distribución.
+
+## Seguimiento
+
+Cuando un upstream evolucione:
+
+1. comparar con referencia anterior;
+2. identificar fix transferible;
+3. adaptar/integrar de forma mínima;
 4. añadir tests propios;
-5. actualizar este documento con el nuevo commit de referencia cuando corresponda.
-
-## Revisión de licencia para portable
-
-Antes de cualquier Release portable se revisarán específicamente licencias/notices de:
-
-- FFmpeg;
-- faster-whisper;
-- CTranslate2;
-- Silero VAD / ONNX Runtime o runtime finalmente elegido;
-- modelos incluidos o descargables;
-- dependencias transitivas efectivamente distribuidas.
+5. actualizar este fichero cuando el nuevo commit sea realmente relevante.
