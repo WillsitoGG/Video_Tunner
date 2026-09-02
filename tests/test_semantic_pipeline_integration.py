@@ -35,7 +35,7 @@ def repeated_transcript() -> TranscriptResult:
 
 
 class SemanticPipelineIntegrationTests(unittest.TestCase):
-    def test_analyze_emits_auditable_review_only_repetition(self):
+    def test_analyze_emits_candidate_and_separate_non_executable_decision(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             source = root / "video.mp4"
@@ -104,7 +104,21 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
             self.assertEqual(repetition["evidence"]["keep_occurrence"], "later")
             self.assertEqual(repetition["suggested_decision"], "REVIEW")
             self.assertFalse(repetition["auto_apply"])
+
+            decision = next(
+                item
+                for item in report["semantic_decisions"]
+                if item["candidate_id"] == repetition["id"]
+            )
+            self.assertEqual(report["schema_version"], 3)
+            self.assertEqual(decision["decision"], "PROPOSED_CUT")
+            self.assertEqual(decision["guard_status"], "pass")
+            self.assertFalse(decision["executable"])
+            self.assertFalse(decision["auto_apply"])
             self.assertEqual(report["summary"]["automatic_edits"], 0)
+            self.assertEqual(report["summary"]["semantic_decisions"]["executable"], 0)
+            self.assertTrue(report["safety"]["semantic_protection_enabled"])
+            self.assertTrue(report["safety"]["semantic_decisions_are_not_edits"])
 
 
 if __name__ == "__main__":
