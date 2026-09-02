@@ -8,6 +8,7 @@ from .candidates import build_analysis_report, build_candidates, save_analysis_r
 from .edit_plan import MODE_SETTINGS
 from .ingest import ingest_video
 from .media import probe_media
+from .semantic_candidates import build_semantic_candidates
 from .transcription import (
     transcribe_audio,
     write_srt,
@@ -76,6 +77,22 @@ def _validate_ingest_provenance(
         )
 
 
+def _append_semantic_candidates(
+    candidates: list[dict[str, Any]],
+    semantic_candidates: list[dict[str, Any]],
+) -> None:
+    """Append semantic candidates with stable IDs; never turn them into edits."""
+    counters: dict[str, int] = {}
+    for candidate in semantic_candidates:
+        kind = str(candidate["kind"])
+        counters[kind] = counters.get(kind, 0) + 1
+        candidate["id"] = f"{kind}-{counters[kind]:04d}"
+        candidate["auto_apply"] = False
+        candidate["decision"] = "undecided"
+        candidates.append(candidate)
+    candidates.sort(key=lambda item: (float(item["start"]), float(item["end"]), item["kind"]))
+
+
 def analyze_spoken_video(
     source: str | Path,
     output_dir: str | Path,
@@ -96,6 +113,7 @@ def analyze_spoken_video(
     Whisper and Silero VAD always consume the same master audio. Because the
     master is materialized on the video timeline, all transcript/VAD timestamps
     remain video-timeline timestamps regardless of embedded/external origin.
+    Semantic candidates are evidence-only and never become edits in this stage.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
@@ -169,6 +187,10 @@ def analyze_spoken_video(
         speech,
         duration=float(source_probe["duration_seconds"]),
         mode=mode,
+    )
+    _append_semantic_candidates(
+        candidates,
+        build_semantic_candidates(transcript, mode=mode),
     )
 
     stem = source_path.stem

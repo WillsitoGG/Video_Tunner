@@ -28,7 +28,7 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 1A — Portable Foundation: ✅
 - Fase 1B — Ingesta dual + sync/drift: ✅
 - Fase 1C — Transcripción/VAD sobre master audio + `large-v3-turbo` español real: ✅
-- Fase 2 — Cleaner semántico: siguiente milestone
+- Fase 2 — Cleaner semántico: 🟡 **Semantic Candidates v1 completado; decision/protection layer pendiente**
 - Release pública: ninguna
 
 Video_Tunner sigue siendo producto/repo propio, no un fork.
@@ -118,46 +118,88 @@ Reglas:
 
 ### Integración portable — run `33640872486`
 
-**SUCCESS a la primera**:
-
 - 41 source tests PASS;
 - build frozen analysis PASS;
-- NumPy + stack ML + Silero ONNX operativos sin Python/FFmpeg externos en PATH;
-- inferencia posterior con `HF_HUB_OFFLINE=1`;
-- embedded con audio retrasado: **89 palabras**, 11 pause candidates, vídeo/master `45.6 / 45.6 s`;
-- external auto-sync: **88 palabras**, 9 pause candidates;
-- offset real `+0.500 s` → estimado **`+0.49581 s`** (~4.19 ms de error);
-- confidence `1.0`;
-- drift estimado `192.308 ppm`;
-- vídeo/master external `44.58275 / 44.58275 s`;
+- embedded y external master PASS;
+- offset real `+0.500 s` → estimado `+0.49581 s`;
+- inferencia offline;
 - automatic edits: `0`;
 - artifacts: `0`.
 
-Ver `Validation/master-audio-analysis-spike.md`.
-
 ### Modelo objetivo + español real — run `33656235038`
-
-**SUCCESS** con el portable frozen, CPU `int8`, idioma `es` e inferencia offline:
 
 - fixture hablado real: `46.58025 s`, 61 palabras de referencia;
 - hipótesis: 62 palabras;
-- errores a nivel palabra: `1`;
+- errores: `1`;
 - **WER `1.64%`** frente al criterio predefinido `<= 15%`;
-- word timestamps: todos los checks PASS;
-- mediana de duración de palabra: `0.36 s`;
+- word timestamps: PASS;
 - análisis: `22.609 s`;
-- **RTF `0.4854`** (~2.06× tiempo real en ese runner Windows);
+- **RTF `0.4854`**;
 - RAM pico: **1818.7 MiB**;
-- modelo staged: **1546.5 MiB** (`1621665983` bytes);
-- descarga directa del snapshot fijado: `11.032 s`;
+- modelo staged: **1546.5 MiB**;
 - candidates: `16`;
 - automatic edits: `0`;
 - vídeo/master: `46.58025 / 46.58025 s`;
 - artifacts: `0`.
 
-El único error textual fue una `y` extra al final. Los cuatro intentos anteriores del spike fallaron **antes de inferencia** por infraestructura/adquisición y están documentados en `Validation/spanish-large-v3-turbo-plan.md`.
+Con esta evidencia se cerró Fase 1C. Ver `Validation/master-audio-analysis-spike.md` y `Validation/spanish-large-v3-turbo-plan.md`.
 
-Con esta evidencia se cumplen las condiciones de cierre de Fase 1C.
+## Fase 2 — Semantic Candidates v1
+
+`analyze` añade ahora una primera capa semántica **determinista y review-only** sobre los word timestamps.
+
+Clases iniciales:
+
+```text
+possible_repetition
+possible_retake
+explicit_correction
+```
+
+Ejemplos:
+
+```text
+vamos a lanzar | vamos a lanzar el producto
+^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^
+candidato        lectura posterior conservada
+```
+
+```text
+la facturación fue de 200 perdón de 250 mil euros
+                          ^^^^^^^
+                          marcador detectado
+```
+
+En una corrección explícita, Video_Tunner **no adivina todavía** que todo lo anterior al marcador deba borrarse. El candidato del marcador conserva contexto antes/después para que la futura capa semántica pueda distinguir, por ejemplo, `200` de `250` sin alterar significado.
+
+Cada candidato semántico registra:
+
+- `removed_text` exacto del span candidato;
+- contexto anterior/posterior;
+- word indices/timestamps;
+- evidencia de clase;
+- confidence;
+- `suggested_decision=REVIEW`;
+- `decision=undecided`;
+- `auto_apply=false`;
+- `span_safe_for_auto_apply=false`.
+
+Referencia conceptual revisada: `Railly/vcut@2142cc54dc01a0d2272f1d99717b89cd1c7c9262`; la implementación Python es propia.
+
+### Validación — run `33659725847`
+
+**SUCCESS**:
+
+```text
+Ran 48 tests in 6.469s
+OK
+```
+
+Incluye todos los E2E de sync y los 7 tests nuevos de Semantic Candidates v1. `video-tunner doctor` PASS y artifacts `0`.
+
+El run anterior `33659514611` falló porque el workflow core no instalaba NumPy aunque ejecutaba E2E de auto-sync; todos los tests semánticos habían pasado. Manual CI queda corregida para instalar sólo `numpy==2.5.2` adicionalmente, sin añadir Whisper/CTranslate2/ONNX al workflow ligero.
+
+Ver `Validation/phase2-semantic-candidates.md`.
 
 ## Pipeline
 
@@ -170,7 +212,7 @@ MASTER AUDIO + video timeline
   ↓
 Whisper word-level + Silero VAD
   ↓
-candidates auditables
+acoustic + semantic candidates auditables
   ↓
 KEEP / TRIM / CUT / REVIEW
   ↓
@@ -196,14 +238,16 @@ Video_Tunner.exe model fetch large-v3-turbo
 
 En portable strict no existe fallback silencioso a caches globales.
 
-## Siguiente trabajo — Fase 2
+## Siguiente trabajo — Fase 2 semantic protection
 
-1. detectar retomas y reinicios de frase;
-2. detectar repeticiones y correcciones/errores;
-3. tratar muletillas de forma contextual y conservadora;
-4. introducir decision layer `KEEP / TRIM / CUT / REVIEW`;
-5. proteger negaciones, cifras, sujetos, tiempo verbal y correcciones semánticas;
-6. mantener `auto_apply=false` hasta que la evidencia permita thresholds seguros.
+1. crear `candidate → decision` sin convertir todavía decisiones en edits ejecutables;
+2. proteger cifras, importes, porcentajes y unidades;
+3. proteger negaciones y cambios de sujeto/persona;
+4. proteger tiempo verbal/aspecto y entidades relevantes;
+5. modelar corrección `intento → versión corregida`;
+6. verificar que `removed_text` coincide exactamente con el span propuesto;
+7. validar con habla que contenga errores/retomas deliberados;
+8. mantener `auto_apply=false` hasta disponer de evidencia suficiente.
 
 ## Principios
 
