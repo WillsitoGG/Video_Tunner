@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .media import probe_media
-from .sync import SyncEstimate, estimate_media_sync
+from .sync import SyncEstimate, SyncInsufficientSignalError, estimate_media_sync
 from .tools import resolve_tool
 
 AUTO_MIN_CONFIDENCE = 0.65
@@ -329,8 +329,29 @@ def ingest_video(
             "No hay audio de cámara para auto-sync. Usa un offset manual; Video_Tunner no adivina."
         )
 
-    with tempfile.TemporaryDirectory(prefix=".video_tunner_sync_", dir=output_root) as temp:
-        estimate = estimate_media_sync(video_path, external_path, temp)
+    try:
+        with tempfile.TemporaryDirectory(prefix=".video_tunner_sync_", dir=output_root) as temp:
+            estimate = estimate_media_sync(video_path, external_path, temp)
+    except SyncInsufficientSignalError as exc:
+        reason = str(exc)
+        report = {
+            **base_report,
+            "input_mode": "external_audio",
+            "status": "review_required",
+            "sync": {"method": "auto_correlation", "estimate": None},
+            "coverage": None,
+            "master_audio": None,
+            "review_reasons": [reason],
+            "warnings": ["Auto-sync no aplicado: evidencia acústica insuficiente."],
+        }
+        saved = _write_report(report, report_path)
+        return {
+            "master_audio": None,
+            "ingest_report": str(saved),
+            "status": "review_required",
+            "review_reasons": [reason],
+        }
+
     coverage = coverage_metrics(
         video_duration=float(video_probe["duration_seconds"]),
         external_duration=float(external_probe["duration_seconds"]),
