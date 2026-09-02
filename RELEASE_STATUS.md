@@ -10,7 +10,7 @@
 - Fase 0: bootstrap implementado
 - Fase 0.5: technology harvest definido
 - Fase 1A: **Portable Foundation PASS en Windows (core + stack ML CPU)**
-- Fase 1B: **sync foundation PASS; hardening restante pendiente**
+- Fase 1B: **COMPLETADA — dual ingest + sync/drift + hardening Windows PASS**
 - Fase 1C: transcript/candidates parcialmente implementados; pendiente adaptación a master audio + modelo objetivo
 
 ## Portable Foundation — core
@@ -42,7 +42,7 @@ Run `33621357438` — SUCCESS, 2026-09-02.
 - SHA-256 `F1208C6E830A60CB06C1AB7781C0D7D60161341AC5C9DEA3D12EFB3F2BE3AF05`;
 - artifacts: 0.
 
-## Fase 1B — sync foundation
+## Fase 1B — sync foundation + hardening
 
 Implementado:
 
@@ -57,43 +57,37 @@ Implementado:
 - coverage;
 - manual `--offset` + `--drift-ppm`;
 - `review_required` sin master cuando la evidencia es insuficiente;
-- metadata + SHA-256 auditable.
+- metadata + SHA-256 auditable;
+- master final con duración exacta de la timeline del vídeo.
 
-### Evidencia Windows
+### Foundation Windows
 
-- run `33633846344` — FAILURE: aserción inicial de duración incorrecta;
+- run `33633846344` — FAILURE: aserción inicial incorrecta;
 - run `33634121264` — FAILURE útil: descubrió master `88.756 s` frente a vídeo `90.000 s`;
-- run `33634775313` — **SUCCESS** tras corregir la timeline de muestras.
+- run `33634775313` — SUCCESS tras corregir PTS/padding.
 
-Run final:
+### Hardening Windows
 
-- 33 tests PASS;
-- offset esperado/estimado `+1.500 / +1.500 s`;
-- confidence `1.000`;
-- 7 anchors;
-- drift `0 ppm`;
-- vídeo/master `90.000 / 90.000 s`;
+Run `33639009841` — **SUCCESS**.
+
+- 37 tests PASS;
+- offset negativo E2E PASS;
+- drift a nivel de media con `+1000 ppm` objetivo PASS dentro de tolerancia;
+- low/flat signal => `review_required`, sin master;
+- manual override sin audio de cámara PASS;
+- coverage externa parcial + warning PASS;
+- timeline regression PASS;
+- fixture nominal: `+1.500 s`, confidence `1.000`, 7 anchors, drift `0 ppm`, vídeo/master `90/90 s`;
 - artifacts: 0.
 
-Corrección de duración protegida por test E2E de regresión.
+Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
-Ver `Validation/sync-foundation-spike.md`.
-
-## Pendiente antes de cerrar Fase 1B
-
-- E2E offset negativo;
-- E2E drift conocido;
-- low signal/ambiguity => REVIEW;
-- manual override E2E;
-- coverage externa parcial;
-- fuentes acústicas diferentes/ruido;
-- embedded timeline no trivial;
-- residual/post-sync validation.
+Los thresholds de auto-sync siguen siendo provisionales y deberán calibrarse con grabaciones reales antes de Release.
 
 ## Pendiente antes de una Release
 
-- cerrar Fase 1B;
-- adaptar `analyze` al master audio;
+- Fase 1C: adaptar `analyze` al master audio;
+- validar pipeline completo embedded/external con Whisper + VAD;
 - validar `large-v3-turbo` con vídeo hablado real en español;
 - semantic cleaner;
 - calidad audiovisual/audit;
