@@ -98,11 +98,30 @@ def _run_ffmpeg(command: list[str], *, failure_message: str) -> None:
 def materialize_embedded_master(
     video: str | Path,
     destination: str | Path,
+    *,
+    video_duration: float,
 ) -> Path:
+    """Materialize embedded audio on the complete video timeline.
+
+    ``aresample=async=1:first_pts=0`` respects the audio stream timestamps and
+    inserts/removes samples needed to align its first PTS to video time zero.
+    The explicit pad/trim then guarantees a master covering exactly the format
+    duration used as Video_Tunner's video timeline.
+    """
+    if video_duration <= 0:
+        raise ValueError("video_duration debe ser positivo.")
     video_path = Path(video)
     destination_path = Path(destination)
     destination_path.parent.mkdir(parents=True, exist_ok=True)
     ffmpeg = resolve_tool("ffmpeg")
+    filter_chain = ",".join(
+        [
+            "aresample=async=1:first_pts=0",
+            f"apad=whole_dur={video_duration:.9f}",
+            f"atrim=duration={video_duration:.9f}",
+            "asetpts=N/SR/TB",
+        ]
+    )
     _run_ffmpeg(
         [
             str(ffmpeg),
@@ -115,6 +134,10 @@ def materialize_embedded_master(
             "-map",
             "0:a:0",
             "-vn",
+            "-af",
+            filter_chain,
+            "-t",
+            f"{video_duration:.9f}",
             "-ar",
             "48000",
             "-c:a",
@@ -160,9 +183,6 @@ def external_alignment_filter(
     else:
         filters.append(f"atrim=start={-offset_seconds:.9f}")
 
-    # Treat all upstream timing as samples from this point onward. This keeps
-    # inserted silence (positive offset) and removes preroll (negative offset)
-    # while making the final FLAC start at PTS zero.
     filters.extend(
         [
             "asetpts=N/SR/TB",
@@ -278,7 +298,11 @@ def ingest_video(
             raise ValueError("Offset/drift manual sólo aplica cuando existe audio externo.")
         if video_probe["audio_streams"] < 1:
             raise ValueError("El vídeo no contiene audio embebido y no se indicó audio externo.")
-        master = materialize_embedded_master(video_path, master_path)
+        master = materialize_embedded_master(
+            video_path,
+            master_path,
+            video_duration=float(video_probe["duration_seconds"]),
+        )
         report = {
             **base_report,
             "input_mode": "embedded_audio",

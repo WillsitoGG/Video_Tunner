@@ -34,15 +34,18 @@ Completado:
 - transcript TXT/JSON/SRT word-level;
 - Candidate Analysis review-only;
 - Fase 1A Portable Foundation core + ML PASS Windows;
-- **Fase 1B dual ingest + master audio + sync/drift COMPLETADA y hardening Windows PASS**.
+- Fase 1B dual ingest + master audio + sync/drift COMPLETADA y hardening Windows PASS;
+- Fase 1C integración técnica de `analyze` sobre master audio PASS en portable Windows.
 
-Siguiente: **Fase 1C — migrar `analyze` a master audio y validar `large-v3-turbo` sobre contenido real en español.**
+Pendiente inmediato de 1C: **validar `large-v3-turbo` sobre contenido real en español y medir calidad/rendimiento/tamaño**.
 
 ## 3. Evidencia portable
 
 Core run `33600174568`: PASS.
 
 ML run `33621357438`: PASS con faster-whisper 1.2.1, CTranslate2 4.8.1, ONNX Runtime 1.29.0, tokenizers 0.23.1, PyAV 18.1.0 y Silero V6 ONNX. Inferencia frozen/offline con modelo local PASS.
+
+Master-audio analysis run `33640872486`: PASS con 41 tests, frozen portable, Whisper/VAD sobre master embebido y externo sincronizado y 0 artifacts.
 
 PyInstaller `onedir` continúa como base provisional. No evaluar Nuitka sin problema/ventaja medible.
 
@@ -61,7 +64,7 @@ PyInstaller 6.22.2
 
 VAD usa faster-whisper + `silero_vad_v6.onnx`; no standalone Torch sin nueva evidencia.
 
-Modelo objetivo: `large-v3-turbo`. `tiny` sólo fue fixture de runtime.
+Modelo objetivo: `large-v3-turbo`. `tiny` sólo es fixture barato de runtime/CI.
 
 ## 5. Portable / modelos
 
@@ -126,11 +129,7 @@ video-tunner ingest VIDEO [--audio EXTERNAL] [--offset SEC] [--drift-ppm PPM] [-
 6. outliers por MAD;
 7. confidence por score, uniqueness, residual y anchor count.
 
-`SyncEstimate` registra offset, time_scale, drift_ppm, confidence, residual RMS, coarse result y anchors.
-
-### Política de aceptación
-
-Actual:
+Política actual:
 
 ```text
 confidence >= 0.65
@@ -141,13 +140,9 @@ coverage >= 0.98
 uncovered edge <= 5 s
 ```
 
-Thresholds provisionales hasta disponer de corpus real.
+Thresholds provisionales hasta corpus real.
 
-Evidencia insuficiente => `review_required`, sin master.
-
-Sin audio de cámara => no auto-sync; requiere offset manual.
-
-Manual override puede aceptar coverage parcial, pero huecos son silencio; **no mezclar camera audio implícitamente**.
+Evidencia insuficiente => `review_required`, sin master. Sin audio de cámara => no auto-sync; requiere offset manual. Manual override puede aceptar coverage parcial, pero huecos son silencio y nunca mezcla implícita de camera audio.
 
 ### Master audio
 
@@ -158,62 +153,76 @@ Output:
 <stem>_ingest.json
 ```
 
-External master:
+External master: drift con `atempo`, PTS regenerados, delay/trim según offset, pad/trim y duración final exacta de vídeo.
 
-- drift con `atempo=1/time_scale`;
-- PTS regenerados con `asetpts=N/SR/TB`;
-- positivo => `adelay`;
-- negativo => `atrim`;
-- `apad=whole_dur=video_duration`;
-- `atrim=duration=video_duration`;
-- `-t video_duration`;
-- FLAC 48 kHz.
+Embedded master: `aresample=async=1:first_pts=0` preserva el offset temporal de la pista y luego pad/trim alinea el master con toda la timeline del vídeo.
 
-No volver a usar `apad` indefinido + `atrim` timestamp-only: produjo masters cortos aunque el sync fuese correcto.
+### Evidencia
 
-### Evidencia foundation
+Foundation `33634775313` PASS tras fix de timeline.
 
-- `33633846344` — failure de aserción inicial;
-- `33634121264` — failure útil: master 88.756 s vs vídeo 90 s;
-- `33634775313` — SUCCESS tras fix de timeline.
+Hardening `33639009841` PASS:
 
-### Evidencia hardening
-
-Run `33639009841` — **SUCCESS**:
-
-- 37 tests PASS;
-- negative offset E2E PASS;
-- media-level drift con objetivo +1000 ppm PASS dentro de tolerancia;
-- flat/insufficient signal => REVIEW/no master PASS;
-- manual override sin camera audio PASS;
-- partial coverage + warning PASS;
-- nominal +1.5 s sigue PASS;
+- 37 tests;
+- negative offset;
+- media-level drift;
+- low/flat signal => REVIEW;
+- manual override sin camera audio;
+- partial coverage;
 - 0 artifacts.
 
 Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
-## 7. Fase 1C — transcripción/VAD sobre master audio
+## 7. Fase 1C — transcripción/VAD sobre master audio — INTEGRACIÓN TÉCNICA PASS
 
-`analyze` todavía toma audio embebido directamente del vídeo. Ese comportamiento debe desaparecer como supuesto estructural.
+### Contrato actual de `analyze`
 
-Objetivo inmediato:
+`analyze` siempre trabaja sobre un master audio acreditado.
 
-1. `analyze` recibe/resuelve master audio;
-2. si no existe master pre-resuelto, puede invocar la capa de ingest de forma explícita;
-3. Whisper y VAD consumen el mismo master;
-4. timestamps siguen referidos a la timeline del vídeo;
-5. transcript/candidates registran qué ingest/master los originó;
-6. no duplicar outputs ni volver a sincronizar de forma silenciosa;
-7. validar embedded + external synchronized;
-8. después validar `large-v3-turbo` con vídeo real en español.
+Puede:
 
-Artefactos actuales:
+1. resolver master embebido mediante `ingest`;
+2. resolver audio externo mediante auto-sync;
+3. usar override manual de offset/drift;
+4. reutilizar un master pre-resuelto sólo si se proporciona su `ingest.json`.
 
-- transcript JSON/TXT;
-- SRT;
-- analysis JSON.
+Reglas obligatorias:
 
-Candidates actuales: pause + possible_filler, siempre `undecided`, `auto_apply=false`.
+- Whisper y Silero VAD consumen exactamente el mismo master;
+- timestamps de transcript/VAD/candidates permanecen en timeline de vídeo;
+- un master pre-resuelto exige provenance de ingest;
+- SHA-256 del vídeo debe coincidir con el registrado en `ingest.json`;
+- si ingest devuelve `review_required`, no se inicia Whisper ni VAD;
+- `analysis.json` schema v2 registra master + ingest provenance;
+- candidates siguen `undecided` y `auto_apply=false`.
+
+### Evidencia Windows portable
+
+Run `33640872486` — SUCCESS a la primera:
+
+- 41 tests PASS;
+- build frozen analysis PASS;
+- NumPy + stack ML + Silero ONNX operativos sin Python/FFmpeg externos en PATH;
+- inferencia con `HF_HUB_OFFLINE=1`;
+- embedded retrasado: 89 palabras, 11 pause candidates, vídeo/master 45.6/45.6 s;
+- external auto-sync: 88 palabras, 9 pause candidates;
+- offset real +0.500 s → estimado +0.49581 s;
+- confidence 1.0;
+- drift estimado 192.308 ppm;
+- vídeo/master external 44.58275/44.58275 s;
+- 0 automatic edits;
+- 0 artifacts.
+
+Ver `Validation/master-audio-analysis-spike.md`.
+
+### Pendiente para cerrar 1C
+
+- `large-v3-turbo` con contenido hablado real en español;
+- calidad cualitativa y word timestamps;
+- tiempo de inferencia CPU;
+- RAM pico;
+- tamaño del modelo local;
+- revisar configuración Whisper/VAD con ese fixture.
 
 ## 8. Edit Plan / render
 
@@ -267,11 +276,10 @@ Cambios de arquitectura/dependencias/build/validación => README + AGENTS sincro
 
 ## 12. Orden inmediato
 
-1. migrar `analyze` a master audio;
-2. validar ingest → master → Whisper/VAD/candidates;
-3. validar `large-v3-turbo` en español real;
-4. cerrar Fase 1C;
-5. Fase 2 semantic cleaner.
+1. validar `large-v3-turbo` en español real;
+2. medir calidad, timestamps, velocidad, RAM y tamaño;
+3. cerrar Fase 1C;
+4. Fase 2 semantic cleaner.
 
 ## 13. Changelog técnico
 
@@ -285,4 +293,7 @@ Word timestamps, transcript artifacts, Silero VAD, candidates.
 PyInstaller onedir, local tools/models, offline frozen inference Windows PASS.
 
 ### sync foundation + hardening
-Dual ingest, multi-anchor offset/drift estimator, confidence/coverage policy, manual override, failure-safe review, master FLAC e ingest audit; positive/negative offset, media-level drift y no-reference behavior validados en Windows.
+Dual ingest, multi-anchor offset/drift estimator, confidence/coverage policy, manual override, failure-safe review y master FLAC alineado.
+
+### master-audio analysis
+`analyze` resuelve o verifica master audio, preserva provenance, bloquea analysis si sync exige revisión y usa el mismo master para Whisper + VAD; portable Windows PASS.

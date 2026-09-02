@@ -27,7 +27,7 @@ PyInstaller `onedir` queda como base provisional.
 
 ## Fase 1B — Ingesta dual + sincronización A/V — COMPLETADA
 
-### Contrato
+Contrato:
 
 ```text
 A) video + embedded audio → master audio
@@ -45,8 +45,7 @@ Implementado:
 - `ingest` CLI;
 - master audio FLAC 48 kHz;
 - SHA-256 y metadata de fuentes;
-- correlación coarse ZNCC;
-- anchors multi-window;
+- ZNCC coarse + anchors multi-window;
 - offset positivo/negativo;
 - confidence;
 - ajuste lineal de drift;
@@ -58,55 +57,67 @@ Implementado:
 - sin mezcla implícita de audio de cámara;
 - timeline final del master igual a la del vídeo.
 
-### Foundation Windows
+Foundation run `33634775313` — SUCCESS tras corregir un bug real de timestamps/padding.
 
-Run `33634775313` — SUCCESS tras detectar y corregir un bug real de timestamps/padding.
-
-- 33 tests PASS;
-- offset `+1.500 s` recuperado exactamente;
-- confidence `1.000`;
-- 7 anchors;
-- vídeo/master `90/90 s`;
-- 0 artifacts.
-
-### Hardening Windows
-
-Run `33639009841` — **SUCCESS**.
+Hardening run `33639009841` — SUCCESS:
 
 - 37 tests PASS;
 - negative offset E2E PASS;
-- media-level drift E2E con `+1000 ppm` objetivo PASS dentro de tolerancia;
-- señal plana/insuficiente => REVIEW, sin master;
+- media-level drift +1000 ppm PASS;
+- señal plana/insuficiente => REVIEW/no master;
 - manual override sin audio de cámara PASS;
 - coverage parcial + warning PASS;
-- master timeline regression PASS;
-- fixture nominal +1.5 s continúa PASS;
 - 0 artifacts.
 
 Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
-### Nota de producto
+Thresholds de confidence/residual/drift/coverage siguen provisionales hasta corpus real.
 
-Thresholds actuales de confidence/residual/drift/coverage son provisionales. Deben recalibrarse con corpus real antes de Release, pero ya no bloquean la arquitectura.
+## Fase 1C — Transcripción + VAD sobre master audio — EN CURSO / INTEGRACIÓN TÉCNICA PASS
 
-## Fase 1C — Transcripción + VAD sobre master audio — SIGUIENTE
+### Integración completada
 
-Código existente:
+`analyze` ya trabaja sobre master audio y no presupone audio embebido directo.
 
-- faster-whisper word-level;
-- TXT/JSON/SRT;
-- Silero VAD ONNX;
-- Candidate Analysis review-only.
+Puede:
 
-Trabajo pendiente:
+- resolver master embebido mediante `ingest`;
+- resolver audio externo mediante auto-sync;
+- aceptar override manual;
+- reutilizar un master pre-resuelto sólo junto con su `ingest.json`;
+- verificar SHA-256 de procedencia antes de reutilizarlo.
 
-1. hacer que `analyze` consuma master audio en lugar de extraer siempre audio embebido;
-2. preservar la timeline del vídeo como referencia de timestamps;
-3. integrar `ingest` + `analyze` sin duplicar trabajo/artefactos;
-4. validar tanto audio embebido como externo sincronizado;
-5. validar `large-v3-turbo` con vídeo hablado real en español;
-6. medir calidad/velocidad/model size;
-7. mantener candidates sin auto-apply.
+Whisper y Silero VAD reciben exactamente el mismo master. Todos los timestamps permanecen en timeline de vídeo.
+
+El master embebido también preserva offsets internos de la pista y se pad/trim hasta la duración exacta del vídeo.
+
+### Evidencia portable
+
+Run `33640872486` — **SUCCESS a la primera**:
+
+- 41 tests PASS;
+- build frozen analysis PASS;
+- NumPy + stack ML + Silero ONNX operativos sin Python/FFmpeg externos en PATH;
+- inferencia posterior con `HF_HUB_OFFLINE=1`;
+- embedded retrasado: 89 palabras, 11 pause candidates, vídeo/master `45.6 / 45.6 s`;
+- external auto-sync: 88 palabras, 9 pause candidates;
+- offset real `+0.500 s` → estimado `+0.49581 s`;
+- confidence `1.0`;
+- drift estimado `192.308 ppm`;
+- vídeo/master external `44.58275 / 44.58275 s`;
+- automatic edits `0`;
+- artifacts `0`.
+
+Ver `Validation/master-audio-analysis-spike.md`.
+
+### Pendiente para cerrar Fase 1C
+
+1. validar `large-v3-turbo` con contenido hablado real en español;
+2. medir precisión cualitativa de transcripción y word timestamps;
+3. medir velocidad CPU, RAM y tamaño real del modelo;
+4. revisar parámetros Whisper/VAD sobre ese contenido;
+5. confirmar que el coste portable del modelo objetivo es aceptable;
+6. cerrar Fase 1C sin introducir auto-apply.
 
 ## Fase 2 — Cleaner inteligente
 
@@ -130,8 +141,7 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones después 
 
 ## Orden inmediato
 
-1. Migrar `analyze` a master audio.
-2. Validar pipeline ingest → master → Whisper/VAD/candidates.
-3. Validar `large-v3-turbo` en español real.
-4. Cerrar Fase 1C.
-5. Entrar en Fase 2 semántica.
+1. Validar `large-v3-turbo` con español real.
+2. Medir calidad, word timestamps, velocidad, RAM y tamaño.
+3. Cerrar Fase 1C.
+4. Entrar en Fase 2 semántica.

@@ -146,6 +146,11 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         language=None if args.language == "auto" else args.language,
         device=args.device,
         compute_type=args.compute_type,
+        external_audio=args.audio,
+        manual_offset_seconds=args.offset,
+        manual_drift_ppm=args.drift_ppm,
+        master_audio=args.master_audio,
+        ingest_report_path=args.ingest_report,
     )
     _json(result)
     return 0
@@ -224,9 +229,29 @@ def build_parser() -> argparse.ArgumentParser:
 
     analyze = sub.add_parser(
         "analyze",
-        help="Transcribe, ejecuta VAD Silero ONNX y genera candidatos sin aplicar cortes.",
+        help="Resuelve master audio, transcribe, ejecuta VAD y genera candidatos sin aplicar cortes.",
     )
-    analyze.add_argument("input")
+    analyze.add_argument("input", help="Vídeo principal cuya timeline gobierna todos los timestamps.")
+    analyze.add_argument("--audio", help="Audio externo opcional; analyze ejecutará ingest/sync antes de Whisper/VAD.")
+    analyze.add_argument(
+        "--offset",
+        type=float,
+        help="Override manual de sync para --audio, con la misma convención que `ingest`.",
+    )
+    analyze.add_argument(
+        "--drift-ppm",
+        type=float,
+        default=0.0,
+        help="Drift manual para --audio; requiere --offset.",
+    )
+    analyze.add_argument(
+        "--master-audio",
+        help="Master ya materializado. Requiere --ingest-report y no puede combinarse con --audio/--offset.",
+    )
+    analyze.add_argument(
+        "--ingest-report",
+        help="ingest.json que acredita la procedencia de --master-audio.",
+    )
     analyze.add_argument("--mode", choices=MODE_SETTINGS, default="conservative")
     analyze.add_argument("--output-dir", default="Output")
     analyze.add_argument("--model", default="large-v3-turbo")
