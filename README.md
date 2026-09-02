@@ -28,7 +28,7 @@ Sin referencia suficiente, Video_Tunner no debe inventar la sincronización.
 - Fase 0 — Bootstrap: ✅
 - Fase 0.5 — Technology harvest: ✅
 - Fase 1A — Portable Foundation: ✅ core + stack ML frozen validados en Windows
-- Fase 1B — Ingesta dual + sync/drift: 🟡 **foundation implementada y validada; hardening pendiente**
+- Fase 1B — Ingesta dual + sync/drift: ✅ **foundation + hardening Windows completados**
 - Fase 1C — Transcripción/VAD sobre master audio: 🟡 código de análisis existente; adaptación pendiente
 - Release pública: ninguna
 
@@ -62,9 +62,9 @@ Video_Tunner sigue siendo un producto/repo propio, no un fork.
 
 Modelo objetivo de producto: **`large-v3-turbo`**. `tiny` sólo validó runtime.
 
-## Fase 1B — sync foundation
+## Fase 1B — ingesta y sincronización
 
-Nuevo comando:
+Comandos:
 
 ```powershell
 video-tunner ingest "video.mp4" --output-dir Output
@@ -83,18 +83,18 @@ video_time = offset_seconds + time_scale * external_time
 - offset negativo: empezó antes;
 - `drift_ppm = (time_scale - 1) × 1e6`.
 
-Auto-sync actual:
+Auto-sync:
 
 1. FFmpeg extrae referencia mono 8 kHz;
 2. envolvente log-RMS a 50 Hz;
 3. correlación ZNCC coarse;
-4. 7 anchors fine multi-window;
+4. anchors fine multi-window;
 5. ajuste lineal offset + drift;
 6. outliers por MAD;
-7. confidence según correlación, unicidad, residuos y nº de anchors;
-8. aceptación sólo si pasa confidence, anchors, residual, drift y cobertura.
+7. confidence por correlación, unicidad, residuos y anchors;
+8. aceptación sólo si supera confidence, anchors, residual, drift y coverage.
 
-Si la evidencia es insuficiente, `ingest` genera `review_required` y **no materializa master**. El override manual es explícito. Nunca se mezcla audio de cámara para rellenar huecos sin indicarlo: los huecos externos manuales se rellenan con silencio.
+Si la evidencia es insuficiente, `ingest` genera `review_required` y **no materializa master**. El override manual es explícito. Los huecos de audio externo se rellenan con silencio; nunca se mezcla audio de cámara de forma implícita.
 
 Outputs:
 
@@ -103,30 +103,32 @@ Outputs:
 <video>_ingest.json
 ```
 
-El informe registra SHA-256, fuentes, método, offset, confidence, anchors, drift, residuos, cobertura, warnings y master seleccionado.
+El informe registra SHA-256, fuentes, método, offset, confidence, anchors, drift, residuos, coverage, warnings y master seleccionado.
 
-### Validación Windows sync
+### Evidencia Windows
 
-Workflow manual: `.github/workflows/sync-spike.yml`.
+Foundation:
 
-Runs:
+- `33633846344` — FAILURE por aserción inicial incorrecta;
+- `33634121264` — FAILURE útil: descubrió un bug real de timeline (`88.756 s` vs `90.000 s`);
+- `33634775313` — SUCCESS tras corregir PTS/padding.
 
-- `33633846344` — FAILURE: primera aserción de duración era incorrecta;
-- `33634121264` — FAILURE útil: descubrió que el master quedaba `88.756 s` frente a vídeo `90.000 s`;
-- `33634775313` — **SUCCESS** tras corregir timestamps/padding.
+Hardening final:
 
-Run final:
-
-- 33 tests PASS;
-- offset esperado/estimado: `+1.500 s` / `+1.500 s`;
-- confidence `1.000`;
-- 7 anchors;
-- drift `0 ppm`;
-- vídeo `90.000 s`;
-- master `90.000 s`;
+- run `33639009841` — **SUCCESS**;
+- **37 tests PASS**;
+- offset negativo E2E PASS;
+- drift a nivel de media (`+1000 ppm` objetivo) PASS dentro de tolerancia;
+- señal plana/insuficiente ⇒ `review_required`, sin master;
+- override manual sin audio de cámara PASS;
+- coverage parcial + warning PASS;
+- regresión de timeline PASS;
+- fixture nominal: offset `+1.500 s`, confidence `1.000`, 7 anchors, drift `0 ppm`, vídeo/master `90/90 s`;
 - 0 artifacts.
 
-El bug de duración queda cubierto por un test E2E de regresión de 4 s. Ver `Validation/sync-foundation-spike.md`.
+Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
+
+Los thresholds de auto-sync siguen siendo provisionales hasta disponer de un corpus real variado de cámaras/micrófonos, pero la arquitectura de Fase 1B queda cerrada.
 
 ## Modelos Whisper
 
@@ -179,9 +181,10 @@ render + audit
 - ingesta embebida/externa;
 - auto-sync offset + confidence + anchors + drift;
 - override manual;
-- master audio FLAC + informe auditable.
+- master audio FLAC + informe auditable;
+- failure-safe ante evidencia acústica insuficiente.
 
-`analyze` todavía toma el audio embebido del vídeo; se migrará al master audio en Fase 1C después del hardening restante de sync.
+`analyze` todavía toma el audio embebido del vídeo. El siguiente paso es migrarlo a **master audio** sin alterar la referencia temporal del vídeo.
 
 ## Desarrollo
 
@@ -199,10 +202,10 @@ Builds:
 
 ## Siguiente trabajo
 
-1. endurecer 1B con E2E de offset negativo, drift, baja señal, manual override y cobertura;
-2. validar comportamiento con fuentes acústicamente distintas;
-3. adaptar `analyze` a master audio;
-4. validar `large-v3-turbo` en vídeo hablado real en español;
+1. adaptar `analyze` para consumir master audio;
+2. mantener todos los timestamps sobre la timeline del vídeo;
+3. validar `large-v3-turbo` en vídeo hablado real en español;
+4. validar VAD/candidates sobre audio embebido y externo sincronizado;
 5. entrar en Fase 2 semántica.
 
 ## Principios
