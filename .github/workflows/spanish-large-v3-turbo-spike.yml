@@ -2,6 +2,11 @@ name: Spanish Large V3 Turbo Spike
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase1c-large-v3-turbo-spanish
+    paths:
+      - Validation/spanish-large-v3-turbo.trigger
 
 concurrency:
   group: video-tunner-spanish-large-v3-turbo-${{ github.ref }}
