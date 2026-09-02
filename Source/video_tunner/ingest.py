@@ -134,24 +134,43 @@ def external_alignment_filter(
     time_scale: float,
     video_duration: float,
 ) -> str:
+    """Build an audio filter whose sample timeline is exactly the video timeline.
+
+    FFmpeg's ``atrim`` does not rewrite timestamps. In addition, an indefinite
+    ``apad`` followed by timestamp-based trimming can leave container duration
+    shorter than the intended sample timeline. Regenerate audio PTS from sample
+    count, request an explicit minimum padded duration, then cap by duration.
+    """
     if time_scale <= 0:
         raise ValueError("time_scale debe ser positivo.")
+    if video_duration <= 0:
+        raise ValueError("video_duration debe ser positivo.")
     tempo = 1.0 / time_scale
     if tempo < 0.5 or tempo > 2.0:
         raise ValueError("La corrección de drift solicitada excede el rango seguro de atempo.")
-    filters = [f"atempo={tempo:.12f}"]
+
+    filters = [
+        f"atempo={tempo:.12f}",
+        "asetpts=N/SR/TB",
+    ]
     if offset_seconds >= 0:
         delay_ms = max(0, int(round(offset_seconds * 1000.0)))
         if delay_ms:
             filters.append(f"adelay={delay_ms}:all=1")
     else:
-        filters.extend(
-            [
-                f"atrim=start={-offset_seconds:.9f}",
-                "asetpts=PTS-STARTPTS",
-            ]
-        )
-    filters.extend(["apad", f"atrim=0:{video_duration:.9f}"])
+        filters.append(f"atrim=start={-offset_seconds:.9f}")
+
+    # Treat all upstream timing as samples from this point onward. This keeps
+    # inserted silence (positive offset) and removes preroll (negative offset)
+    # while making the final FLAC start at PTS zero.
+    filters.extend(
+        [
+            "asetpts=N/SR/TB",
+            f"apad=whole_dur={video_duration:.9f}",
+            f"atrim=duration={video_duration:.9f}",
+            "asetpts=N/SR/TB",
+        ]
+    )
     return ",".join(filters)
 
 
@@ -186,6 +205,8 @@ def materialize_external_master(
             "-vn",
             "-af",
             filter_chain,
+            "-t",
+            f"{video_duration:.9f}",
             "-ar",
             "48000",
             "-c:a",
