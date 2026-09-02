@@ -18,13 +18,20 @@ NUMBER_WORDS = {
     "millones", "billon", "billones", "zero", "one", "two", "three", "four", "five", "six",
     "seven", "eight", "nine", "ten", "hundred", "thousand", "million", "billion",
 }
+UNIT_MARKERS = {
+    "%", "porcentaje", "porcentajes", "percent", "pct", "euro", "euros", "dolar", "dolares", "dollar",
+    "dollars", "libra", "libras", "pound", "pounds", "kg", "kilo", "kilos", "kilogramo", "kilogramos",
+    "g", "gramo", "gramos", "l", "litro", "litros", "ml", "metro", "metros", "m", "km", "kilometro",
+    "kilometros", "segundo", "segundos", "minuto", "minutos", "hora", "horas", "day", "days", "hour",
+    "hours", "minute", "minutes", "second", "seconds", "meter", "meters", "kilometer", "kilometers",
+}
 NEGATIONS = {
     "no", "nunca", "jamas", "tampoco", "nadie", "ningun", "ninguno", "ninguna", "sin",
     "not", "never", "nobody", "none", "without", "neither", "nor",
 }
 PERSON_MARKERS = {
     "yo", "tu", "usted", "el", "ella", "nosotros", "nosotras", "vosotros", "vosotras", "ustedes",
-    "me", "te", "nos", "os", "ellos", "ellas", "i", "you", "he", "she", "we", "they", "me", "us",
+    "me", "te", "nos", "os", "ellos", "ellas", "i", "you", "he", "she", "we", "they", "us",
 }
 TENSE_ASPECT_MARKERS = {
     "era", "eran", "fue", "fueron", "es", "son", "sera", "seran", "estaba", "estaban", "esta", "estan",
@@ -74,6 +81,18 @@ def _extract_number_features(words: list[WordTiming]) -> list[str]:
     return values
 
 
+def _extract_units(words: list[WordTiming]) -> list[str]:
+    values: list[str] = []
+    for word in words:
+        raw = word.text.strip()
+        token = _normalise(raw)
+        if any(symbol in raw for symbol in ("%", "€", "$", "£")):
+            values.append(next(symbol for symbol in ("%", "€", "$", "£") if symbol in raw))
+        if token in UNIT_MARKERS:
+            values.append(token)
+    return values
+
+
 def _tokens_from_set(words: list[WordTiming], vocabulary: set[str]) -> list[str]:
     return [token for word in words if (token := _normalise(word.text)) in vocabulary]
 
@@ -92,6 +111,7 @@ def _capitalised_entities(words: list[WordTiming]) -> list[str]:
 def _features(words: list[WordTiming]) -> dict[str, list[str]]:
     return {
         "numbers": _extract_number_features(words),
+        "units": _extract_units(words),
         "negations": _tokens_from_set(words, NEGATIONS),
         "person_markers": _tokens_from_set(words, PERSON_MARKERS),
         "tense_aspect_markers": _tokens_from_set(words, TENSE_ASPECT_MARKERS),
@@ -327,6 +347,15 @@ def build_semantic_decisions(
             rationale.append(
                 "Hay rasgos protegidos diferentes a ambos lados del marcador: " + ", ".join(critical_changes)
             )
+        protections["correction_relation"] = {
+            "attempt_window_text": _text(before_words),
+            "corrected_window_text": _text(after_words),
+            "changed_features": critical_changes,
+            "critical": any(
+                feature in critical_changes
+                for feature in ("numbers", "units", "negations", "person_markers", "tense_aspect_markers")
+            ),
+        }
         decisions.append(
             _decision(
                 candidate,
