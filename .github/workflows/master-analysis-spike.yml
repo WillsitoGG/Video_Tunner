@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
 
-      - name: Download and expand deterministic spoken fixture
+      - name: Download and build unique deterministic spoken fixture
         shell: pwsh
         run: |
           $root = Join-Path $env:RUNNER_TEMP "Video Tunner Master Analysis Fixture"
@@ -47,9 +47,10 @@ jobs:
             -OutFile $jfk
           Write-Host "JFK_FIXTURE_SHA256=$((Get-FileHash $jfk -Algorithm SHA256).Hash)"
 
-          ffmpeg -hide_banner -loglevel error -y -stream_loop 3 -i $jfk `
-            -ac 1 -ar 16000 -c:a pcm_s16le $spoken
-          if ($LASTEXITCODE -ne 0) { throw "No se pudo expandir el fixture hablado." }
+          ffmpeg -hide_banner -loglevel error -y -i $jfk `
+            -filter_complex "[0:a]asplit=4[a0][a1][a2][a3];[a0]atempo=0.92[s0];[a1]atempo=1.00[s1];[a2]atempo=1.08[s2];[a3]atempo=0.96[s3];[s0][s1][s2][s3]concat=n=4:v=0:a=1[out]" `
+            -map "[out]" -ac 1 -ar 16000 -c:a pcm_s16le $spoken
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo construir el fixture hablado único." }
 
           $duration = [double](ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $spoken)
           if ($duration -lt 35.0) { throw "Fixture hablado demasiado corto: $duration" }
