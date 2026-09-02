@@ -9,11 +9,12 @@
 - Windows 10/11 x64 validado manualmente por Guille: **no**
 - Fase 0: bootstrap implementado
 - Fase 0.5: technology harvest definido
-- Fase 1A: **core portable Windows PASS; stack ML portable pendiente**
+- Fase 1A.1: **core portable Windows PASS**
+- Fase 1A.2: **perfil ML portable implementado; ejecución Windows real pendiente**
 - Fase 1B: ingesta dual + sincronización A/V pendiente
-- Fase 1C: transcript/candidates parcialmente implementados; master audio + runtime ML real pendientes
+- Fase 1C: transcript/candidates parcialmente implementados; master audio + validación del modelo objetivo pendientes
 
-## Portable Foundation
+## Portable Foundation — core
 
 Decisión provisional aceptada para continuar:
 
@@ -21,8 +22,6 @@ Decisión provisional aceptada para continuar:
 - FFmpeg/ffprobe bundled;
 - modo portable estricto sin PATH fallback;
 - Silero VAD vía ONNX de faster-whisper, evitando standalone silero-vad/Torch.
-
-### Evidencia core
 
 GitHub Actions `Portable Foundation Spike` run #1 (`33600174568`) — **SUCCESS** el 2026-09-02.
 
@@ -40,7 +39,25 @@ Validado automáticamente:
 - SHA-256 temporal: `5F3CFE09F017DE0421B906CE529822F830C8FFDE0731161AAFA42120464F4E97`;
 - artifacts almacenados en Actions: 0.
 
-Este PASS **no valida todavía el perfil ML frozen**. Permanecen pendientes CTranslate2, ONNX Runtime, asset Silero ONNX, carga local del modelo Whisper e inferencia real dentro del portable.
+## Portable Foundation — stack ML
+
+Preparado en rama `phase1a-ml-portable`:
+
+- `faster-whisper==1.2.1`;
+- `ctranslate2==4.8.1`;
+- `onnxruntime==1.29.0`;
+- `tokenizers==0.23.1`;
+- PyAV/faster-whisper dependencies recogidas por PyInstaller;
+- asset `silero_vad_v6.onnx` verificado por `doctor`;
+- modelos bajo `Models/whisper/<modelo>`;
+- `model status` / `model fetch`;
+- staging de descarga en `Temp/` y cache de descarga en `Cache/`;
+- inferencia portable exige modelo local completo y no usa silenciosamente caches externas;
+- workflow `portable-ml-spike.yml` preparado para una única validación Windows deliberada con modelo `tiny`, seguida de inferencia con `HF_HUB_OFFLINE=1`.
+
+El modelo `tiny` es sólo una prueba de packaging/runtime. El objetivo de calidad de producto sigue siendo `large-v3-turbo`, a validar separadamente sobre material hablado real.
+
+No considerar Fase 1A cerrada hasta que el perfil ML frozen pase la ejecución Windows y queden registrados tamaño, SHA-256 y dependencias resueltas.
 
 No existe todavía ningún paquete final que deba figurar en `SHA256SUMS.txt` ni ninguna versión sustituida para `Archive/`.
 
