@@ -9,9 +9,11 @@ from pathlib import Path
 from . import __version__
 from .analysis_pipeline import analyze_spoken_video
 from .edit_plan import MODE_SETTINGS, build_silence_plan, load_plan, save_plan
+from .ingest import ingest_video
 from .media import probe_media
 from .render import render_from_plan
 from .silence import detect_silences
+from .sync import SyncDependencyError, SyncInsufficientSignalError
 from .tools import (
     ToolNotFoundError,
     ensure_runtime_layout,
@@ -69,9 +71,11 @@ def cmd_doctor(_: argparse.Namespace) -> int:
             "ctranslate2": _module_runtime_status("ctranslate2"),
             "onnxruntime": _module_runtime_status("onnxruntime"),
             "tokenizers": _module_runtime_status("tokenizers"),
+            "numpy": _module_runtime_status("numpy"),
             "av": _module_runtime_status("av"),
             "silero_onnx": _silero_asset_status(),
             "vad_backend": "faster-whisper Silero ONNX",
+            "sync_backend": "Video_Tunner multi-anchor log-RMS correlation",
         },
     }
     for tool in ("ffmpeg", "ffprobe"):
@@ -96,6 +100,18 @@ def cmd_model_status(args: argparse.Namespace) -> int:
 def cmd_model_fetch(args: argparse.Namespace) -> int:
     path = download_whisper_model(args.model, replace=args.replace)
     _json(whisper_model_status(args.model) | {"downloaded_to": str(path)})
+    return 0
+
+
+def cmd_ingest(args: argparse.Namespace) -> int:
+    result = ingest_video(
+        args.input,
+        args.output_dir,
+        external_audio=args.audio,
+        manual_offset_seconds=args.offset,
+        manual_drift_ppm=args.drift_ppm,
+    )
+    _json(result)
     return 0
 
 
@@ -177,6 +193,29 @@ def build_parser() -> argparse.ArgumentParser:
     model_fetch.add_argument("--replace", action="store_true")
     model_fetch.set_defaults(func=cmd_model_fetch)
 
+    ingest = sub.add_parser(
+        "ingest",
+        help="Resuelve vídeo + audio opcional a un master audio sincronizado y auditable.",
+    )
+    ingest.add_argument("input", help="Vídeo principal.")
+    ingest.add_argument("--audio", help="Audio externo opcional; si se omite usa audio embebido.")
+    ingest.add_argument(
+        "--offset",
+        type=float,
+        help=(
+            "Override manual en segundos. Positivo = el audio externo empieza después del vídeo; "
+            "negativo = antes."
+        ),
+    )
+    ingest.add_argument(
+        "--drift-ppm",
+        type=float,
+        default=0.0,
+        help="Drift manual en ppm; requiere --offset. Default 0.",
+    )
+    ingest.add_argument("--output-dir", default="Output")
+    ingest.set_defaults(func=cmd_ingest)
+
     plan = sub.add_parser("plan", help="Detecta silencios con FFmpeg y genera un Edit Plan JSON.")
     plan.add_argument("input")
     plan.add_argument("--mode", choices=MODE_SETTINGS, default="conservative")
@@ -219,6 +258,8 @@ def main(argv: list[str] | None = None) -> int:
     except (
         FileNotFoundError,
         ToolNotFoundError,
+        SyncDependencyError,
+        SyncInsufficientSignalError,
         TranscriptionDependencyError,
         WhisperModelNotFoundError,
         VadDependencyError,
