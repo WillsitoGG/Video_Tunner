@@ -2,11 +2,6 @@ name: Portable Foundation Spike
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase1a-portable-foundation
-    paths:
-      - Validation/portable-spike.trigger
 
 concurrency:
   group: video-tunner-portable-spike-${{ github.ref }}
