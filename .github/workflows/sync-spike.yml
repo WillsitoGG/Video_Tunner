@@ -2,6 +2,11 @@ name: Sync Foundation Spike
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase1b-ingest-sync
+    paths:
+      - Validation/sync-spike.trigger
 
 concurrency:
   group: video-tunner-sync-spike-${{ github.ref }}
@@ -45,7 +50,6 @@ jobs:
           $video = Join-Path $root "video with camera audio.mp4"
 
           @'
-          import math
           import random
           import struct
           import sys
