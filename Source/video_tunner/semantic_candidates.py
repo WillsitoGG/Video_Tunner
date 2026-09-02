@@ -224,6 +224,10 @@ def _find_retake_openers(
             prefix = _common_prefix(tokens, first, second)
             if prefix < min_prefix:
                 continue
+            # Only emit the left-maximal opener. Without this guard, one retake
+            # also appears shifted by one or more words as suffix duplicates.
+            if first > 0 and second > 0 and tokens[first - 1] and tokens[first - 1] == tokens[second - 1]:
+                continue
             if _content_word_count(tokens[first:first + prefix]) < min_content:
                 continue
             first_prefix_end = first + prefix
