@@ -1,0 +1,183 @@
+name: Master Audio Analysis Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-master-analysis-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-master-analysis:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install analysis dependencies and FFmpeg for source tests
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -e ".[analysis]"
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+          }
+          python -m unittest discover -s tests -v
+
+      - name: Build analysis portable
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+
+      - name: Download and expand deterministic spoken fixture
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "Video Tunner Master Analysis Fixture"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $jfk = Join-Path $root "jfk.flac"
+          $spoken = Join-Path $root "spoken sequence.wav"
+
+          Invoke-WebRequest `
+            -Uri "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/v1.2.1/tests/data/jfk.flac" `
+            -OutFile $jfk
+          Write-Host "JFK_FIXTURE_SHA256=$((Get-FileHash $jfk -Algorithm SHA256).Hash)"
+
+          ffmpeg -hide_banner -loglevel error -y -stream_loop 3 -i $jfk `
+            -ac 1 -ar 16000 -c:a pcm_s16le $spoken
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo expandir el fixture hablado." }
+
+          $duration = [double](ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $spoken)
+          if ($duration -lt 35.0) { throw "Fixture hablado demasiado corto: $duration" }
+          Write-Host "SPOKEN_SEQUENCE_DURATION=$duration"
+          "MASTER_ANALYSIS_FIXTURE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Validate frozen embedded and external master analysis offline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = Join-Path $PWD "dist\Video_Tunner"
+          $isolated = Join-Path $env:RUNNER_TEMP "Video Tunner Master Analysis Portable"
+          Remove-Item $isolated -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item $source $isolated -Recurse
+
+          $exe = Join-Path $isolated "Video_Tunner.exe"
+          $ffmpeg = Join-Path $isolated "Tools\ffmpeg\bin\ffmpeg.exe"
+          $ffprobe = Join-Path $isolated "Tools\ffmpeg\bin\ffprobe.exe"
+          $root = $env:MASTER_ANALYSIS_FIXTURE_ROOT
+          $spoken = Join-Path $root "spoken sequence.wav"
+          $spokenDuration = [double](& $ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $spoken)
+
+          $embeddedVideo = Join-Path $root "embedded delayed speech.mp4"
+          $cameraVideo = Join-Path $root "camera reference speech.mp4"
+          $external = Join-Path $root "external recorder speech.wav"
+          $embeddedOutput = Join-Path $isolated "Output\embedded analysis with spaces"
+          $externalOutput = Join-Path $isolated "Output\external analysis with spaces"
+
+          $embeddedVideoDuration = $spokenDuration + 1.0
+          & $ffmpeg -hide_banner -loglevel error -y `
+            -f lavfi -i "color=c=black:s=320x240:r=25:d=$embeddedVideoDuration" `
+            -itsoffset 0.4 -i $spoken -t $embeddedVideoDuration `
+            -c:v libx264 -pix_fmt yuv420p -c:a aac $embeddedVideo
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo crear el vídeo embedded." }
+
+          & $ffmpeg -hide_banner -loglevel error -y `
+            -f lavfi -i "color=c=black:s=320x240:r=25:d=$spokenDuration" `
+            -i $spoken -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac $cameraVideo
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo crear el vídeo de referencia." }
+
+          & $ffmpeg -hide_banner -loglevel error -y -ss 0.5 -i $spoken `
+            -ac 1 -ar 16000 -c:a pcm_s16le $external
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo crear el audio externo desplazado." }
+
+          $env:VIDEO_TUNNER_PORTABLE_STRICT = "1"
+          Remove-Item Env:VIDEO_TUNNER_FFMPEG_DIR -ErrorAction SilentlyContinue
+          Remove-Item Env:VIDEO_TUNNER_MODEL_DIR -ErrorAction SilentlyContinue
+          Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue
+          Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+          $env:HF_HOME = Join-Path $isolated "Cache\huggingface-home"
+          $env:HUGGINGFACE_HUB_CACHE = Join-Path $isolated "Cache\huggingface-hub"
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+
+          if (Get-Command python -ErrorAction SilentlyContinue) { throw "Python sigue disponible en PATH." }
+          if (Get-Command ffmpeg -ErrorAction SilentlyContinue) { throw "FFmpeg externo sigue disponible en PATH." }
+
+          $doctor = (& $exe doctor | Out-String | ConvertFrom-Json)
+          if ($doctor.analysis_dependencies.numpy.status -ne "available") {
+            throw "NumPy no está operativo en el frozen portable."
+          }
+          if (-not $doctor.analysis_dependencies.silero_onnx.available) {
+            throw "Silero ONNX no está disponible en el portable."
+          }
+
+          & $exe model fetch tiny
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo adquirir tiny dentro de Models/." }
+          $env:HF_HUB_OFFLINE = "1"
+
+          & $exe analyze $embeddedVideo --model tiny --language en --device cpu --compute-type int8 --output-dir $embeddedOutput
+          if ($LASTEXITCODE -ne 0) { throw "Analyze embedded frozen/offline falló." }
+
+          $embeddedAnalysisPath = Join-Path $embeddedOutput "embedded delayed speech_analysis.json"
+          $embeddedTranscriptPath = Join-Path $embeddedOutput "embedded delayed speech_transcript.json"
+          $embeddedIngestPath = Join-Path $embeddedOutput "embedded delayed speech_ingest.json"
+          $embeddedMasterPath = Join-Path $embeddedOutput "embedded delayed speech_master_audio.flac"
+          foreach ($path in @($embeddedAnalysisPath, $embeddedTranscriptPath, $embeddedIngestPath, $embeddedMasterPath)) {
+            if (-not (Test-Path $path)) { throw "Falta output embedded: $path" }
+          }
+
+          $embeddedAnalysis = Get-Content $embeddedAnalysisPath -Raw | ConvertFrom-Json
+          $embeddedTranscript = Get-Content $embeddedTranscriptPath -Raw | ConvertFrom-Json
+          $embeddedIngest = Get-Content $embeddedIngestPath -Raw | ConvertFrom-Json
+          if ($embeddedAnalysis.schema_version -ne 2) { throw "Analysis schema embedded no es v2." }
+          if ($embeddedAnalysis.input.ingest.input_mode -ne "embedded_audio") { throw "Provenance embedded incorrecta." }
+          if (-not $embeddedAnalysis.safety.master_audio_is_timeline_source) { throw "Master no figura como timeline source." }
+          if ($embeddedTranscript.word_count -lt 15) { throw "Whisper embedded produjo pocas palabras: $($embeddedTranscript.word_count)" }
+          $embeddedVideoProbeDuration = [double](& $ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $embeddedVideo)
+          $embeddedMasterDuration = [double](& $ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $embeddedMasterPath)
+          if ([Math]::Abs($embeddedVideoProbeDuration - $embeddedMasterDuration) -gt 0.10) {
+            throw "Timeline embedded diverge: video=$embeddedVideoProbeDuration master=$embeddedMasterDuration"
+          }
+
+          & $exe analyze $cameraVideo --audio $external --model tiny --language en --device cpu --compute-type int8 --output-dir $externalOutput
+          if ($LASTEXITCODE -ne 0) { throw "Analyze external frozen/offline falló." }
+
+          $externalAnalysisPath = Join-Path $externalOutput "camera reference speech_analysis.json"
+          $externalTranscriptPath = Join-Path $externalOutput "camera reference speech_transcript.json"
+          $externalIngestPath = Join-Path $externalOutput "camera reference speech_ingest.json"
+          $externalMasterPath = Join-Path $externalOutput "camera reference speech_master_audio.flac"
+          foreach ($path in @($externalAnalysisPath, $externalTranscriptPath, $externalIngestPath, $externalMasterPath)) {
+            if (-not (Test-Path $path)) { throw "Falta output external: $path" }
+          }
+
+          $externalAnalysis = Get-Content $externalAnalysisPath -Raw | ConvertFrom-Json
+          $externalTranscript = Get-Content $externalTranscriptPath -Raw | ConvertFrom-Json
+          $externalIngest = Get-Content $externalIngestPath -Raw | ConvertFrom-Json
+          if ($externalIngest.status -ne "ready_auto") { throw "External ingest no quedó ready_auto: $($externalIngest.status)" }
+          if ([Math]::Abs([double]$externalIngest.sync.offset_seconds - 0.5) -gt 0.15) {
+            throw "External offset fuera de tolerancia: $($externalIngest.sync.offset_seconds)"
+          }
+          if ($externalAnalysis.input.ingest.input_mode -ne "external_audio") { throw "Provenance external incorrecta." }
+          if ($externalAnalysis.input.ingest.sync_method -ne "auto_correlation") { throw "Sync method external incorrecto." }
+          if ($externalTranscript.word_count -lt 15) { throw "Whisper external produjo pocas palabras: $($externalTranscript.word_count)" }
+          if ($externalAnalysis.summary.automatic_edits -ne 0) { throw "Analyze creó edits automáticos." }
+
+          $externalVideoDuration = [double](& $ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $cameraVideo)
+          $externalMasterDuration = [double](& $ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $externalMasterPath)
+          if ([Math]::Abs($externalVideoDuration - $externalMasterDuration) -gt 0.10) {
+            throw "Timeline external diverge: video=$externalVideoDuration master=$externalMasterDuration"
+          }
+
+          Write-Host "EMBEDDED_WORD_COUNT=$($embeddedTranscript.word_count)"
+          Write-Host "EMBEDDED_VIDEO_DURATION=$embeddedVideoProbeDuration"
+          Write-Host "EMBEDDED_MASTER_DURATION=$embeddedMasterDuration"
+          Write-Host "EXTERNAL_WORD_COUNT=$($externalTranscript.word_count)"
+          Write-Host "EXTERNAL_OFFSET_SECONDS=$($externalIngest.sync.offset_seconds)"
+          Write-Host "EXTERNAL_CONFIDENCE=$($externalIngest.sync.confidence)"
+          Write-Host "EXTERNAL_DRIFT_PPM=$($externalIngest.sync.drift_ppm)"
+          Write-Host "EXTERNAL_VIDEO_DURATION=$externalVideoDuration"
+          Write-Host "EXTERNAL_MASTER_DURATION=$externalMasterDuration"
+          Write-Host "No artifacts are uploaded by this workflow."
