@@ -1,5 +1,6 @@
 param(
     [string]$FixtureRoot = $env:SPANISH_MODEL_FIXTURE_ROOT,
+    [string]$ModelStage = $env:SPANISH_TARGET_MODEL_STAGE,
     [string]$PortableSource = (Join-Path $PWD "dist\Video_Tunner"),
     [string]$Reference = (Join-Path $PWD "Validation\spanish-large-v3-turbo-reference.txt"),
     [string]$Evaluator = (Join-Path $PWD ".github\scripts\evaluate_asr_reference.py"),
@@ -9,6 +10,9 @@ param(
 $ErrorActionPreference = "Stop"
 if (-not $FixtureRoot -or -not (Test-Path $FixtureRoot)) {
     throw "No existe el directorio de fixture español: $FixtureRoot"
+}
+if (-not $ModelStage -or -not (Test-Path $ModelStage)) {
+    throw "No existe el staging fijado de large-v3-turbo: $ModelStage"
 }
 if (-not (Test-Path $PortableSource)) {
     throw "No existe el portable de análisis: $PortableSource"
@@ -68,6 +72,11 @@ if ($LASTEXITCODE -ne 0) { throw "No se pudo construir el vídeo español de val
 Write-Host "SPANISH_FIXTURE_DURATION_SECONDS=$duration"
 Write-Host "SPANISH_FIXTURE_SHA256=$((Get-FileHash $spoken -Algorithm SHA256).Hash)"
 
+$modelDestination = Join-Path $isolated "Models\whisper\large-v3-turbo"
+Remove-Item $modelDestination -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $modelDestination | Out-Null
+Copy-Item (Join-Path $ModelStage "*") $modelDestination -Recurse -Force
+
 $output = Join-Path $isolated "Output\large v3 turbo spanish"
 $originalPath = $env:PATH
 $env:VIDEO_TUNNER_PORTABLE_STRICT = "1"
@@ -77,6 +86,7 @@ Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue
 Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
 $env:HF_HOME = Join-Path $isolated "Cache\huggingface-home"
 $env:HUGGINGFACE_HUB_CACHE = Join-Path $isolated "Cache\huggingface-hub"
+$env:HF_HUB_OFFLINE = "1"
 $env:HF_HUB_DISABLE_XET = "1"
 $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
 
@@ -93,19 +103,16 @@ if (-not $doctor.analysis_dependencies.silero_onnx.available) {
     throw "Silero ONNX no está disponible en el portable."
 }
 
-$fetchWatch = [Diagnostics.Stopwatch]::StartNew()
-& $exe model fetch large-v3-turbo
-$fetchWatch.Stop()
-if ($LASTEXITCODE -ne 0) { throw "La adquisición de large-v3-turbo falló." }
-
 $modelStatus = (& $exe model status large-v3-turbo | Out-String | ConvertFrom-Json)
-if (-not $modelStatus.available) { throw "large-v3-turbo no quedó completo bajo Models/." }
+if (-not $modelStatus.available) { throw "large-v3-turbo staged no es reconocido como modelo local completo." }
 if (-not $modelStatus.path.StartsWith((Join-Path $isolated "Models"))) {
     throw "El modelo quedó fuera del árbol portable."
 }
 $modelBytes = [long](Get-ChildItem $modelStatus.path -File -Recurse | Measure-Object -Property Length -Sum).Sum
+if ($env:TARGET_MODEL_STAGE_BYTES -and $modelBytes -ne [long]$env:TARGET_MODEL_STAGE_BYTES) {
+    throw "El tamaño del modelo cambió al copiarlo al portable: stage=$env:TARGET_MODEL_STAGE_BYTES portable=$modelBytes"
+}
 
-$env:HF_HUB_OFFLINE = "1"
 $stdoutPath = Join-Path $env:RUNNER_TEMP "large-v3-turbo-analyze.stdout.txt"
 $stderrPath = Join-Path $env:RUNNER_TEMP "large-v3-turbo-analyze.stderr.txt"
 $psi = [Diagnostics.ProcessStartInfo]::new()
@@ -188,6 +195,8 @@ $peakMiB = $peakWorkingSet / 1MB
 $modelMiB = [double]$modelBytes / 1MB
 
 Write-Host "TARGET_MODEL=large-v3-turbo"
+Write-Host "TARGET_MODEL_SOURCE_REPO=$env:TARGET_MODEL_SOURCE_REPO"
+Write-Host "TARGET_MODEL_SOURCE_REVISION=$env:TARGET_MODEL_SOURCE_REVISION"
 Write-Host "SPANISH_REFERENCE_WORDS=$($evaluation.reference_word_count)"
 Write-Host "SPANISH_HYPOTHESIS_WORDS=$($evaluation.hypothesis_word_count)"
 Write-Host "SPANISH_WER=$($evaluation.wer)"
@@ -197,7 +206,7 @@ Write-Host "SPANISH_REAL_TIME_FACTOR=$([Math]::Round($rtf, 4))"
 Write-Host "SPANISH_PEAK_WORKING_SET_MIB=$([Math]::Round($peakMiB, 1))"
 Write-Host "TARGET_MODEL_BYTES=$modelBytes"
 Write-Host "TARGET_MODEL_MIB=$([Math]::Round($modelMiB, 1))"
-Write-Host "TARGET_MODEL_FETCH_SECONDS=$([Math]::Round($fetchWatch.Elapsed.TotalSeconds, 3))"
+Write-Host "TARGET_MODEL_DIRECT_DOWNLOAD_SECONDS=$env:TARGET_MODEL_DOWNLOAD_SECONDS"
 Write-Host "SPANISH_CANDIDATES=$($analysis.summary.candidate_count)"
 Write-Host "SPANISH_AUTOMATIC_EDITS=$($analysis.summary.automatic_edits)"
 Write-Host "SPANISH_VIDEO_DURATION=$videoDuration"
