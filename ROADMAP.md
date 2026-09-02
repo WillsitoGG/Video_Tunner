@@ -59,15 +59,7 @@ Implementado:
 
 Foundation run `33634775313` — SUCCESS tras corregir PTS/padding.
 
-Hardening run `33639009841` — SUCCESS:
-
-- 37 tests PASS;
-- negative offset E2E PASS;
-- media-level drift +1000 ppm PASS;
-- señal plana/insuficiente => REVIEW/no master;
-- manual override sin audio de cámara PASS;
-- coverage parcial + warning PASS;
-- 0 artifacts.
+Hardening run `33639009841` — SUCCESS con 37 tests, negative offset, drift +1000 ppm, low-signal failure-safe, manual override y coverage parcial.
 
 Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
@@ -75,90 +67,118 @@ Thresholds de confidence/residual/drift/coverage siguen provisionales hasta corp
 
 ## Fase 1C — Transcripción + VAD sobre master audio — COMPLETADA
 
-### Integración de master audio
+`analyze` trabaja siempre sobre master audio acreditado. Whisper y Silero VAD reciben exactamente el mismo master; todos los timestamps permanecen en timeline de vídeo.
 
-`analyze` trabaja siempre sobre master audio acreditado y no presupone audio embebido directo.
-
-Puede:
-
-- resolver master embebido mediante `ingest`;
-- resolver audio externo mediante auto-sync;
-- aceptar override manual;
-- reutilizar un master pre-resuelto sólo junto con su `ingest.json`;
-- verificar SHA-256 de procedencia antes de reutilizarlo.
-
-Whisper y Silero VAD reciben exactamente el mismo master. Todos los timestamps permanecen en timeline de vídeo.
-
-El master embebido preserva offsets internos de pista y se pad/trim hasta la duración exacta del vídeo.
-
-Run `33640872486` — **SUCCESS**:
+Run `33640872486` — SUCCESS:
 
 - 41 tests PASS;
 - build frozen analysis PASS;
-- stack ML + Silero ONNX operativo sin Python/FFmpeg externos en PATH;
-- inferencia offline desde modelo local;
-- embedded retrasado: 89 palabras, 11 pause candidates, vídeo/master `45.6 / 45.6 s`;
-- external auto-sync: 88 palabras, 9 pause candidates;
-- offset real `+0.500 s` → estimado `+0.49581 s`;
-- confidence `1.0`;
-- drift estimado `192.308 ppm`;
-- vídeo/master external `44.58275 / 44.58275 s`;
+- embedded/external master PASS;
+- external +0.500 s → +0.49581 s;
 - automatic edits `0`;
 - artifacts `0`.
 
-Ver `Validation/master-audio-analysis-spike.md`.
-
 ### `large-v3-turbo` + español real
 
-Run definitivo `33656235038` — **SUCCESS**:
+Run definitivo `33656235038` — SUCCESS:
 
-- fixture real español: `46.58025 s`;
+- fixture `46.58025 s`;
 - 61 palabras de referencia / 62 de hipótesis;
-- 1 error a nivel palabra;
-- **WER `1.64%`**, frente a criterio predefinido `<= 15%`;
-- todos los sanity checks de word timestamps PASS;
-- mediana de duración de palabra `0.36 s`;
-- `analyze` CPU int8: `22.609 s`;
-- **RTF `0.4854`**;
-- peak working set: **1818.7 MiB**;
-- modelo staged: **1546.5 MiB** (`1621665983` bytes);
-- candidates: `16`;
-- automatic edits: `0`;
-- vídeo/master: `46.58025 / 46.58025 s`;
-- artifacts: `0`.
-
-La inferencia se ejecutó con `HF_HUB_OFFLINE=1` desde el modelo local. El snapshot de validación quedó fijado por commit y SHA-256 del `model.bin`.
-
-Los runs `33652410474`, `33653108940`, `33653826702` y `33655947559` fallaron antes de inferencia por adquisición/infraestructura; no son resultados negativos del modelo. Su diagnóstico y correcciones están en `Validation/spanish-large-v3-turbo-plan.md`.
-
-### Cierre
-
-Se cumplen las condiciones definidas para Fase 1C:
-
-1. frozen portable carga `large-v3-turbo` localmente;
-2. inferencia offline PASS;
-3. calidad textual y sanity temporal PASS;
-4. tiempo/RAM/tamaño registrados;
-5. candidates continúan separados de decisions/edits.
+- 1 error;
+- WER `1.64%` frente a criterio `<=15%`;
+- word timestamps PASS;
+- CPU int8 `22.609 s`, RTF `0.4854`;
+- peak working set `1818.7 MiB`;
+- modelo `1546.5 MiB`;
+- candidates `16`;
+- automatic edits `0`;
+- artifacts `0`.
 
 **Fase 1C cerrada sin introducir auto-apply.**
 
-## Fase 2 — Cleaner inteligente — SIGUIENTE MILESTONE
+## Fase 2 — Cleaner inteligente — EN CURSO
 
 Objetivo: convertir transcript + VAD + candidates en propuestas semánticas auditables sin sacrificar significado.
 
-Alcance:
+### 2A — Semantic Candidates v1 — COMPLETADA
 
-- retomas y reinicios de frase;
-- repeticiones;
-- correcciones/errores hablados;
-- muletillas contextuales;
-- decision layer `KEEP / TRIM / CUT / REVIEW`;
-- protección de negaciones, cifras, sujetos, tiempos verbales y correcciones;
-- modos Conservador/Agresivo;
-- Conservador por defecto;
-- ante incertidumbre, REVIEW;
-- no auto-apply hasta disponer de evidencia suficiente.
+Implementado sobre word timestamps:
+
+- `possible_repetition`;
+- `possible_retake`;
+- `explicit_correction`;
+- evidencia exacta (`removed_text`, contexto, índices, timestamps, confidence);
+- lectura posterior preservada fuera del span candidato en repeticiones/retomas;
+- correcciones explícitas detectadas sin inventar todavía el límite del intento erróneo;
+- modo Conservador más estricto que Agresivo;
+- deduplicación de openers desplazados;
+- `decision=undecided`;
+- `suggested_decision=REVIEW`;
+- `auto_apply=false`;
+- `span_safe_for_auto_apply=false`.
+
+Run `33659725847` — SUCCESS:
+
+```text
+Ran 48 tests in 6.469s
+OK
+```
+
+Incluye todos los E2E de sync y 7 tests nuevos de semantic candidates/integración. Artifacts `0`.
+
+Run previo `33659514611`: falló por una inconsistencia preexistente de Manual CI (NumPy no instalado para E2E de sync), mientras todos los tests semánticos pasaban. El workflow ligero queda corregido con NumPy 2.5.2, sin instalar el stack ML completo.
+
+Ver `Validation/phase2-semantic-candidates.md`.
+
+### 2B — Semantic Decisions + Protection — SIGUIENTE
+
+Antes de cualquier edit ejecutable, crear una capa explícita candidate → decision.
+
+Salida inicial:
+
+```text
+KEEP
+REVIEW
+proposed TRIM
+proposed CUT
+```
+
+pero:
+
+```text
+executable = false
+auto_apply = false
+```
+
+Protecciones mínimas:
+
+- números, importes, porcentajes y unidades;
+- negaciones;
+- sujeto/persona;
+- tiempo verbal/aspecto;
+- entidades/nombres relevantes cuando sean detectables;
+- relación intento → versión corregida;
+- conectores que cambien causalidad/contraste;
+- límites de word timing;
+- `removed_text` debe corresponder exactamente al span propuesto;
+- segunda lectura de retoma/repetición no debe quedar dentro del span eliminado.
+
+Validación requerida antes de avanzar:
+
+- fixtures sintéticos con números y negaciones;
+- habla real con errores/retomas deliberados;
+- false-positive cases: énfasis, repetición intencional y frases legítimamente reutilizadas;
+- Conservador debe caer a KEEP/REVIEW ante cualquier conflicto.
+
+### 2C — Promotion to Edit Plan — FUTURA
+
+Sólo después de 2B:
+
+- decidir qué clases pueden ser auto-aplicables;
+- thresholds por modo;
+- convertir decisiones aprobadas en Edit Plan;
+- verificar joins/removedText;
+- mantener límite global de eliminación y fail-safe.
 
 ## Fase 3 — Calidad audiovisual / auditoría
 
@@ -178,8 +198,9 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones después 
 
 ## Orden inmediato
 
-1. diseñar detector semántico de retomas/repeticiones/correcciones;
-2. definir contratos de candidate → decision y protección semántica;
-3. implementar primero en modo review-only;
-4. validar con fixtures hablados específicos antes de permitir auto-apply;
-5. mantener CI pesada sólo para hitos con evidencia nueva.
+1. implementar semantic decision/protection layer review-only;
+2. proteger números/negaciones/sujeto/tiempo verbal/entidades;
+3. modelar corrección intento → versión corregida;
+4. crear fixtures específicos de riesgo semántico;
+5. validar con habla real que contenga errores/retomas deliberados;
+6. no promover nada a Edit Plan hasta superar estas guardas.
