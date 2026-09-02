@@ -2,6 +2,11 @@ name: Portable ML Foundation Spike
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase1a-ml-portable
+    paths:
+      - Validation/portable-ml-spike.trigger
 
 concurrency:
   group: video-tunner-portable-ml-spike-${{ github.ref }}
