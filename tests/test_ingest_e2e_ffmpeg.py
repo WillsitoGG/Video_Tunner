@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import array
 import json
 import math
 import random
@@ -38,6 +39,37 @@ class IngestFfmpegRegressionTests(unittest.TestCase):
             check=True,
         )
         return float(completed.stdout.strip())
+
+    @staticmethod
+    def _rms(path: Path, *, start: float, duration: float) -> float:
+        completed = subprocess.run(
+            [
+                str(FFMPEG),
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-ss",
+                str(start),
+                "-t",
+                str(duration),
+                "-i",
+                str(path),
+                "-ac",
+                "1",
+                "-ar",
+                "8000",
+                "-f",
+                "s16le",
+                "-",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        samples = array.array("h")
+        samples.frombytes(completed.stdout)
+        if not samples:
+            return 0.0
+        return math.sqrt(sum(float(value) * float(value) for value in samples) / len(samples))
 
     @staticmethod
     def _amplitudes(duration: float, *, blocks_per_second: int = 5) -> list[float]:
@@ -145,6 +177,53 @@ class IngestFfmpegRegressionTests(unittest.TestCase):
                 time_scale=1.0,
             )
             self.assertAlmostEqual(self._duration(master), 4.0, delta=0.03)
+
+    def test_embedded_master_preserves_delayed_stream_timeline_and_pads_video_end(self):
+        with tempfile.TemporaryDirectory(prefix="video_tunner_embedded_timeline_") as temp:
+            root = Path(temp)
+            embedded_source = root / "embedded source.wav"
+            video = root / "video delayed embedded audio.mp4"
+            output = root / "output"
+            amplitudes = self._amplitudes(5.0)
+            self._write_timeline_wave(embedded_source, duration=3.0, amplitudes=amplitudes)
+
+            subprocess.run(
+                [
+                    str(FFMPEG),
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=black:s=160x120:r=25:d=5",
+                    "-itsoffset",
+                    "1.0",
+                    "-i",
+                    str(embedded_source),
+                    "-t",
+                    "5",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-c:a",
+                    "aac",
+                    str(video),
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            result = ingest_video(video, output)
+            self.assertEqual(result["status"], "ready")
+            master = Path(result["master_audio"])
+            self.assertAlmostEqual(self._duration(master), 5.0, delta=0.05)
+            self.assertLess(self._rms(master, start=0.0, duration=0.6), 80.0)
+            self.assertGreater(self._rms(master, start=1.2, duration=0.8), 500.0)
+            self.assertLess(self._rms(master, start=4.3, duration=0.5), 80.0)
 
     def test_auto_sync_recovers_negative_offset_and_materializes_full_master(self):
         with tempfile.TemporaryDirectory(prefix="video_tunner_negative_offset_") as temp:
