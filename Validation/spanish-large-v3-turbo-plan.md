@@ -60,16 +60,20 @@ portable strict: true
 HF_HUB_OFFLINE: true durante inferencia
 ```
 
-Para la validación de inferencia, el modelo se puede staged directamente bajo `Models/whisper/large-v3-turbo`; la fiabilidad del servicio de descarga no debe confundirse con la calidad ASR.
+Para la validación de inferencia, el modelo se staged directamente bajo `Models/whisper/large-v3-turbo`; la fiabilidad del servicio de descarga no debe confundirse con la calidad ASR.
 
-Tras un rate-limit de la API de metadata de Hugging Face, el harness fija como fuente de CI el snapshot:
+Tras rate-limits del endpoint de metadata y un primer pin incorrecto de mirror, el harness fija como fuente reproducible el snapshot:
 
 ```text
-repo: h2oai/faster-whisper-large-v3-turbo
-revision: d9e74de5094e9b435ce024f77e90c8cbb8d1afe1
+repo: rtlingo/mobiuslabsgmbh-faster-whisper-large-v3-turbo
+revision: 6bd64462dd562f8062828f585c3709aa52df0083
+model.bin bytes: 1617884929
+model.bin sha256: e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da
 ```
 
-Hugging Face identifica ese snapshot como duplicado de `mobiuslabsgmbh/faster-whisper-large-v3-turbo`. Se descargan directamente `config.json`, `preprocessor_config.json`, `tokenizer.json`, `vocabulary.json` y `model.bin`; se registran tamaños y SHA-256. La inferencia posterior se ejecuta offline.
+Ese repositorio declara que contiene la conversión CTranslate2 de `openai/whisper-large-v3-turbo` y que puede usarse con `faster-whisper`. El árbol fijado contiene `config.json`, `preprocessor_config.json`, `tokenizer.json`, `vocabulary.json` y `model.bin`. Antes del siguiente run se verificó externamente que `config.json` del commit fijado responde y que el enlace de descarga de `model.bin` resuelve al almacenamiento Xet; el portal publica además el tamaño y SHA-256 anteriores.
+
+El workflow descarga los cinco archivos directamente mediante `resolve/<revision>/...`, sin consultar `/api/models`, y valida tamaño + SHA-256 exactos de `model.bin` antes de construir el portable. La inferencia posterior se ejecuta con `HF_HUB_OFFLINE=1`.
 
 ## Métricas y criterios fijados antes del resultado
 
@@ -148,6 +152,20 @@ Run `33653108940` — **FAILURE antes de inferencia**:
 Este run tampoco es un resultado negativo de `large-v3-turbo`.
 
 Corrección: adquisición directa de snapshot fijado, sin endpoint `/api/models`, antes del build; inferencia posterior completamente offline.
+
+## Intento 3 — pin de mirror incorrecto
+
+Run `33653826702` — **FAILURE antes del build y antes de inferencia**:
+
+- evaluador smoke: PASS;
+- preflight de los cuatro audios: PASS;
+- adquisición directa del modelo inició antes del build;
+- `config.json` devolvió HTTP `404` porque el SHA completo usado para `h2oai/faster-whisper-large-v3-turbo` no correspondía al commit corto observado;
+- build: no ejecutado;
+- modelo: no descargado;
+- ASR: no ejecutado.
+
+Corrección: no inferir un SHA completo desde uno corto. Se seleccionó y verificó externamente el commit completo `6bd64462dd562f8062828f585c3709aa52df0083` de `rtlingo/mobiuslabsgmbh-faster-whisper-large-v3-turbo`, incluyendo resolución real del enlace de `model.bin` y checksum publicado.
 
 ## Condición de cierre de 1C
 
