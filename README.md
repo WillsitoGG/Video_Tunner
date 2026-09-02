@@ -27,7 +27,8 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 0.5 — Technology harvest: ✅
 - Fase 1A — Portable Foundation: ✅
 - Fase 1B — Ingesta dual + sync/drift: ✅
-- Fase 1C — Transcripción/VAD sobre master audio: **🟡 integración técnica portable validada; falta `large-v3-turbo` + español real**
+- Fase 1C — Transcripción/VAD sobre master audio + `large-v3-turbo` español real: ✅
+- Fase 2 — Cleaner semántico: siguiente milestone
 - Release pública: ninguna
 
 Video_Tunner sigue siendo producto/repo propio, no un fork.
@@ -84,7 +85,7 @@ Outputs:
 
 Hardening Windows run `33639009841`: 37 tests PASS, offset negativo, drift real, low-signal failure-safe, override manual y coverage parcial. Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
-## Fase 1C — análisis sobre master audio
+## Fase 1C — análisis sobre master audio — COMPLETADA
 
 `analyze` ya no asume que debe leer el audio embebido del MP4.
 
@@ -115,7 +116,7 @@ Reglas:
 - `analysis.json` schema v2 registra provenance de master e ingest;
 - candidates siguen `undecided` y `auto_apply=false`.
 
-### Evidencia portable — run `33640872486`
+### Integración portable — run `33640872486`
 
 **SUCCESS a la primera**:
 
@@ -133,6 +134,30 @@ Reglas:
 - artifacts: `0`.
 
 Ver `Validation/master-audio-analysis-spike.md`.
+
+### Modelo objetivo + español real — run `33656235038`
+
+**SUCCESS** con el portable frozen, CPU `int8`, idioma `es` e inferencia offline:
+
+- fixture hablado real: `46.58025 s`, 61 palabras de referencia;
+- hipótesis: 62 palabras;
+- errores a nivel palabra: `1`;
+- **WER `1.64%`** frente al criterio predefinido `<= 15%`;
+- word timestamps: todos los checks PASS;
+- mediana de duración de palabra: `0.36 s`;
+- análisis: `22.609 s`;
+- **RTF `0.4854`** (~2.06× tiempo real en ese runner Windows);
+- RAM pico: **1818.7 MiB**;
+- modelo staged: **1546.5 MiB** (`1621665983` bytes);
+- descarga directa del snapshot fijado: `11.032 s`;
+- candidates: `16`;
+- automatic edits: `0`;
+- vídeo/master: `46.58025 / 46.58025 s`;
+- artifacts: `0`.
+
+El único error textual fue una `y` extra al final. Los cuatro intentos anteriores del spike fallaron **antes de inferencia** por infraestructura/adquisición y están documentados en `Validation/spanish-large-v3-turbo-plan.md`.
+
+Con esta evidencia se cumplen las condiciones de cierre de Fase 1C.
 
 ## Pipeline
 
@@ -171,13 +196,14 @@ Video_Tunner.exe model fetch large-v3-turbo
 
 En portable strict no existe fallback silencioso a caches globales.
 
-## Siguiente trabajo
+## Siguiente trabajo — Fase 2
 
-1. validar `large-v3-turbo` con contenido hablado real en español;
-2. medir precisión cualitativa/word timestamps, velocidad, RAM y tamaño del modelo;
-3. revisar parámetros Whisper/VAD y thresholds de sync sobre contenido real;
-4. cerrar Fase 1C;
-5. entrar en Fase 2: retomas, repeticiones, errores, fillers contextuales y protección semántica.
+1. detectar retomas y reinicios de frase;
+2. detectar repeticiones y correcciones/errores;
+3. tratar muletillas de forma contextual y conservadora;
+4. introducir decision layer `KEEP / TRIM / CUT / REVIEW`;
+5. proteger negaciones, cifras, sujetos, tiempo verbal y correcciones semánticas;
+6. mantener `auto_apply=false` hasta que la evidencia permita thresholds seguros.
 
 ## Principios
 

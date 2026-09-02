@@ -57,7 +57,7 @@ Implementado:
 - sin mezcla implícita de audio de cámara;
 - timeline final del master igual a la del vídeo.
 
-Foundation run `33634775313` — SUCCESS tras corregir un bug real de timestamps/padding.
+Foundation run `33634775313` — SUCCESS tras corregir PTS/padding.
 
 Hardening run `33639009841` — SUCCESS:
 
@@ -73,11 +73,11 @@ Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
 Thresholds de confidence/residual/drift/coverage siguen provisionales hasta corpus real.
 
-## Fase 1C — Transcripción + VAD sobre master audio — EN CURSO / INTEGRACIÓN TÉCNICA PASS
+## Fase 1C — Transcripción + VAD sobre master audio — COMPLETADA
 
-### Integración completada
+### Integración de master audio
 
-`analyze` ya trabaja sobre master audio y no presupone audio embebido directo.
+`analyze` trabaja siempre sobre master audio acreditado y no presupone audio embebido directo.
 
 Puede:
 
@@ -89,16 +89,14 @@ Puede:
 
 Whisper y Silero VAD reciben exactamente el mismo master. Todos los timestamps permanecen en timeline de vídeo.
 
-El master embebido también preserva offsets internos de la pista y se pad/trim hasta la duración exacta del vídeo.
+El master embebido preserva offsets internos de pista y se pad/trim hasta la duración exacta del vídeo.
 
-### Evidencia portable
-
-Run `33640872486` — **SUCCESS a la primera**:
+Run `33640872486` — **SUCCESS**:
 
 - 41 tests PASS;
 - build frozen analysis PASS;
-- NumPy + stack ML + Silero ONNX operativos sin Python/FFmpeg externos en PATH;
-- inferencia posterior con `HF_HUB_OFFLINE=1`;
+- stack ML + Silero ONNX operativo sin Python/FFmpeg externos en PATH;
+- inferencia offline desde modelo local;
 - embedded retrasado: 89 palabras, 11 pause candidates, vídeo/master `45.6 / 45.6 s`;
 - external auto-sync: 88 palabras, 9 pause candidates;
 - offset real `+0.500 s` → estimado `+0.49581 s`;
@@ -110,18 +108,57 @@ Run `33640872486` — **SUCCESS a la primera**:
 
 Ver `Validation/master-audio-analysis-spike.md`.
 
-### Pendiente para cerrar Fase 1C
+### `large-v3-turbo` + español real
 
-1. validar `large-v3-turbo` con contenido hablado real en español;
-2. medir precisión cualitativa de transcripción y word timestamps;
-3. medir velocidad CPU, RAM y tamaño real del modelo;
-4. revisar parámetros Whisper/VAD sobre ese contenido;
-5. confirmar que el coste portable del modelo objetivo es aceptable;
-6. cerrar Fase 1C sin introducir auto-apply.
+Run definitivo `33656235038` — **SUCCESS**:
 
-## Fase 2 — Cleaner inteligente
+- fixture real español: `46.58025 s`;
+- 61 palabras de referencia / 62 de hipótesis;
+- 1 error a nivel palabra;
+- **WER `1.64%`**, frente a criterio predefinido `<= 15%`;
+- todos los sanity checks de word timestamps PASS;
+- mediana de duración de palabra `0.36 s`;
+- `analyze` CPU int8: `22.609 s`;
+- **RTF `0.4854`**;
+- peak working set: **1818.7 MiB**;
+- modelo staged: **1546.5 MiB** (`1621665983` bytes);
+- candidates: `16`;
+- automatic edits: `0`;
+- vídeo/master: `46.58025 / 46.58025 s`;
+- artifacts: `0`.
 
-Retomas, repeticiones, correcciones, muletillas contextuales, KEEP/TRIM/CUT/REVIEW, protección semántica y modos Conservador/Agresivo.
+La inferencia se ejecutó con `HF_HUB_OFFLINE=1` desde el modelo local. El snapshot de validación quedó fijado por commit y SHA-256 del `model.bin`.
+
+Los runs `33652410474`, `33653108940`, `33653826702` y `33655947559` fallaron antes de inferencia por adquisición/infraestructura; no son resultados negativos del modelo. Su diagnóstico y correcciones están en `Validation/spanish-large-v3-turbo-plan.md`.
+
+### Cierre
+
+Se cumplen las condiciones definidas para Fase 1C:
+
+1. frozen portable carga `large-v3-turbo` localmente;
+2. inferencia offline PASS;
+3. calidad textual y sanity temporal PASS;
+4. tiempo/RAM/tamaño registrados;
+5. candidates continúan separados de decisions/edits.
+
+**Fase 1C cerrada sin introducir auto-apply.**
+
+## Fase 2 — Cleaner inteligente — SIGUIENTE MILESTONE
+
+Objetivo: convertir transcript + VAD + candidates en propuestas semánticas auditables sin sacrificar significado.
+
+Alcance:
+
+- retomas y reinicios de frase;
+- repeticiones;
+- correcciones/errores hablados;
+- muletillas contextuales;
+- decision layer `KEEP / TRIM / CUT / REVIEW`;
+- protección de negaciones, cifras, sujetos, tiempos verbales y correcciones;
+- modos Conservador/Agresivo;
+- Conservador por defecto;
+- ante incertidumbre, REVIEW;
+- no auto-apply hasta disponer de evidencia suficiente.
 
 ## Fase 3 — Calidad audiovisual / auditoría
 
@@ -141,7 +178,8 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones después 
 
 ## Orden inmediato
 
-1. Validar `large-v3-turbo` con español real.
-2. Medir calidad, word timestamps, velocidad, RAM y tamaño.
-3. Cerrar Fase 1C.
-4. Entrar en Fase 2 semántica.
+1. diseñar detector semántico de retomas/repeticiones/correcciones;
+2. definir contratos de candidate → decision y protección semántica;
+3. implementar primero en modo review-only;
+4. validar con fixtures hablados específicos antes de permitir auto-apply;
+5. mantener CI pesada sólo para hitos con evidencia nueva.

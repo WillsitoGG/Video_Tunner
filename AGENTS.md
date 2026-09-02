@@ -35,9 +35,9 @@ Completado:
 - Candidate Analysis review-only;
 - Fase 1A Portable Foundation core + ML PASS Windows;
 - Fase 1B dual ingest + master audio + sync/drift COMPLETADA y hardening Windows PASS;
-- Fase 1C integración técnica de `analyze` sobre master audio PASS en portable Windows.
+- Fase 1C `analyze` sobre master audio + `large-v3-turbo` en español real COMPLETADA.
 
-Pendiente inmediato de 1C: **validar `large-v3-turbo` sobre contenido real en español y medir calidad/rendimiento/tamaño**.
+Pendiente inmediato: **Fase 2 semantic cleaner — retomas, repeticiones, correcciones, fillers contextuales y protección semántica**.
 
 ## 3. Evidencia portable
 
@@ -46,6 +46,8 @@ Core run `33600174568`: PASS.
 ML run `33621357438`: PASS con faster-whisper 1.2.1, CTranslate2 4.8.1, ONNX Runtime 1.29.0, tokenizers 0.23.1, PyAV 18.1.0 y Silero V6 ONNX. Inferencia frozen/offline con modelo local PASS.
 
 Master-audio analysis run `33640872486`: PASS con 41 tests, frozen portable, Whisper/VAD sobre master embebido y externo sincronizado y 0 artifacts.
+
+Target-model Spanish run `33656235038`: PASS con `large-v3-turbo`, 61 palabras de referencia, WER 1.64%, word timestamps PASS, analyze 22.609 s sobre 46.58025 s (RTF 0.4854), peak working set 1818.7 MiB, modelo staged 1546.5 MiB, 16 candidates, 0 automatic edits y 0 artifacts.
 
 PyInstaller `onedir` continúa como base provisional. No evaluar Nuitka sin problema/ventaja medible.
 
@@ -65,6 +67,17 @@ PyInstaller 6.22.2
 VAD usa faster-whisper + `silero_vad_v6.onnx`; no standalone Torch sin nueva evidencia.
 
 Modelo objetivo: `large-v3-turbo`. `tiny` sólo es fixture barato de runtime/CI.
+
+Validación reproducible de `large-v3-turbo`:
+
+```text
+repo: rtlingo/mobiuslabsgmbh-faster-whisper-large-v3-turbo
+revision: 6bd64462dd562f8062828f585c3709aa52df0083
+model.bin bytes: 1617884929
+model.bin sha256: e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da
+```
+
+Este pin es del harness de validación; no convierte ese mirror en dependencia arquitectónica obligatoria del producto.
 
 ## 5. Portable / modelos
 
@@ -173,9 +186,9 @@ Hardening `33639009841` PASS:
 
 Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
-## 7. Fase 1C — transcripción/VAD sobre master audio — INTEGRACIÓN TÉCNICA PASS
+## 7. Fase 1C — transcripción/VAD sobre master audio — COMPLETADA
 
-### Contrato actual de `analyze`
+### Contrato de `analyze`
 
 `analyze` siempre trabaja sobre un master audio acreditado.
 
@@ -196,9 +209,9 @@ Reglas obligatorias:
 - `analysis.json` schema v2 registra master + ingest provenance;
 - candidates siguen `undecided` y `auto_apply=false`.
 
-### Evidencia Windows portable
+### Integración Windows portable
 
-Run `33640872486` — SUCCESS a la primera:
+Run `33640872486` — SUCCESS:
 
 - 41 tests PASS;
 - build frozen analysis PASS;
@@ -215,16 +228,66 @@ Run `33640872486` — SUCCESS a la primera:
 
 Ver `Validation/master-audio-analysis-spike.md`.
 
-### Pendiente para cerrar 1C
+### Modelo objetivo + español real
 
-- `large-v3-turbo` con contenido hablado real en español;
-- calidad cualitativa y word timestamps;
-- tiempo de inferencia CPU;
-- RAM pico;
-- tamaño del modelo local;
-- revisar configuración Whisper/VAD con ese fixture.
+Run `33656235038` — SUCCESS:
 
-## 8. Edit Plan / render
+```text
+fixture                46.58025 s
+reference words        61
+hypothesis words       62
+word errors            1
+WER                    0.016393 = 1.64%
+median word duration   0.36 s
+analyze                22.609 s
+RTF                    0.4854
+peak working set       1818.7 MiB
+model staged           1621665983 bytes = 1546.5 MiB
+candidates             16
+automatic edits        0
+video/master duration  46.58025 / 46.58025 s
+artifacts              0
+```
+
+Todos los checks temporales PASS. Inferencia offline con `HF_HUB_OFFLINE=1` PASS. El único error textual fue una `y` extra al final.
+
+Los cuatro runs anteriores del spike fallaron antes de inferencia por infraestructura/adquisición; no son evidencia ASR negativa. Ver `Validation/spanish-large-v3-turbo-plan.md`.
+
+## 8. Fase 2 — semantic cleaner — SIGUIENTE
+
+Objetivo: convertir transcript/VAD/candidates en propuestas de edición semánticamente seguras y auditables.
+
+Primera iteración debe permanecer **review-only**.
+
+Detectar:
+
+- retomas y reinicios de frase;
+- repeticiones;
+- marcadores de corrección (`perdón`, `mejor dicho`, `quiero decir`, etc.);
+- fillers sólo cuando el contexto permite retirarlos sin dañar naturalidad/significado.
+
+Decision layer:
+
+```text
+KEEP
+TRIM
+CUT
+REVIEW
+```
+
+Protección semántica mínima antes de permitir auto-apply:
+
+- negaciones;
+- números/unidades/importes;
+- sujetos/nombres propios relevantes;
+- tiempo verbal;
+- correcciones explícitas;
+- conectores que cambian causalidad/contraste;
+- límites de frase que puedan alterar el significado al concatenar.
+
+Conservador por defecto. Ante incertidumbre: REVIEW.
+
+## 9. Edit Plan / render
 
 Edit Plan contiene ediciones efectivas, no candidates sin decision layer.
 
@@ -232,7 +295,7 @@ Renderer: merge overlaps, trim/atrim+concat, H.264/AAC, no overwrite, abort si e
 
 Pendiente futuro: source hash, removedText, join audit, edge fades, loudness y post-render verification.
 
-## 9. Technology harvest
+## 10. Technology harvest
 
 Video_Tunner NO es fork.
 
@@ -240,7 +303,7 @@ Principales referencias: Railly/vcut, Cadence-Lab, ai-video-editor, SYSTRAN/fast
 
 Antes de copiar: licencia + commit + razón. Preferir API pública o reimplementación propia.
 
-## 10. GitHub / cuota
+## 11. GitHub / cuota
 
 GitHub = source of truth.
 
@@ -263,7 +326,7 @@ El conector no expone `workflow_dispatch`. Procedimiento excepcional one-shot:
 
 No usar como trigger normal.
 
-## 11. Repo / docs
+## 12. Repo / docs
 
 No versionar builds, binarios, modelos, vídeos, caches, outputs ni ZIPs.
 
@@ -274,14 +337,15 @@ Cambios de arquitectura/dependencias/build/validación => README + AGENTS sincro
 - `Validation/`: evidencia;
 - `Archive/`: releases publicadas sustituidas.
 
-## 12. Orden inmediato
+## 13. Orden inmediato
 
-1. validar `large-v3-turbo` en español real;
-2. medir calidad, timestamps, velocidad, RAM y tamaño;
-3. cerrar Fase 1C;
-4. Fase 2 semantic cleaner.
+1. diseñar candidate detectors semánticos;
+2. definir decision layer y esquema de evidencia/confidence;
+3. implementar review-only;
+4. crear fixtures explícitos de retoma/repetición/corrección, incluyendo números y negaciones;
+5. sólo después estudiar thresholds para auto-apply conservador.
 
-## 13. Changelog técnico
+## 14. Changelog técnico
 
 ### bootstrap
 CLI, tools, silence Cleaner, Edit Plan, render.
@@ -297,3 +361,6 @@ Dual ingest, multi-anchor offset/drift estimator, confidence/coverage policy, ma
 
 ### master-audio analysis
 `analyze` resuelve o verifica master audio, preserva provenance, bloquea analysis si sync exige revisión y usa el mismo master para Whisper + VAD; portable Windows PASS.
+
+### target-model Spanish validation
+`large-v3-turbo` validado en frozen Windows sobre 46.58025 s de español real: WER 1.64%, timestamps PASS, RTF 0.4854, peak RAM 1818.7 MiB, modelo 1546.5 MiB, 0 automatic edits y 0 artifacts. Fase 1C COMPLETADA.

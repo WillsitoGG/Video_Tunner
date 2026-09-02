@@ -1,0 +1,51 @@
+name: Spanish Large V3 Turbo Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-spanish-large-v3-turbo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-spanish-target-model:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Smoke-test ASR evaluator
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "Video Tunner Evaluator Smoke"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $transcript = Join-Path $root "transcript.json"
+          $reference = Join-Path $root "reference.txt"
+          '{"segments":[{"words":[{"text":"Hola","start":0.1,"end":0.4},{"text":"mundo","start":0.5,"end":0.9}]}]}' | Set-Content -Encoding UTF8 $transcript
+          "Hola mundo" | Set-Content -Encoding UTF8 $reference
+          python .\.github\scripts\evaluate_asr_reference.py $transcript $reference `
+            --timeline-duration 1.0 --max-wer 0.0 --min-word-ratio 1.0
+          if ($LASTEXITCODE -ne 0) { throw "El evaluador ASR no supera su smoke test." }
+
+      - name: Preflight licensed Spanish fixture downloads
+        shell: pwsh
+        run: .\.github\scripts\download_spanish_fixture.ps1
+
+      - name: Acquire pinned target model without Hub metadata API
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Build analysis portable
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+
+      - name: Validate large-v3-turbo frozen and offline on real Spanish speech
+        shell: pwsh
+        run: .\.github\scripts\run_spanish_large_v3_turbo_validation.ps1
