@@ -62,8 +62,24 @@ class SemanticDecisionTests(unittest.TestCase):
         self.assertEqual(decision["decision"], "REVIEW")
         self.assertFalse(decision["executable"])
         self.assertIn("numbers", decision["protections"]["critical_changes"])
+        self.assertIn("units", decision["protections"]["critical_changes"])
         self.assertIn("200", decision["protections"]["context_before"]["numbers"])
         self.assertIn("250", decision["protections"]["context_after"]["numbers"])
+        self.assertIn("euros", decision["protections"]["context_after"]["units"])
+        self.assertTrue(decision["protections"]["correction_relation"]["critical"])
+
+    def test_percentage_correction_protects_number_and_unit_symbol(self):
+        value = transcript("el margen era 10% perdón 15% este año")
+        candidates = semantic_candidates(value)
+        decisions = build_semantic_decisions(value, candidates)
+        decision = next(item for item in decisions if item["candidate_kind"] == "explicit_correction")
+
+        self.assertEqual(decision["decision"], "REVIEW")
+        self.assertIn("numbers", decision["protections"]["critical_changes"])
+        self.assertIn("10%", decision["protections"]["context_before"]["numbers"])
+        self.assertIn("15%", decision["protections"]["context_after"]["numbers"])
+        self.assertIn("%", decision["protections"]["context_before"]["units"])
+        self.assertIn("%", decision["protections"]["context_after"]["units"])
 
     def test_negation_change_around_correction_is_protected(self):
         value = transcript("esto no funciona perdón esto funciona correctamente")
