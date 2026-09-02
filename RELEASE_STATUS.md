@@ -11,7 +11,8 @@
 - Fase 0.5: technology harvest definido
 - Fase 1A: **Portable Foundation PASS en Windows (core + stack ML CPU)**
 - Fase 1B: **COMPLETADA — dual ingest + sync/drift + hardening Windows PASS**
-- Fase 1C: **integración técnica master audio → Whisper/VAD PASS; falta modelo objetivo + español real**
+- Fase 1C: **COMPLETADA — master audio → Whisper/VAD + `large-v3-turbo` sobre español real PASS**
+- Fase 2: **siguiente milestone — semantic cleaner review-only**
 
 ## Portable Foundation — core
 
@@ -74,7 +75,7 @@ Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
 ## Fase 1C — master audio analysis
 
-Integración técnica implementada:
+Integración implementada:
 
 - `analyze` resuelve master embebido o externo vía ingest;
 - acepta override manual;
@@ -87,7 +88,7 @@ Integración técnica implementada:
 - candidates siguen sin auto-apply;
 - embedded master preserva offset interno de pista y se extiende exactamente a la timeline del vídeo.
 
-Run `33640872486` — **SUCCESS a la primera**, 2026-09-02:
+Run `33640872486` — **SUCCESS**, 2026-09-02:
 
 - 41 tests PASS;
 - build frozen analysis PASS;
@@ -104,21 +105,63 @@ Run `33640872486` — **SUCCESS a la primera**, 2026-09-02:
 
 Ver `Validation/master-audio-analysis-spike.md`.
 
-## Pendiente antes de cerrar Fase 1C
+## Fase 1C — modelo objetivo + español real
 
-- validar `large-v3-turbo` con contenido hablado real en español;
-- medir calidad de transcripción y word timestamps;
-- medir velocidad CPU y RAM pico;
-- medir tamaño local del modelo;
-- revisar parámetros Whisper/VAD sobre contenido real.
+Run definitivo `33656235038` — **SUCCESS**, 2026-09-02.
+
+Configuración:
+
+```text
+large-v3-turbo
+CPU
+int8
+language=es
+portable strict
+HF_HUB_OFFLINE=1 durante inferencia
+```
+
+Resultados:
+
+```text
+fixture duration           46.58025 s
+reference words           61
+hypothesis words          62
+word errors               1
+WER                       1.64%
+median word duration      0.36 s
+analyze                   22.609 s
+real-time factor          0.4854
+peak working set          1818.7 MiB
+model staged              1621665983 bytes / 1546.5 MiB
+candidates                16
+automatic edits           0
+video/master duration     46.58025 / 46.58025 s
+artifacts                 0
+```
+
+Criterio predefinido WER `<= 15%`: PASS.
+Todos los checks de word timestamps: PASS.
+El único error textual fue una `y` extra al final.
+
+Modelo de validación fijado por commit y SHA-256:
+
+```text
+repo: rtlingo/mobiuslabsgmbh-faster-whisper-large-v3-turbo
+revision: 6bd64462dd562f8062828f585c3709aa52df0083
+model.bin sha256: e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da
+```
+
+Los runs `33652410474`, `33653108940`, `33653826702` y `33655947559` fallaron antes de inferencia por infraestructura/adquisición. Ver diagnóstico completo en `Validation/spanish-large-v3-turbo-plan.md`.
+
+**Conclusión: Fase 1C COMPLETADA.**
 
 ## Pendiente antes de una Release
 
-- cerrar Fase 1C;
-- semantic cleaner;
-- calidad audiovisual/audit;
-- UX;
-- Release Hardening + licencias/notices + Windows limpio real.
+- Fase 2 semantic cleaner: retomas, repeticiones, correcciones, fillers contextuales, decision layer y protección semántica;
+- Fase 3 calidad audiovisual/audit;
+- Fase 4 UX;
+- Fase 5 Release Hardening + licencias/notices + Windows limpio real;
+- decidir estrategia final de distribución/adquisición del modelo objetivo basándose en tamaño, RAM y experiencia de usuario.
 
 No existe todavía paquete final para `SHA256SUMS.txt` ni versión sustituida para `Archive/`.
 
