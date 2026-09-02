@@ -9,12 +9,11 @@ $userAgent = "Video_Tunner-CI/0.1 (+https://github.com/WillsitoGG/Video_Tunner)"
 $expectedModelBytes = 1617884929L
 $expectedModelSha256 = "E76620F83D5F5B69EFD3D87E3DC180C1BD21DF9FBEBACFD4335E5E1EFCC018DA"
 
-$files = @(
+$smallFiles = @(
     @{ name = "config.json"; min_bytes = 1000L },
     @{ name = "preprocessor_config.json"; min_bytes = 100L },
     @{ name = "tokenizer.json"; min_bytes = 2000000L },
-    @{ name = "vocabulary.json"; min_bytes = 500000L },
-    @{ name = "model.bin"; min_bytes = 1500000000L }
+    @{ name = "vocabulary.json"; min_bytes = 500000L }
 )
 
 $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
@@ -26,47 +25,63 @@ Remove-Item $Destination -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Destination | Out-Null
 $watch = [Diagnostics.Stopwatch]::StartNew()
 
-foreach ($item in $files) {
-    $name = [string]$item.name
-    $target = Join-Path $Destination $name
-    $uri = "https://huggingface.co/$repo/resolve/$revision/$name?download=true"
+function Download-File {
+    param(
+        [string]$Name,
+        [string]$Uri,
+        [long]$MinBytes,
+        [int]$Retries = 2
+    )
 
-    Write-Host "Downloading pinned model file: $name"
+    $target = Join-Path $Destination $Name
+    Write-Host "Downloading pinned model file: $Name"
+    Write-Host "TARGET_MODEL_FILE_${Name}_URL=$Uri"
+
     & $curl.Source `
         --location `
         --fail `
         --silent `
         --show-error `
-        --retry 5 `
+        --retry $Retries `
         --retry-all-errors `
         --retry-delay 8 `
         --connect-timeout 30 `
         --continue-at - `
         --user-agent $userAgent `
         --output $target `
-        $uri
+        $Uri
     if ($LASTEXITCODE -ne 0) {
-        throw "No se pudo descargar $name desde el snapshot fijado $repo@$revision."
+        throw "No se pudo descargar $Name desde el snapshot fijado $repo@$revision."
     }
     if (-not (Test-Path $target)) {
-        throw "La descarga de $name no produjo fichero."
+        throw "La descarga de $Name no produjo fichero."
     }
     $size = [long](Get-Item $target).Length
-    if ($size -lt [long]$item.min_bytes) {
-        throw "$name tiene un tamaño inesperado: $size bytes."
+    if ($size -lt $MinBytes) {
+        throw "$Name tiene un tamaño inesperado: $size bytes."
     }
     $hash = (Get-FileHash $target -Algorithm SHA256).Hash.ToUpperInvariant()
-    Write-Host "TARGET_MODEL_FILE_${name}_BYTES=$size"
-    Write-Host "TARGET_MODEL_FILE_${name}_SHA256=$hash"
+    Write-Host "TARGET_MODEL_FILE_${Name}_BYTES=$size"
+    Write-Host "TARGET_MODEL_FILE_${Name}_SHA256=$hash"
+    return @{ path = $target; size = $size; hash = $hash }
+}
 
-    if ($name -eq "model.bin") {
-        if ($size -ne $expectedModelBytes) {
-            throw "model.bin no coincide con el tamaño fijado: actual=$size esperado=$expectedModelBytes."
-        }
-        if ($hash -ne $expectedModelSha256) {
-            throw "model.bin no coincide con SHA-256 fijado: actual=$hash esperado=$expectedModelSha256."
-        }
-    }
+# Los JSON no son Xet; `raw/<revision>` se verificó externamente uno a uno antes de CI.
+foreach ($item in $smallFiles) {
+    $name = [string]$item.name
+    $uri = "https://huggingface.co/{0}/raw/{1}/{2}" -f $repo, $revision, $name
+    [void](Download-File -Name $name -Uri $uri -MinBytes ([long]$item.min_bytes) -Retries 2)
+}
+
+# `model.bin` sí está almacenado en Xet. Su enlace `resolve/<revision>` se verificó
+# externamente y Hugging Face publica tamaño y SHA-256, que se validan aquí.
+$modelUri = "https://huggingface.co/{0}/resolve/{1}/model.bin?download=true" -f $repo, $revision
+$model = Download-File -Name "model.bin" -Uri $modelUri -MinBytes 1500000000L -Retries 5
+if ([long]$model.size -ne $expectedModelBytes) {
+    throw "model.bin no coincide con el tamaño fijado: actual=$($model.size) esperado=$expectedModelBytes."
+}
+if ([string]$model.hash -ne $expectedModelSha256) {
+    throw "model.bin no coincide con SHA-256 fijado: actual=$($model.hash) esperado=$expectedModelSha256."
 }
 
 $watch.Stop()
