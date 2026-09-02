@@ -21,117 +21,92 @@ Repo propio, no fork. Upstreams sólo como referencias/integraciones trazables.
 
 Core Windows run `33600174568` PASS.
 
-ML frozen run `33621357438` PASS:
+ML frozen run `33621357438` PASS con faster-whisper/CTranslate2/ONNX Runtime/Silero VAD ONNX e inferencia offline desde modelo local.
 
-- faster-whisper 1.2.1;
-- CTranslate2 4.8.1;
-- ONNX Runtime 1.29.0;
-- tokenizers 0.23.1;
-- PyAV 18.1.0;
-- Silero V6 ONNX;
-- inferencia offline con modelo local;
-- PyInstaller `onedir` aceptado como base provisional.
+PyInstaller `onedir` queda como base provisional.
 
-## Fase 1B — Ingesta dual + sincronización A/V — EN CURSO
+## Fase 1B — Ingesta dual + sincronización A/V — COMPLETADA
 
-### 1B.1 Contrato de ingesta — IMPLEMENTADO
+### Contrato
 
 ```text
 A) video + embedded audio → master audio
 B) video + external audio → sync → external synchronized master audio
 ```
 
-`ingest.json` registra fuentes, SHA-256, timeline, método, sync, coverage, master y warnings.
-
-### 1B.2 Auto-sync offset — IMPLEMENTADO / FOUNDATION PASS
-
-Backend propio:
-
-- referencia mono 8 kHz;
-- envolvente log-RMS 50 Hz;
-- ZNCC coarse;
-- 7 anchors fine multi-window;
-- offset positivo/negativo;
-- confidence;
-- outlier rejection por MAD.
-
-Convención:
+Convención única:
 
 ```text
 video_time = offset_seconds + time_scale * external_time
 ```
 
-### 1B.3 Manual fallback — IMPLEMENTADO
+Implementado:
 
-- `--audio` opcional;
-- `--offset` manual;
-- `--drift-ppm` manual;
-- sin referencia suficiente => REVIEW/no master;
-- sin audio de cámara => no auto-sync, requiere override.
-
-### 1B.4 Drift — IMPLEMENTADO EN ESTIMADOR / HARDENING E2E PENDIENTE
-
-- ajuste lineal multi-anchor;
-- `time_scale`;
-- drift ppm;
+- `ingest` CLI;
+- master audio FLAC 48 kHz;
+- SHA-256 y metadata de fuentes;
+- correlación coarse ZNCC;
+- anchors multi-window;
+- offset positivo/negativo;
+- confidence;
+- ajuste lineal de drift;
 - residual RMS;
-- corrección temporal mediante `atempo`;
-- preservación de pitch inherente al filtro tempo.
+- rejection de outliers por MAD;
+- coverage;
+- override `--offset` y `--drift-ppm`;
+- `review_required` sin master ante evidencia insuficiente;
+- sin mezcla implícita de audio de cámara;
+- timeline final del master igual a la del vídeo.
 
-Tests sintéticos recuperan drift conocido, pero falta E2E Windows con drift aplicado a media real.
+### Foundation Windows
 
-### 1B.5 Master timeline — FOUNDATION PASS
-
-El master externo se materializa como FLAC 48 kHz.
-
-Tras descubrir en runs #1/#2 un problema real de duración por timestamps FFmpeg, la cadena fue endurecida con:
-
-- `asetpts=N/SR/TB`;
-- `apad=whole_dur`;
-- `atrim=duration`;
-- límite `-t`.
-
-Run final `33634775313` — SUCCESS:
+Run `33634775313` — SUCCESS tras detectar y corregir un bug real de timestamps/padding.
 
 - 33 tests PASS;
 - offset `+1.500 s` recuperado exactamente;
 - confidence `1.000`;
 - 7 anchors;
-- drift `0 ppm`;
-- vídeo/master `90.000 / 90.000 s`;
+- vídeo/master `90/90 s`;
 - 0 artifacts.
 
-Ver `Validation/sync-foundation-spike.md`.
+### Hardening Windows
 
-### 1B.6 Hardening restante
+Run `33639009841` — **SUCCESS**.
 
-Antes de cerrar Fase 1B:
+- 37 tests PASS;
+- negative offset E2E PASS;
+- media-level drift E2E con `+1000 ppm` objetivo PASS dentro de tolerancia;
+- señal plana/insuficiente => REVIEW, sin master;
+- manual override sin audio de cámara PASS;
+- coverage parcial + warning PASS;
+- master timeline regression PASS;
+- fixture nominal +1.5 s continúa PASS;
+- 0 artifacts.
 
-- E2E offset negativo;
-- E2E drift conocido;
-- baja señal/ambigüedad => REVIEW;
-- manual override E2E;
-- external shorter/longer y coverage;
-- niveles/ruido/mics diferentes;
-- confirmar política de embedded audio con timeline no trivial;
-- post-sync residual validation;
-- rutas con espacios ya demostradas en el caso foundation.
+Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
 
-### Cierre 1B
+### Nota de producto
 
-No marcar COMPLETADA hasta que el hardening anterior demuestre que sync no sólo funciona en el caso positivo nominal, sino que falla de forma segura en casos ambiguos.
+Thresholds actuales de confidence/residual/drift/coverage son provisionales. Deben recalibrarse con corpus real antes de Release, pero ya no bloquean la arquitectura.
 
-## Fase 1C — Transcripción + VAD sobre master audio
+## Fase 1C — Transcripción + VAD sobre master audio — SIGUIENTE
 
-Parte del código ya existe. Falta:
+Código existente:
 
-- adaptar `analyze` a master audio;
-- mantener video timeline como referencia de timestamps;
-- `large-v3-turbo` como modelo objetivo;
-- word timestamps + TXT/JSON/SRT;
+- faster-whisper word-level;
+- TXT/JSON/SRT;
 - Silero VAD ONNX;
-- validación real en español;
-- medir calidad/velocidad/model size.
+- Candidate Analysis review-only.
+
+Trabajo pendiente:
+
+1. hacer que `analyze` consuma master audio en lugar de extraer siempre audio embebido;
+2. preservar la timeline del vídeo como referencia de timestamps;
+3. integrar `ingest` + `analyze` sin duplicar trabajo/artefactos;
+4. validar tanto audio embebido como externo sincronizado;
+5. validar `large-v3-turbo` con vídeo hablado real en español;
+6. medir calidad/velocidad/model size;
+7. mantener candidates sin auto-apply.
 
 ## Fase 2 — Cleaner inteligente
 
@@ -155,8 +130,8 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones después 
 
 ## Orden inmediato
 
-1. Hardening restante de Fase 1B.
-2. Cerrar sync/master audio con evidencia segura.
-3. Adaptar `analyze` al master audio.
-4. Validar `large-v3-turbo` + VAD sobre vídeo hablado real en español.
+1. Migrar `analyze` a master audio.
+2. Validar pipeline ingest → master → Whisper/VAD/candidates.
+3. Validar `large-v3-turbo` en español real.
+4. Cerrar Fase 1C.
 5. Entrar en Fase 2 semántica.
