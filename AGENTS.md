@@ -1,25 +1,23 @@
 # AGENTS.md — Video_Tunner
 
-Contexto técnico permanente para cualquier agente que trabaje en este repositorio. La referencia maestra externa vigente es `00.Contexto y Reglas de Trabajo_GitHub_Video_Tunner_v3`.
+Contexto técnico permanente para agentes que trabajen en este repositorio. Referencia maestra externa vigente: `00.Contexto y Reglas de Trabajo_GitHub_Video_Tunner_v3`.
 
-## 1. Producto
+## 1. Producto e invariantes
 
-Video_Tunner debe convertir vídeo hablado bruto en un resultado natural, fiel, sincronizado, auditable y reversible para Windows 10/11 x64.
+Video_Tunner debe producir vídeo hablado limpio, natural, fiel, sincronizado, auditable y reversible en Windows 10/11 x64.
 
 Requisitos estructurales:
 
-1. aplicación portable real: ZIP → descomprimir → ejecutar;
+1. portable real: ZIP → descomprimir → ejecutar;
 2. vídeo con audio embebido o vídeo + audio externo;
 3. master audio resuelto antes de análisis temporal;
-4. auto-sync con confianza cuando exista referencia;
+4. auto-sync con confidence cuando exista referencia;
 5. offset manual/override;
-6. detección y corrección validada de drift;
+6. drift detectado/corregido sólo tras validación;
 7. originales intactos;
 8. edición derivada de datos auditables.
 
-No convertir prematuramente el proyecto en un editor generalista.
-
-## 2. Invariantes arquitectónicos
+Arquitectura:
 
 ```text
 source(s)
@@ -41,81 +39,62 @@ render
 audit
 ```
 
-- Candidato ≠ decisión ≠ edición.
-- El original y el audio externo nunca se sobrescriben.
-- Un detector técnico no se convierte silenciosamente en decisor semántico.
-- Baja confianza de sync o semántica => KEEP/REVIEW, no adivinar.
-- El mismo master audio debe alimentar transcripción/VAD y render final.
+Candidato ≠ decisión ≠ edición. Baja confianza => KEEP/REVIEW, nunca adivinar.
 
-## 3. Estado
+## 2. Estado
 
 Versión: `0.1.0-dev`.
 
-Implementado/validado previamente en entorno de desarrollo:
+Completado:
 
-- paquete Python y CLI;
-- FFmpeg/ffprobe;
-- probe;
+- Fase 0 bootstrap;
+- Fase 0.5 technology harvest;
+- CLI, FFmpeg/ffprobe, probe;
 - Cleaner determinista de silencios;
-- Edit Plan schema v1;
-- render H.264/AAC;
-- extracción WAV 16 kHz mono PCM16;
+- Edit Plan + render;
+- WAV 16 kHz mono PCM16;
 - transcript models + TXT/JSON/SRT;
 - candidate schema review-only;
 - source SHA-256;
-- tests unitarios/E2E sintéticos.
+- tests unitarios/E2E sintéticos;
+- Fase 1A core portable Windows PASS.
 
-Fase 1A en curso:
+Core portable evidence:
 
-- runtime layout portable;
-- modo portable estricto sin fallback a PATH;
-- PyInstaller `onedir` 6.22.2 para el spike;
-- script Windows de build;
-- FFmpeg/ffprobe bundled;
-- workflow manual de validación aislada;
-- eliminación de `silero-vad`/Torch del dependency graph de análisis;
-- VAD Silero ONNX reutilizado desde `faster-whisper`.
+- Actions run `33600174568`, SUCCESS 2026-09-02;
+- PyInstaller 6.22.2 onedir;
+- bundled FFmpeg/ffprobe;
+- PATH de prueba sin Python/FFmpeg;
+- ruta con espacios;
+- doctor/probe/clean/render PASS;
+- ZIP temporal 122677058 bytes;
+- 0 artifacts.
 
-Pendiente de validación real:
+En curso: Fase 1A ML frozen.
 
-- workflow Windows portable;
-- perfil ML frozen (`faster-whisper`/CTranslate2/ONNX Runtime);
-- modelo `large-v3-turbo` real;
-- inferencia VAD real;
-- master audio/audio externo/sync.
-
-## 4. Technology harvest
+## 3. Technology harvest
 
 Video_Tunner NO es fork.
 
-Upstreams principales:
+Referencias principales:
 
-- `Railly/vcut` — EDL, audit, joins, retakes/repeats, audio offset;
-- `JosephLeon/Cadence-Lab` — clasificación contextual y cache por hash;
-- `timkulbaev/ai-video-editor` — referencia pipeline talking-head;
-- `SYSTRAN/faster-whisper` — STT y, desde Fase 1A, backend VAD Silero ONNX reutilizado.
+- `Railly/vcut` — EDL/audit/joins/retakes/repeats;
+- `JosephLeon/Cadence-Lab` — clasificación contextual/cache;
+- `timkulbaev/ai-video-editor` — pipeline talking-head;
+- `SYSTRAN/faster-whisper` — STT + backend Silero VAD ONNX.
 
-Ver `UPSTREAM_SOURCES.md`.
+Ver `UPSTREAM_SOURCES.md`. Registrar licencia/commit antes de copiar código; preferir APIs públicas o reimplementación propia.
 
-Reglas:
+## 4. Portabilidad
 
-- registrar licencia/commit antes de copiar código;
-- preferir integración pública estable o reimplementación propia a copiar archivos enteros;
-- cada port/adaptación requiere tests propios;
-- revisar periódicamente upstreams sin ser fork.
-
-## 5. Portabilidad
-
-Portabilidad es requisito estructural desde Fase 1A.
-
-### Layout
+Layout:
 
 ```text
 Video_Tunner/
 ├── Video_Tunner.exe
 ├── _internal/
 ├── Tools/ffmpeg/bin/
-├── Models/
+├── Models/whisper/
 ├── Config/
 ├── Temp/
 ├── Cache/
@@ -124,120 +103,107 @@ Video_Tunner/
 └── portable-manifest.json
 ```
 
-### Resolución de runtime
-
 `tools.py`:
 
-- `is_frozen_runtime()` detecta PyInstaller;
-- `portable_strict_mode()` es true si frozen o `VIDEO_TUNNER_PORTABLE_STRICT=1`;
-- frozen/strict: FFmpeg sólo desde `<runtime>/Tools/ffmpeg/bin`;
-- frozen/strict: modelos sólo desde `<runtime>/Models`;
-- no fallback a PATH en portable;
-- desarrollo no frozen puede usar env/PATH como compatibilidad temporal.
+- frozen => portable strict;
+- FFmpeg sólo desde `Tools/ffmpeg/bin`;
+- modelos sólo desde `Models/`;
+- no fallback a PATH ni model dirs externos en portable;
+- desarrollo no frozen puede mantener env/PATH como compatibilidad.
 
-`doctor` debe exponer:
+Packaging base provisional: PyInstaller 6.22.2 `onedir`. Nuitka sólo si aparece un problema o ventaja medible.
 
-- portable mode;
-- runtime root/layout;
-- model root;
-- FFmpeg/ffprobe version;
-- disponibilidad de análisis.
+Build script:
 
-### Empaquetado
-
-Spike: PyInstaller `onedir` 6.22.2.
-
-Razones:
-
-- runtime Python autocontenido;
-- árbol transparente;
-- mejor diagnóstico de DLLs que onefile;
-- encaja con Tools/Models/Config visibles.
-
-Nuitka sólo se evaluará si existe evidencia de que PyInstaller no resuelve bien CTranslate2/ONNX o si aporta una ventaja concreta medible.
-
-### FFmpeg
-
-El spike descarga `BtbN/FFmpeg-Builds` Windows x64 GPL, rama estable 9.0, porque el renderer actual usa `libx264`.
-
-El URL del spike es flotante y NO es criterio de Release. Antes de publicar:
-
-- pin immutable asset/digest;
-- revisar licencia/notices/source obligations;
-- registrar versión exacta.
-
-No versionar binarios FFmpeg dentro de `main`.
-
-## 6. Dependencias ML / VAD
-
-Extra actual:
-
-```toml
-analysis = ["faster-whisper>=1.2,<2"]
+```powershell
+.\.github\scripts\build_portable_windows.ps1 -Profile core
+.\.github\scripts\build_portable_windows.ps1 -Profile analysis
 ```
 
-No reintroducir `silero-vad` sin una razón nueva y medida.
+No versionar binarios FFmpeg, builds, modelos ni ZIPs en main.
 
-Motivo: la distribución standalone de silero-vad trae Torch/torchaudio, pero faster-whisper ya trae ONNX Runtime y el modelo Silero VAD ONNX.
+## 5. Stack ML portable
 
-`vad.py` reutiliza:
+Critical pins del spike:
 
-- `faster_whisper.audio.decode_audio`;
+```text
+faster-whisper 1.2.1
+CTranslate2 4.8.1
+ONNX Runtime 1.29.0
+tokenizers 0.23.1
+PyInstaller 6.22.2
+```
+
+PyAV y demás dependencias llegan vía faster-whisper.
+
+VAD:
+
+- usar `faster_whisper.audio.decode_audio`;
 - `faster_whisper.vad.VadOptions`;
-- `faster_whisper.vad.get_speech_timestamps`.
+- `faster_whisper.vad.get_speech_timestamps`;
+- asset esperado `faster_whisper/assets/silero_vad_v6.onnx`.
 
-Los timestamps devueltos por faster-whisper VAD son muestras; Video_Tunner los convierte a segundos con sample rate 16 kHz.
+No reintroducir standalone `silero-vad`/Torch sin nueva evidencia.
 
-Pendiente: comprobar que PyInstaller incluye correctamente `faster_whisper/assets/silero_vad_v6.onnx` y las DLLs de ONNX Runtime/CTranslate2 en el perfil ML.
+## 6. Modelos Whisper
 
-## 7. Ingesta dual / master audio — siguiente fase
+Modelo de producto previsto: `large-v3-turbo`.
 
-Modo A:
-
-```text
-video + embedded audio → master audio
-```
-
-Modo B:
+El modelo NO forma parte del ejecutable congelado. Ruta:
 
 ```text
-video + external audio
-        ↓
- correlation / manual offset / drift correction
-        ↓
- synchronized master audio
+Models/whisper/<safe-model-name>/
 ```
 
-Auto-sync futuro:
+Modelo mínimo completo:
 
-1. audio camera + external a mono analysis representation;
-2. coarse correlation;
-3. fine correlation;
-4. confidence;
-5. multi-window anchors;
-6. drift estimate;
-7. validated correction.
+- `config.json`;
+- `model.bin`;
+- `tokenizer.json`.
 
-Metadata mínima futura:
+CLI:
 
-- method;
-- offset;
-- confidence;
-- anchors;
-- residual error;
-- drift ppm/ms-h;
-- correction;
-- manual override.
+```text
+video-tunner model status MODEL
+video-tunner model fetch MODEL [--replace]
+```
 
-Sin referencia suficiente => manual offset/review.
+`model fetch`:
+
+1. descarga a `Temp/model-downloads/<modelo>.partial`;
+2. cache bajo `Cache/huggingface`;
+3. verifica mínimos;
+4. sólo después mueve a `Models/whisper`;
+5. limpia staging.
+
+Portable strict:
+
+- si modelo local completo existe, `WhisperModel` recibe el path y `local_files_only=True`;
+- si no existe, `analyze` falla de forma explícita;
+- nunca usar caché global silenciosamente como source of truth.
+
+Primera adquisición puede usar red. Después debe poder inferir con `HF_HUB_OFFLINE=1`.
+
+## 7. Doctor
+
+`doctor` debe comprobar funcionalidad real, no sólo presencia de módulos:
+
+- faster_whisper;
+- ctranslate2;
+- onnxruntime;
+- tokenizers;
+- av;
+- Silero ONNX asset;
+- FFmpeg/ffprobe;
+- runtime/model roots.
+
+Los imports capturan excepciones de DLL loading y deben reportar `error`.
 
 ## 8. Transcripción / candidates
 
-Motor previsto: faster-whisper, modelo default `large-v3-turbo`, word timestamps.
-
 `analyze` sigue siendo no destructivo.
 
-Artefactos actuales:
+Artefactos:
 
 - transcript JSON;
 - transcript TXT;
@@ -251,146 +217,133 @@ Candidates actuales:
 - `decision="undecided"`;
 - `auto_apply=false`.
 
-No convertir ASR probability en confianza semántica.
+No usar probabilidad ASR como confianza semántica.
 
-Parte del pipeline actual todavía asume audio embebido; debe adaptarse a master audio en Fase 1B/1C.
+El pipeline actual todavía toma audio embebido del vídeo. Debe migrar a master audio en Fase 1B/1C.
 
-## 9. Edit Plan / render
+## 9. Fase 1A ML validation
 
-Edit Plan schema v1 contiene ediciones efectivas. No meter candidates sin fase explícita de decisión.
+Workflow: `.github/workflows/portable-ml-spike.yml`, manual-only de forma permanente.
+
+Modelo `tiny` sólo para runtime/packaging. No implica decisión de producto.
+
+Acceptance:
+
+- tests source con analysis deps;
+- build analysis onedir;
+- frozen imports y native DLLs;
+- Silero ONNX asset;
+- ruta aislada + PATH sin Python/FFmpeg;
+- `model fetch tiny` dentro de Models;
+- fixture hablado temporal upstream;
+- `HF_HUB_OFFLINE=1` tras adquisición;
+- frozen `analyze` con Whisper + VAD reales;
+- word_count >= 5;
+- analysis/candidates generados sin edits automáticos;
+- ZIP size/SHA en logs;
+- no artifact upload.
+
+Registrar evidencia en `Validation/portable-analysis-spike.md`.
+
+## 10. Ingesta dual / sync — siguiente fase
+
+Modo A:
+
+```text
+video + embedded audio → master audio
+```
+
+Modo B:
+
+```text
+video + external audio
+  ↓
+correlation / manual offset / drift correction
+  ↓
+synchronized master audio
+```
+
+Auto-sync futuro:
+
+1. referencias mono;
+2. coarse correlation;
+3. fine correlation;
+4. confidence;
+5. multi-window anchors;
+6. drift estimate;
+7. validated correction.
+
+Metadata: method, offset, confidence, anchors, residual error, drift, correction, override.
+
+Sin referencia/confidence suficiente => manual/review.
+
+## 11. Edit Plan / render
+
+Edit Plan schema v1 sólo contiene ediciones efectivas. No meter candidates como edits sin fase de decisión.
 
 Renderer actual:
 
-- complemento de `remove` edits;
+- complemento de remove edits;
 - merge overlaps;
 - trim/atrim + concat;
-- H.264 `libx264` + AAC;
-- no overwrite source;
-- aborta si se elimina todo.
+- H.264 libx264 + AAC;
+- no overwrite;
+- aborta si elimina todo.
 
-Mejoras futuras:
+Futuro: source hash, removedText, join audit, edge fades, loudness, post-render verification.
 
-- source hash en Edit Plan;
-- removedText;
-- join audit;
-- edge fades;
-- loudness normalization;
-- output verification.
-
-## 10. Validación
-
-No afirmar funcionalidad por compilación.
-
-### Portable spike
-
-Workflow: `.github/workflows/portable-spike.yml`, manual-only.
-
-Debe probar:
-
-- source tests;
-- Windows x64 build;
-- isolated path with spaces;
-- no Python/FFmpeg on test PATH;
-- bundled doctor;
-- bundled FFmpeg fixture generation;
-- bundled probe;
-- bundled clean/render;
-- bundled ffprobe validation;
-- ZIP size + SHA in logs;
-- no artifact upload.
-
-Hasta PASS: Fase 1A no validada.
-
-### ML portable pendiente
-
-Debe probar después:
-
-- faster-whisper import frozen;
-- CTranslate2 DLL loading;
-- ONNX Runtime DLL loading;
-- Silero ONNX asset discovery;
-- Models local;
-- no global HuggingFace cache as source of truth;
-- offline inference after model availability.
-
-### Sync futura
-
-Tests obligatorios:
-
-- embedded;
-- external positive/negative offset;
-- low confidence;
-- manual override;
-- no camera reference;
-- external shorter/longer;
-- noisy correlation;
-- synthetic drift;
-- post-cut sync.
-
-Distinguir unit / automated E2E / model integration / CI / manual user test.
-
-## 11. GitHub / cuota
+## 12. GitHub / Actions
 
 GitHub es source of truth.
 
-- workflows pesados manual-only salvo justificación;
+- CI pesada sólo deliberada;
+- workflows pesados manual-only normalmente;
 - no polling frecuente;
-- no commits artificiales para disparar CI;
 - concurrency + cancel obsolete;
 - no models/videos/ZIPs como artifacts ordinarios;
-- guardar evidence ligera;
-- no reducir pruebas necesarias para ahorrar cuota.
+- conservar sólo evidencia ligera;
+- no publicar Release sin autorización expresa.
 
-El portable-spike calcula ZIP SHA/size pero NO lo sube como artifact.
+El conector actual no expone `workflow_dispatch`. Si es necesario disparar una única validación autónomamente, puede usarse excepcionalmente el procedimiento ya probado:
 
-## 12. Repo cleanliness
+1. añadir temporalmente `push` limitado a un marker path único;
+2. crear marker una vez;
+3. confirmar exactamente un run;
+4. restaurar manual-only mientras el run sigue ligado a su SHA;
+5. borrar marker;
+6. comprobar que no aparece un segundo run.
 
-Mantener `main` sin:
+No usar esta técnica como trigger normal ni para crear commits de CI repetitivos.
+
+## 13. Repo cleanliness / docs
+
+Mantener main sin:
 
 - build/dist;
 - modelos;
 - outputs;
 - vídeos grandes;
 - temporales/cache/logs;
-- workflows one-shot;
-- scripts descartados.
+- markers one-shot;
+- workflows one-shot abandonados.
 
-`Archive/` sólo versiones finales publicadas y sustituidas.
+Cambios de arquitectura/dependencias/build/validación => actualizar README + AGENTS cuando proceda.
 
-## 13. Docs
-
-Cambios de arquitectura, dependencia, build, packaging, validación o uso => actualizar README + AGENTS en el mismo cambio cuando corresponda.
-
-`ROADMAP.md` = planificación vigente.
+`ROADMAP.md` = planificación.
 `UPSTREAM_SOURCES.md` = provenance.
-`Validation/` = evidencia ligera.
+`Validation/` = evidencia.
+`Archive/` = sólo versiones finales publicadas y sustituidas.
 
-## 14. Releases
+## 14. Orden inmediato
 
-No publicar Release sin autorización expresa del usuario.
+1. validar/corregir ML portable spike;
+2. cerrar Fase 1A;
+3. Fase 1B ingest + external audio + sync + drift;
+4. adaptar analyze a master audio;
+5. validar `large-v3-turbo`/VAD real en español;
+6. Fase 2 semantic cleaner.
 
-Final portable:
-
-- ZIP Windows x64;
-- runtime + tools;
-- models strategy cerrada;
-- pinned versions/digests;
-- SHA-256;
-- manifest;
-- notices/licenses;
-- zero-install validation.
-
-## 15. Orden inmediato
-
-1. ejecutar/corregir portable core spike;
-2. frozen ML dependency spike;
-3. cerrar Fase 1A;
-4. Fase 1B ingest + sync + drift;
-5. adaptar analyze a master audio;
-6. validar real Whisper/VAD;
-7. Fase 2 semantic cleaner.
-
-## 16. Changelog técnico
+## 15. Changelog técnico
 
 ### 0.1.0-dev — bootstrap
 
@@ -398,15 +351,12 @@ CLI, FFmpeg/ffprobe, probe, silence Cleaner, Edit Plan, render, tests, manual CI
 
 ### 0.1.0-dev — transcription/VAD candidate layer
 
-faster-whisper plumbing, transcript artifacts, initial Silero VAD, candidates, source hash, upstream harvest.
+faster-whisper plumbing, transcript artifacts, Silero VAD, candidates, source hash, upstream harvest.
 
-### 0.1.0-dev — portable foundation spike
+### 0.1.0-dev — portable core
 
-- PyInstaller onedir strategy;
-- strict portable tool/model resolution;
-- runtime layout;
-- bundled FFmpeg build script;
-- isolated Windows validation workflow;
-- VAD migrated from standalone silero-vad/Torch to faster-whisper Silero ONNX;
-- packaging dependency profile;
-- portable unit tests.
+PyInstaller onedir, strict local tools/models, runtime layout, bundled FFmpeg, Windows isolated PASS.
+
+### 0.1.0-dev — portable ML spike
+
+Pinned ML stack, frozen diagnostics, local model lifecycle, offline inference acceptance workflow.
