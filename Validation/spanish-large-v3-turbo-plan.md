@@ -10,28 +10,24 @@ No se pretende calibrar todavía un benchmark ASR general; se busca una evidenci
 
 ## Fixture
 
-Se usarán únicamente durante CI cuatro diálogos reales de SpanishPod alojados en Wikimedia Commons. No se versionan los audios ni se suben como artifacts.
+Se usan únicamente durante CI cuatro diálogos reales de SpanishPod alojados en Wikimedia Commons. No se versionan audios ni se suben como artifacts.
 
-Fuentes de audio:
+Fuentes:
 
 1. `SpanishPod_newbie_lesson_A0006_dialogue.ogg`
    - Commons: `https://commons.wikimedia.org/wiki/File:SpanishPod_newbie_lesson_A0006_dialogue.ogg`
-   - direct original: `https://upload.wikimedia.org/wikipedia/commons/0/0a/SpanishPod_newbie_lesson_A0006_dialogue.ogg`
-   - referencia Wikibooks: `Spanish by Choice/SpanishPod newbie lesson A0006`
+   - original: `https://upload.wikimedia.org/wikipedia/commons/0/0a/SpanishPod_newbie_lesson_A0006_dialogue.ogg`
 2. `SpanishPod_newbie_lesson_A0007_dialogue.ogg`
    - Commons: `https://commons.wikimedia.org/wiki/File:SpanishPod_newbie_lesson_A0007_dialogue.ogg`
-   - direct original: `https://upload.wikimedia.org/wikipedia/commons/4/4c/SpanishPod_newbie_lesson_A0007_dialogue.ogg`
-   - referencia Wikibooks: `Spanish by Choice/SpanishPod newbie lesson A0007`
+   - original: `https://upload.wikimedia.org/wikipedia/commons/4/4c/SpanishPod_newbie_lesson_A0007_dialogue.ogg`
 3. `SpanishPod_newbie_lesson_A0013_dialogue.ogg`
    - Commons: `https://commons.wikimedia.org/wiki/File:SpanishPod_newbie_lesson_A0013_dialogue.ogg`
-   - direct original: `https://upload.wikimedia.org/wikipedia/commons/6/67/SpanishPod_newbie_lesson_A0013_dialogue.ogg`
-   - referencia Wikibooks: `Spanish by Choice/SpanishPod newbie lesson A0013`
+   - original: `https://upload.wikimedia.org/wikipedia/commons/6/67/SpanishPod_newbie_lesson_A0013_dialogue.ogg`
 4. `SpanishPod_newbie_lesson_A0116_dialogue.ogg`
    - Commons: `https://commons.wikimedia.org/wiki/File:SpanishPod_newbie_lesson_A0116_dialogue.ogg`
-   - direct original: `https://upload.wikimedia.org/wikipedia/commons/5/54/SpanishPod_newbie_lesson_A0116_dialogue.ogg`
-   - referencia Wikibooks: `Spanish by Choice/SpanishPod newbie lesson A0116`
+   - original: `https://upload.wikimedia.org/wikipedia/commons/5/54/SpanishPod_newbie_lesson_A0116_dialogue.ogg`
 
-Los ficheros de SpanishPod publicados en Commons indican licencia Creative Commons Attribution 3.0 Unported. La validación registra SHA-256 de cada descarga.
+Los ficheros indican licencia Creative Commons Attribution 3.0 Unported. La validación registra SHA-256 de cada descarga.
 
 ## Transcripción de referencia
 
@@ -42,17 +38,18 @@ Voy a lavar la ropa. ¿Hay detergente? Sí hay, abajo en la cocina. ¿Dónde? ¿
 ¿Quieres una menta? ¿Por qué? ¿Me huele la boca? Sí, ¡toma!
 ```
 
-Tras normalizar minúsculas, diacríticos y puntuación: **61 palabras de referencia**.
+Normalización de minúsculas, diacríticos y puntuación: **61 palabras**.
 
-## Construcción del fixture
+## Construcción
 
-- cada diálogo se convierte a mono 16 kHz PCM;
-- se concatenan en orden A0006 → A0007 → A0013 → A0116;
-- se insertan pausas breves deterministas entre diálogos;
-- el WAV resultante se incrusta en un vídeo negro para pasar por `ingest → master audio → analyze` completo;
-- no se modifica el contenido hablado.
+- cada diálogo → mono 16 kHz PCM;
+- orden A0006 → A0007 → A0013 → A0116;
+- pausa determinista de 0.6 s entre diálogos;
+- WAV final incrustado en vídeo negro;
+- pipeline completo `ingest → master audio → analyze`;
+- contenido hablado no modificado.
 
-## Configuración objetivo
+## Modelo objetivo
 
 ```text
 model: large-v3-turbo
@@ -63,82 +60,101 @@ portable strict: true
 HF_HUB_OFFLINE: true durante inferencia
 ```
 
-`large-v3-turbo` es resuelto por faster-whisper 1.2.1 al modelo CTranslate2 asociado por su catálogo oficial.
+Para la validación de inferencia, el modelo se puede staged directamente bajo `Models/whisper/large-v3-turbo`; la fiabilidad del servicio de descarga no debe confundirse con la calidad ASR.
 
-## Métricas
+Tras un rate-limit de la API de metadata de Hugging Face, el harness fija como fuente de CI el snapshot:
 
-### 1. Precisión textual
+```text
+repo: h2oai/faster-whisper-large-v3-turbo
+revision: d9e74de5094e9b435ce024f77e90c8cbb8d1afe1
+```
 
-WER sobre texto normalizado mediante distancia de Levenshtein a nivel de palabra.
+Hugging Face identifica ese snapshot como duplicado de `mobiuslabsgmbh/faster-whisper-large-v3-turbo`. Se descargan directamente `config.json`, `preprocessor_config.json`, `tokenizer.json`, `vocabulary.json` y `model.bin`; se registran tamaños y SHA-256. La inferencia posterior se ejecuta offline.
 
-Criterio de spike:
+## Métricas y criterios fijados antes del resultado
+
+### Precisión textual
+
+WER normalizado a nivel de palabra:
 
 ```text
 WER <= 0.15
 ```
 
-Este umbral es deliberadamente conservador y sólo vale para este fixture limpio; no se convierte automáticamente en threshold de Release.
+Este umbral sólo vale para este fixture limpio; no es automáticamente threshold de Release.
 
-### 2. Word timestamps
+### Word timestamps
 
-Debe cumplirse:
-
-- transcript con al menos 80% de las 61 palabras de referencia;
-- todos los word timestamps finitos y no negativos;
+- al menos 80% de las 61 palabras de referencia;
+- timestamps finitos y no negativos;
 - `start <= end`;
-- orden temporal monótono;
-- ningún word timestamp termina más de 0.5 s fuera de la timeline del vídeo;
+- starts monótonos;
+- ningún end más de 0.5 s fuera de timeline;
 - duración mediana de palabra > 0 y < 1.5 s.
 
-No se calcula error de timestamps contra ground truth porque estas fuentes no publican alineación palabra-a-palabra fiable.
+No hay ground truth palabra-a-palabra fiable, por lo que no se calcula error absoluto de timestamp.
 
-### 3. Rendimiento
+### Rendimiento informativo
 
-Registrar, sin imponer todavía threshold de Release:
+Registrar:
 
 - duración del fixture;
-- segundos totales de `analyze`;
-- real-time factor = tiempo de análisis / duración de audio;
-- peak working set del proceso;
-- tamaño total local de `Models/whisper/large-v3-turbo`;
-- número de palabras y candidates;
-- automatic edits, que debe seguir siendo `0`.
+- segundos de `analyze`;
+- real-time factor;
+- peak working set;
+- tamaño local del modelo;
+- tiempo de adquisición del modelo;
+- palabras y candidates;
+- automatic edits = `0`.
 
-## Política de CI
+## Política CI
 
 - cada run pesado debe aportar evidencia nueva;
 - workflow manual-only fuera del instante de disparo;
 - sin artifacts;
 - sin guardar modelo, vídeos ni audio;
-- si falla, leer primero logs y corregir causa antes de cualquier rerun.
+- ante fallo, diagnosticar primero y no mover thresholds.
 
-## Intento 1 — infraestructura externa, no ASR
+## Intento 1 — fallo externo de Wikimedia
 
-Run `33652410474` — **FAILURE antes de descargar el modelo**:
+Run `33652410474` — **FAILURE antes del modelo**:
 
-- smoke-test del evaluador: PASS;
-- build portable analysis: PASS;
-- A0006 descargado, SHA-256 `8868E068B1599C0010C3A2CF8B61D7EC3FDC2B8453EA0B97806EA2225DC19930`;
-- A0007 descargado, SHA-256 `2736966B5B1469FD030FBA15D61A44872A558C1F186592E6DAE27E86AE40D0E9`;
-- A0013 bloqueado por Wikimedia con HTTP `429 Too many requests` al usar `Special:Redirect/file` en peticiones consecutivas;
-- `large-v3-turbo` **no se descargó**;
-- inferencia ASR **no se ejecutó**;
-- por tanto, este run no constituye un resultado negativo del modelo ni del pipeline de análisis.
+- evaluador smoke: PASS;
+- portable analysis build: PASS;
+- A0006/A0007 descargados;
+- A0013 recibió HTTP `429 Too many requests` mediante `Special:Redirect/file`;
+- modelo no descargado;
+- ASR no ejecutado.
 
-Corrección para el siguiente intento:
+Corrección: URLs directas `upload.wikimedia.org`, User-Agent, backoff y descargas antes del build.
 
-- URLs directas `upload.wikimedia.org` del fichero original;
-- User-Agent identificable;
-- retry/backoff limitado;
-- pausa entre descargas;
-- no modificar los thresholds ASR previamente fijados.
+## Intento 2 — fixture resuelto; fallo externo de Hugging Face metadata
+
+Run `33653108940` — **FAILURE antes de inferencia**:
+
+- evaluador smoke: PASS;
+- preflight de los cuatro audios: PASS;
+- hashes:
+  - A0006 `8868E068B1599C0010C3A2CF8B61D7EC3FDC2B8453EA0B97806EA2225DC19930`;
+  - A0007 `2736966B5B1469FD030FBA15D61A44872A558C1F186592E6DAE27E86AE40D0E9`;
+  - A0013 `DD516C03E89F99E0BCD1786E59BFF1916C432BC5FF17A8C86B798DCB621E0E12`;
+  - A0116 `2B175E67741C1D74D2334D80EF4BBA213EEB7363FFAF887703AFD7E713494230`;
+- portable build: PASS;
+- fixture final: `46.58025 s`, SHA-256 `A3548B0861F095F50D023A3CDC7DEBA99CF3523600AB6249C40240F61A5EA036`;
+- `model fetch large-v3-turbo` recibió HTTP `429` en `huggingface.co/api/models/.../revision/main`;
+- no se descargó `model.bin`;
+- ASR no ejecutado.
+
+Este run tampoco es un resultado negativo de `large-v3-turbo`.
+
+Corrección: adquisición directa de snapshot fijado, sin endpoint `/api/models`, antes del build; inferencia posterior completamente offline.
 
 ## Condición de cierre de 1C
 
 Fase 1C podrá marcarse COMPLETADA si:
 
-1. el portable frozen carga `large-v3-turbo` localmente;
-2. la inferencia funciona offline después de la adquisición del modelo;
-3. WER y sanity temporal pasan el criterio anterior;
-4. RAM/tiempo/tamaño quedan registrados para decidir la estrategia portable posterior;
+1. el frozen portable carga `large-v3-turbo` localmente;
+2. la inferencia funciona con `HF_HUB_OFFLINE=1`;
+3. WER y sanity temporal pasan los criterios fijados;
+4. RAM/tiempo/tamaño quedan registrados;
 5. candidates siguen separados de decisiones y edits.
