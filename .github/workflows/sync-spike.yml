@@ -2,6 +2,11 @@ name: Sync Foundation Spike
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase1b-ingest-sync
+    paths:
+      - Validation/sync-spike.trigger
 
 concurrency:
   group: video-tunner-sync-spike-${{ github.ref }}
