@@ -6,22 +6,20 @@ Debe aceptar vídeo con audio embebido o vídeo + audio externo. Antes de cualqu
 
 ## Requisitos estructurales
 
-### Portable real
-
 ```text
 ZIP → descomprimir → ejecutar
 ```
 
-Sin instalador, permisos de administrador, Python preinstalado ni FFmpeg/ffprobe preinstalados. Herramientas, modelos, configuración, temporales, caches y logs deben resolverse desde el propio árbol portable.
+Sin instalador, permisos de administrador, Python preinstalado ni FFmpeg/ffprobe preinstalados. Herramientas, modelos, configuración, temporales, caches y logs deben resolverse desde el árbol portable.
 
-### Dos modos de entrada
+Entradas:
 
 ```text
 A) vídeo + audio embebido → master audio
 B) vídeo + audio externo → sync → master audio
 ```
 
-El modo B deberá admitir auto-sync con confidence, offset manual/override y detección/corrección validada de drift. Sin referencia suficiente, Video_Tunner no debe inventar la sincronización.
+Sin referencia suficiente, Video_Tunner no debe inventar la sincronización.
 
 ## Estado actual
 
@@ -29,112 +27,140 @@ El modo B deberá admitir auto-sync con confidence, offset manual/override y det
 
 - Fase 0 — Bootstrap: ✅
 - Fase 0.5 — Technology harvest: ✅
-- Fase 1A — Portable Foundation: **✅ core + stack ML frozen validados en Windows**
-- Fase 1B — Ingesta dual + sync/drift: **🔜 siguiente**
-- Fase 1C — Transcripción/VAD sobre master audio: 🟡 parte ya implementada
+- Fase 1A — Portable Foundation: ✅ core + stack ML frozen validados en Windows
+- Fase 1B — Ingesta dual + sync/drift: 🟡 **foundation implementada y validada; hardening pendiente**
+- Fase 1C — Transcripción/VAD sobre master audio: 🟡 código de análisis existente; adaptación pendiente
 - Release pública: ninguna
 
-Video_Tunner sigue siendo un producto/repo propio. Los proyectos open source se aprovechan selectivamente y con trazabilidad; no se ha convertido en fork.
+Video_Tunner sigue siendo un producto/repo propio, no un fork.
 
-## Portable Foundation validada
+## Portable Foundation
 
-### Core
-
-Run `33600174568`:
+### Core — run `33600174568`
 
 - PyInstaller 6.22.2 `onedir`;
-- `Video_Tunner.exe` con runtime Python empaquetado;
-- FFmpeg/ffprobe propios;
-- ejecución desde ruta aislada con espacios;
-- PATH sin Python ni FFmpeg externos;
+- runtime Python + FFmpeg/ffprobe propios;
+- ruta aislada con espacios;
+- PATH sin Python/FFmpeg externos;
 - `doctor`, `probe`, `clean`, render y ffprobe PASS;
-- ZIP temporal core: `122677058` bytes (~117 MiB);
-- 0 artifacts almacenados.
+- ZIP temporal: `122677058` bytes;
+- 0 artifacts.
 
-### Stack ML
+### ML — run `33621357438`
 
-Run `33621357438`:
+- faster-whisper 1.2.1;
+- CTranslate2 4.8.1;
+- ONNX Runtime 1.29.0;
+- tokenizers 0.23.1;
+- PyAV 18.1.0;
+- Silero VAD V6 ONNX frozen;
+- `tiny` adquirido bajo `Models/whisper/tiny`;
+- `HF_HUB_OFFLINE=1` + Whisper/VAD frozen PASS;
+- 22 palabras, 3 candidatos pause, 0 edits automáticos;
+- runtime ML sin modelo: `212334854` bytes (~202.5 MiB);
+- 0 artifacts.
 
-- `faster-whisper 1.2.1`;
-- `CTranslate2 4.8.1`;
-- `ONNX Runtime 1.29.0`;
-- `tokenizers 0.23.1`;
-- `PyAV 18.1.0`;
-- Silero VAD V6 ONNX dentro del frozen bundle;
-- imports y DLLs nativas PASS;
-- modelo `tiny` descargado dentro de `Models/whisper/tiny`;
-- inferencia posterior con `HF_HUB_OFFLINE=1` PASS;
-- 22 palabras transcritas;
-- 3 candidatos `pause`;
-- 0 ediciones automáticas;
-- ZIP runtime ML sin modelo: `212334854` bytes (~202.5 MiB);
-- 0 artifacts almacenados.
+Modelo objetivo de producto: **`large-v3-turbo`**. `tiny` sólo validó runtime.
 
-Esto demuestra **viabilidad portable real del runtime ML CPU**. No valida todavía la calidad de `large-v3-turbo`, que se probará sobre master audio real.
+## Fase 1B — sync foundation
 
-## Árbol portable
+Nuevo comando:
+
+```powershell
+video-tunner ingest "video.mp4" --output-dir Output
+video-tunner ingest "video.mp4" --audio "grabador.wav" --output-dir Output
+video-tunner ingest "video.mp4" --audio "grabador.wav" --offset 1.25 --output-dir Output
+video-tunner ingest "video.mp4" --audio "grabador.wav" --offset -2.0 --drift-ppm 120 --output-dir Output
+```
+
+Convención temporal:
 
 ```text
-Video_Tunner/
-├── Video_Tunner.exe
-├── _internal/
-├── Tools/
-│   └── ffmpeg/bin/
-│       ├── ffmpeg.exe
-│       └── ffprobe.exe
-├── Models/
-│   └── whisper/
-├── Config/
-├── Temp/
-├── Cache/
-├── Logs/
-├── Output/
-└── portable-manifest.json
+video_time = offset_seconds + time_scale * external_time
 ```
+
+- offset positivo: el grabador externo empezó después del vídeo;
+- offset negativo: empezó antes;
+- `drift_ppm = (time_scale - 1) × 1e6`.
+
+Auto-sync actual:
+
+1. FFmpeg extrae referencia mono 8 kHz;
+2. envolvente log-RMS a 50 Hz;
+3. correlación ZNCC coarse;
+4. 7 anchors fine multi-window;
+5. ajuste lineal offset + drift;
+6. outliers por MAD;
+7. confidence según correlación, unicidad, residuos y nº de anchors;
+8. aceptación sólo si pasa confidence, anchors, residual, drift y cobertura.
+
+Si la evidencia es insuficiente, `ingest` genera `review_required` y **no materializa master**. El override manual es explícito. Nunca se mezcla audio de cámara para rellenar huecos sin indicarlo: los huecos externos manuales se rellenan con silencio.
+
+Outputs:
+
+```text
+<video>_master_audio.flac
+<video>_ingest.json
+```
+
+El informe registra SHA-256, fuentes, método, offset, confidence, anchors, drift, residuos, cobertura, warnings y master seleccionado.
+
+### Validación Windows sync
+
+Workflow manual: `.github/workflows/sync-spike.yml`.
+
+Runs:
+
+- `33633846344` — FAILURE: primera aserción de duración era incorrecta;
+- `33634121264` — FAILURE útil: descubrió que el master quedaba `88.756 s` frente a vídeo `90.000 s`;
+- `33634775313` — **SUCCESS** tras corregir timestamps/padding.
+
+Run final:
+
+- 33 tests PASS;
+- offset esperado/estimado: `+1.500 s` / `+1.500 s`;
+- confidence `1.000`;
+- 7 anchors;
+- drift `0 ppm`;
+- vídeo `90.000 s`;
+- master `90.000 s`;
+- 0 artifacts.
+
+El bug de duración queda cubierto por un test E2E de regresión de 4 s. Ver `Validation/sync-foundation-spike.md`.
 
 ## Modelos Whisper
 
-Los modelos no se incrustan dentro del EXE:
+Ruta:
 
 ```text
 Models/whisper/<modelo>/
 ```
-
-Comandos:
 
 ```powershell
 Video_Tunner.exe model status large-v3-turbo
 Video_Tunner.exe model fetch large-v3-turbo
 ```
 
-`model fetch` usa staging bajo `Temp/model-downloads` y cache bajo `Cache/huggingface`. Un modelo no se considera disponible hasta encontrar al menos `config.json`, `model.bin` y `tokenizer.json`.
+En portable strict sólo se usa un modelo completo bajo `Models/whisper`; no hay fallback silencioso a caches globales.
 
-En portable strict, `analyze` sólo usa el modelo si está completo bajo `Models/whisper`; no recurre silenciosamente a caches globales. La primera adquisición puede necesitar red; después la inferencia debe poder funcionar offline.
-
-Modelo objetivo de producto: **`large-v3-turbo`**. `tiny` fue únicamente el fixture de validación del runtime portable.
-
-## Pipeline objetivo
+## Pipeline
 
 ```text
-vídeo + audio embebido
-          O
-vídeo + audio externo
-          ↓
-       ingest/sync
-          ↓
-      MASTER AUDIO
-          ↓
+sources
+  ↓
+ingest / sync
+  ↓
+MASTER AUDIO + video timeline
+  ↓
 transcripción + VAD + análisis
-          ↓
- candidatos auditables
-          ↓
- KEEP / TRIM / CUT / REVIEW
-          ↓
- protección semántica
-          ↓
-       Edit Plan
-          ↓
- render + auditoría
+  ↓
+candidates
+  ↓
+decisions
+  ↓
+Edit Plan
+  ↓
+render + audit
 ```
 
 **Candidato ≠ decisión ≠ edición.**
@@ -145,16 +171,17 @@ transcripción + VAD + análisis
 - FFmpeg/ffprobe + probe;
 - Cleaner determinista de silencios;
 - Edit Plan + render;
-- WAV mono 16 kHz PCM16;
-- faster-whisper word-level;
-- TXT/JSON/SRT;
+- faster-whisper word-level + TXT/JSON/SRT;
 - Silero VAD ONNX;
 - Candidate Analysis review-only;
-- SHA-256 del source;
 - gestión local de modelos;
-- runtime portable core y ML Windows validados.
+- runtime portable core/ML validado;
+- ingesta embebida/externa;
+- auto-sync offset + confidence + anchors + drift;
+- override manual;
+- master audio FLAC + informe auditable.
 
-El `analyze` actual todavía parte del audio embebido del vídeo. Fase 1B/1C lo migrará a la abstracción de **master audio**.
+`analyze` todavía toma el audio embebido del vídeo; se migrará al master audio en Fase 1C después del hardening restante de sync.
 
 ## Desarrollo
 
@@ -163,54 +190,30 @@ python -m pip install -e .
 python -m pip install -e ".[analysis]"
 ```
 
-Build core:
+Builds:
 
 ```powershell
 .\.github\scripts\build_portable_windows.ps1 -Profile core
-```
-
-Build ML:
-
-```powershell
 .\.github\scripts\build_portable_windows.ps1 -Profile analysis
 ```
 
-Comandos principales:
+## Siguiente trabajo
 
-```powershell
-video-tunner doctor
-video-tunner probe "video.mp4"
-video-tunner model status large-v3-turbo
-video-tunner model fetch large-v3-turbo
-video-tunner clean "video.mp4" --mode conservative --output-dir Output
-video-tunner analyze "video.mp4" --model large-v3-turbo --language es --output-dir Output
-video-tunner render "video.mp4" edit_plan.json "video_clean.mp4"
-```
-
-## Siguiente paso: Fase 1B
-
-Ahora toca construir la base de ingesta/sincronización antes de ampliar la IA:
-
-1. contrato de entrada vídeo + audio embebido/externo;
-2. selección explícita de master audio;
-3. auto-sync por correlación con offset y confidence;
-4. offset manual/override;
-5. anchors multi-window y drift;
-6. corrección validada;
-7. metadata auditable de sync;
-8. tests sintéticos con offsets/drift conocidos.
-
-Después se adaptará `analyze` al master audio y se validará `large-v3-turbo` con vídeo hablado real en español.
+1. endurecer 1B con E2E de offset negativo, drift, baja señal, manual override y cobertura;
+2. validar comportamiento con fuentes acústicamente distintas;
+3. adaptar `analyze` a master audio;
+4. validar `large-v3-turbo` en vídeo hablado real en español;
+5. entrar en Fase 2 semántica.
 
 ## Principios
 
 - portable por diseño;
-- procesamiento local por defecto;
+- local-first;
 - originales intactos;
 - sync fiable antes de IA temporal;
-- modo Conservador por defecto;
-- ante duda semántica o de sync, conservar/revisar;
-- GitHub como fuente de verdad;
+- Conservador por defecto;
+- ante duda: KEEP/REVIEW;
+- GitHub como source of truth;
 - CI deliberada y sin artifacts pesados ordinarios.
 
-Consulta `AGENTS.md`, `ROADMAP.md`, `UPSTREAM_SOURCES.md` y `Validation/` para el contexto técnico y la evidencia.
+Consulta `AGENTS.md`, `ROADMAP.md`, `UPSTREAM_SOURCES.md` y `Validation/`.
