@@ -67,25 +67,29 @@ class IngestPolicyTests(unittest.TestCase):
         self.assertFalse(accepted)
         self.assertTrue(any("confidence" in reason for reason in reasons))
 
-    def test_positive_offset_filter_delays_external_audio(self):
+    def test_positive_offset_filter_delays_and_pads_to_video_duration(self):
         chain = external_alignment_filter(
             offset_seconds=1.25,
             time_scale=1.0,
             video_duration=60.0,
         )
         self.assertIn("adelay=1250:all=1", chain)
-        self.assertIn("apad", chain)
-        self.assertTrue(chain.endswith("atrim=0:60.000000000"))
+        self.assertIn("apad=whole_dur=60.000000000", chain)
+        self.assertIn("atrim=duration=60.000000000", chain)
+        self.assertGreaterEqual(chain.count("asetpts=N/SR/TB"), 2)
+        self.assertTrue(chain.endswith("asetpts=N/SR/TB"))
 
-    def test_negative_offset_filter_trims_preroll(self):
+    def test_negative_offset_filter_trims_preroll_and_regenerates_pts(self):
         chain = external_alignment_filter(
             offset_seconds=-2.5,
             time_scale=1.001,
             video_duration=60.0,
         )
         self.assertIn("atrim=start=2.500000000", chain)
-        self.assertIn("asetpts=PTS-STARTPTS", chain)
         self.assertIn("atempo=0.999000999001", chain)
+        self.assertIn("apad=whole_dur=60.000000000", chain)
+        self.assertIn("atrim=duration=60.000000000", chain)
+        self.assertGreaterEqual(chain.count("asetpts=N/SR/TB"), 2)
 
 
 if __name__ == "__main__":
