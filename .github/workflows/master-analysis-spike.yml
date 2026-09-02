@@ -2,6 +2,11 @@ name: Master Audio Analysis Spike
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase1c-master-audio-analysis
+    paths:
+      - Validation/master-analysis.trigger
 
 concurrency:
   group: video-tunner-master-analysis-${{ github.ref }}
