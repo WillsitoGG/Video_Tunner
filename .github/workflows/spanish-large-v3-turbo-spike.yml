@@ -38,6 +38,10 @@ jobs:
         shell: pwsh
         run: .\.github\scripts\download_spanish_fixture.ps1
 
+      - name: Acquire pinned target model without Hub metadata API
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
       - name: Build analysis portable
         shell: pwsh
         run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
