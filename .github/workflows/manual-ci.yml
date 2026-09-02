@@ -30,8 +30,8 @@ jobs:
           ffmpeg -version | Select-Object -First 1
           ffprobe -version | Select-Object -First 1
 
-      - name: Install editable package
-        run: python -m pip install -e .
+      - name: Install editable package and lightweight sync dependency
+        run: python -m pip install -e . numpy==2.5.2
 
       - name: Run unit and synthetic end-to-end tests
         run: python -m unittest discover -s tests -v
@@ -42,5 +42,6 @@ jobs:
       - name: Scope note
         shell: pwsh
         run: |
-          Write-Host "This workflow validates the development core only."
+          Write-Host "This workflow validates the development core plus the NumPy-backed sync estimator."
+          Write-Host "It does not install Whisper/CTranslate2/ONNX or claim portable ML validation."
           Write-Host "It does not claim portable Windows validation because FFmpeg may come from the runner/Chocolatey."
