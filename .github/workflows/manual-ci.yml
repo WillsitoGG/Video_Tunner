@@ -2,6 +2,11 @@ name: Manual CI
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2-semantic-candidates
+    paths:
+      - Validation/phase2-semantic-candidates.trigger
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
