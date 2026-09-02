@@ -1,0 +1,119 @@
+name: Sync Foundation Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-sync-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-sync:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install analysis dependencies and FFmpeg
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -e ".[analysis]"
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+          }
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
+
+      - name: Run source tests
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
+      - name: Build deterministic offset fixture
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "Video Tunner Sync Test"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $camera = Join-Path $root "camera reference.wav"
+          $external = Join-Path $root "external recorder.wav"
+          $video = Join-Path $root "video with camera audio.mp4"
+
+          @'
+          import math
+          import random
+          import struct
+          import sys
+          import wave
+
+          path = sys.argv[1]
+          sample_rate = 8000
+          duration = 90.0
+          random_source = random.Random(20260902)
+          block = sample_rate // 5
+          amplitudes = [random_source.uniform(0.05, 0.95) for _ in range(int(duration * 5) + 1)]
+          with wave.open(path, "wb") as handle:
+              handle.setnchannels(1)
+              handle.setsampwidth(2)
+              handle.setframerate(sample_rate)
+              frames = bytearray()
+              for index in range(int(duration * sample_rate)):
+                  amplitude = amplitudes[min(index // block, len(amplitudes) - 1)]
+                  carrier = random_source.uniform(-1.0, 1.0)
+                  sample = int(max(-1.0, min(1.0, amplitude * carrier)) * 30000)
+                  frames.extend(struct.pack("<h", sample))
+              handle.writeframes(frames)
+          '@ | python - $camera
+
+          ffmpeg -hide_banner -loglevel error -y -ss 1.5 -i $camera -c:a pcm_s16le $external
+          ffmpeg -hide_banner -loglevel error -y `
+            -f lavfi -i "color=c=black:s=320x240:r=25:d=90" `
+            -i $camera -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac $video
+
+          "SYNC_FIXTURE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Validate auto-sync and master audio
+        shell: pwsh
+        run: |
+          $root = $env:SYNC_FIXTURE_ROOT
+          $video = Join-Path $root "video with camera audio.mp4"
+          $external = Join-Path $root "external recorder.wav"
+          $output = Join-Path $root "output with spaces"
+
+          python -m video_tunner.cli ingest $video --audio $external --output-dir $output
+          if ($LASTEXITCODE -ne 0) { throw "ingest devolvió error." }
+
+          $reportPath = Join-Path $output "video with camera audio_ingest.json"
+          $masterPath = Join-Path $output "video with camera audio_master_audio.flac"
+          if (-not (Test-Path $reportPath)) { throw "Falta ingest report." }
+          if (-not (Test-Path $masterPath)) { throw "Falta master audio." }
+
+          $report = Get-Content $reportPath -Raw | ConvertFrom-Json
+          if ($report.status -ne "ready_auto") { throw "Auto-sync no fue aceptado: $($report.status)" }
+          if ([Math]::Abs([double]$report.sync.offset_seconds - 1.5) -gt 0.12) {
+            throw "Offset estimado fuera de tolerancia: $($report.sync.offset_seconds)"
+          }
+          if ([double]$report.sync.confidence -lt 0.65) {
+            throw "Confidence insuficiente: $($report.sync.confidence)"
+          }
+          if ($report.sync.anchors.Count -lt 3) { throw "Faltan anchors de validación." }
+          if ([Math]::Abs([double]$report.sync.drift_ppm) -gt 500.0) {
+            throw "Drift espurio excesivo: $($report.sync.drift_ppm) ppm"
+          }
+
+          $masterDuration = [double](ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $masterPath)
+          if ([Math]::Abs($masterDuration - 90.0) -gt 0.10) {
+            throw "Duración master inesperada: $masterDuration"
+          }
+
+          Write-Host "SYNC_OFFSET_SECONDS=$($report.sync.offset_seconds)"
+          Write-Host "SYNC_CONFIDENCE=$($report.sync.confidence)"
+          Write-Host "SYNC_DRIFT_PPM=$($report.sync.drift_ppm)"
+          Write-Host "SYNC_ANCHORS=$($report.sync.anchors.Count)"
+          Write-Host "SYNC_MASTER_DURATION=$masterDuration"
+          Write-Host "No artifacts are uploaded by this workflow."
