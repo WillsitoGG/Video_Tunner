@@ -10,69 +10,96 @@
 - Fase 0: bootstrap implementado
 - Fase 0.5: technology harvest definido
 - Fase 1A: **Portable Foundation PASS en Windows (core + stack ML CPU)**
-- Fase 1B: ingesta dual + sincronización A/V — siguiente
-- Fase 1C: transcript/candidates parcialmente implementados; pendiente adaptación a master audio + validación del modelo objetivo
+- Fase 1B: **sync foundation PASS; hardening restante pendiente**
+- Fase 1C: transcript/candidates parcialmente implementados; pendiente adaptación a master audio + modelo objetivo
 
 ## Portable Foundation — core
 
-GitHub Actions `Portable Foundation Spike` run #1 (`33600174568`) — **SUCCESS** el 2026-09-02.
-
-Validado:
+Run `33600174568` — SUCCESS, 2026-09-02.
 
 - PyInstaller 6.22.2 `onedir`;
-- `Video_Tunner.exe`;
 - bundled FFmpeg/ffprobe;
-- carpeta aislada con espacios;
 - PATH sin Python/FFmpeg externos;
 - `doctor`, `probe`, `clean`, render y ffprobe PASS;
-- ZIP temporal core: `122677058` bytes;
-- SHA-256: `5F3CFE09F017DE0421B906CE529822F830C8FFDE0731161AAFA42120464F4E97`;
+- ZIP temporal `122677058` bytes;
+- SHA-256 `5F3CFE09F017DE0421B906CE529822F830C8FFDE0731161AAFA42120464F4E97`;
 - artifacts: 0.
 
-## Portable Foundation — stack ML
+## Portable Foundation — ML
 
-GitHub Actions `Portable ML Foundation Spike` run #1 (`33621357438`) — **SUCCESS** el 2026-09-02.
-
-Stack frozen validado:
+Run `33621357438` — SUCCESS, 2026-09-02.
 
 - faster-whisper 1.2.1;
 - CTranslate2 4.8.1;
 - ONNX Runtime 1.29.0;
 - tokenizers 0.23.1;
 - PyAV 18.1.0;
-- Silero VAD V6 ONNX dentro de `_internal`;
-- FFmpeg/ffprobe propios;
-- PATH sin Python/FFmpeg externos.
-
-Modelo/runtime:
-
-- `model fetch tiny` descargó el modelo dentro de `Models/whisper/tiny`;
-- se verificaron `config.json`, `model.bin`, `tokenizer.json`;
-- después se activó `HF_HUB_OFFLINE=1`;
-- `Video_Tunner.exe analyze` ejecutó Whisper + VAD frozen/offline;
-- `word_count=22`;
-- 3 candidates tipo pause;
-- `automatic_edits=0`;
-- transcript JSON/TXT/SRT + analysis JSON generados.
-
-Bundle ML temporal, **sin modelo**:
-
-- `212334854` bytes (~202.5 MiB);
+- Silero VAD V6 ONNX frozen;
+- modelo `tiny` local bajo `Models/whisper/tiny`;
+- `HF_HUB_OFFLINE=1` + frozen `analyze` PASS;
+- 22 palabras, 3 pause candidates, 0 automatic edits;
+- bundle ML temporal sin modelo `212334854` bytes (~202.5 MiB);
 - SHA-256 `F1208C6E830A60CB06C1AB7781C0D7D60161341AC5C9DEA3D12EFB3F2BE3AF05`;
-- artifacts almacenados: 0.
+- artifacts: 0.
 
-PyInstaller `onedir` queda aceptado como base provisional. Existe margen de reducción porque `--collect-all onnxruntime` recoge herramientas opcionales; no se gastará otro run sólo para optimizar tamaño en esta fase.
+## Fase 1B — sync foundation
 
-## Qué sigue pendiente antes de una Release
+Implementado:
 
-- Fase 1B: ingesta vídeo + audio externo, master audio, auto-sync, offset manual y drift;
+- modo embedded y external;
+- `ingest` CLI;
+- master FLAC 48 kHz;
+- auto-sync multi-anchor;
+- offset positivo/negativo;
+- confidence;
+- drift ppm/time scale;
+- residual RMS;
+- coverage;
+- manual `--offset` + `--drift-ppm`;
+- `review_required` sin master cuando la evidencia es insuficiente;
+- metadata + SHA-256 auditable.
+
+### Evidencia Windows
+
+- run `33633846344` — FAILURE: aserción inicial de duración incorrecta;
+- run `33634121264` — FAILURE útil: descubrió master `88.756 s` frente a vídeo `90.000 s`;
+- run `33634775313` — **SUCCESS** tras corregir la timeline de muestras.
+
+Run final:
+
+- 33 tests PASS;
+- offset esperado/estimado `+1.500 / +1.500 s`;
+- confidence `1.000`;
+- 7 anchors;
+- drift `0 ppm`;
+- vídeo/master `90.000 / 90.000 s`;
+- artifacts: 0.
+
+Corrección de duración protegida por test E2E de regresión.
+
+Ver `Validation/sync-foundation-spike.md`.
+
+## Pendiente antes de cerrar Fase 1B
+
+- E2E offset negativo;
+- E2E drift conocido;
+- low signal/ambiguity => REVIEW;
+- manual override E2E;
+- coverage externa parcial;
+- fuentes acústicas diferentes/ruido;
+- embedded timeline no trivial;
+- residual/post-sync validation.
+
+## Pendiente antes de una Release
+
+- cerrar Fase 1B;
 - adaptar `analyze` al master audio;
-- validar calidad/rendimiento de `large-v3-turbo` con vídeo hablado real, especialmente español;
+- validar `large-v3-turbo` con vídeo hablado real en español;
 - semantic cleaner;
+- calidad audiovisual/audit;
 - UX;
-- Release Hardening, licencias/notices y validación en Windows limpio real;
-- decidir política final de adquisición/inclusión de modelos.
+- Release Hardening + licencias/notices + Windows limpio real.
 
-No existe todavía ningún paquete final que deba figurar en `SHA256SUMS.txt` ni ninguna versión sustituida para `Archive/`.
+No existe todavía paquete final para `SHA256SUMS.txt` ni versión sustituida para `Archive/`.
 
-No publicar una GitHub Release sin autorización expresa del usuario.
+**No publicar una GitHub Release sin autorización expresa del usuario.**
