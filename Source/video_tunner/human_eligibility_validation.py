@@ -8,7 +8,7 @@ from typing import Any
 
 from .acoustic_join import build_acoustic_join_assessments
 from .eligibility import build_eligibility_assessments
-from .human_acoustic_validation import build_human_join_evidence
+from .human_acoustic_validation import build_human_join_evidence, _materialise_case
 
 
 def _sha256(path: Path) -> str:
@@ -82,34 +82,9 @@ def validate_human_combined_eligibility(
             "Human eligibility expectations must cover exactly the human acoustic fixture cases"
         )
 
-    candidates = [records_by_case[case_id]["candidate"] for case_id in expected_ids]
-    correction_scopes = [
-        scope
-        for case_id in expected_ids
-        for scope in records_by_case[case_id]["correction_scopes"]
-    ]
     joins = [records_by_case[case_id]["join"] for case_id in expected_ids]
     acoustics = build_acoustic_join_assessments(master, joins)
     semantic_decisions = _frozen_semantic_decisions(expectations, records_by_case)
-
-    eligibility = build_eligibility_assessments(
-        # all frozen cases use their own transcript inside build_human_join_evidence;
-        # eligibility removedText validation needs the matching transcript, so evaluate
-        # each case independently below instead of using one combined transcript.
-        records_by_case[expected_ids[0]]["transcript"]
-        if "transcript" in records_by_case[expected_ids[0]]
-        else None,
-        [],
-        semantic_decisions=[],
-        correction_scopes=[],
-        filler_assessments=[],
-        join_assessments=[],
-        acoustic_join_assessments=[],
-    )
-    # The empty call above intentionally exercises no records; per-case transcripts
-    # are reconstructed again because each AMI excerpt has its own local word index space.
-    del eligibility
-
     acoustic_by_join = {
         str(item.get("join_assessment_id")): item for item in acoustics
     }
@@ -125,10 +100,6 @@ def validate_human_combined_eligibility(
         candidate = record["candidate"]
         join = record["join"]
         acoustic = acoustic_by_join[str(join["id"])]
-
-        # Re-materialise the exact frozen transcript for this local case.
-        from .human_acoustic_validation import _materialise_case
-
         transcript, _ = _materialise_case(record["case"])
         semantic = semantic_by_candidate.get(str(candidate["id"]))
         assessments = build_eligibility_assessments(
@@ -151,9 +122,7 @@ def validate_human_combined_eligibility(
                 f"{case_id}: eligibility status {item.get('status')} != {expected_status}"
             )
         if bool(item.get("future_promotion_candidate")) != expected_promotion:
-            failures.append(
-                f"{case_id}: future_promotion_candidate mismatch"
-            )
+            failures.append(f"{case_id}: future_promotion_candidate mismatch")
         if item.get("safe_for_cut") or item.get("executable") or item.get("auto_apply"):
             failures.append(f"{case_id}: eligibility violated safety contract")
 
