@@ -45,14 +45,15 @@ El evaluador genera word timings deterministas para aislar el comportamiento de 
 
 ## Corpus v1
 
-Composición final:
+Composición actual:
 
 ```text
-21 casos
+22 casos
 11 constructed_positive
 6 constructed_negative
 4 human_speech_reference
-11 eventos semánticos esperados
+1 human_speech_positive
+12 eventos semánticos esperados
 ```
 
 Positivos construidos:
@@ -91,7 +92,20 @@ SpanishPod_newbie_lesson_A0116_dialogue.ogg
 
 No se repite la CI ML pesada porque esa evidencia sigue vigente y el objetivo aquí es medir ruido semántico sobre el contenido humano ya acreditado.
 
-Limitación importante: estos cuatro casos son **controles negativos humanos**. El benchmark v1 todavía no contiene retomas/autocorrecciones positivas extraídas de habla humana espontánea real.
+### Primer positivo humano real — AMI
+
+Se incorpora un retake de habla espontánea procedente de **AMI Meeting Corpus**, con transcript manual y licencia pública CC BY 4.0:
+
+```text
+meeting: ES2012d
+source type: human_speech_positive
+expected kind: possible_retake
+expected decision: REVIEW
+```
+
+La fuente exacta queda registrada en `source_reference` dentro del fixture. El caso contiene un opener repetido tras una vacilación/interrupción real y el detector Conservador debe encontrarlo sin convertirlo en corte ejecutable.
+
+Este caso valida contenido humano real, pero en el harness se siguen generando timings deterministas: esta prueba no sustituye una futura validación audio → Whisper → semántica específica del mismo fragmento.
 
 ## Baseline antes del tuneo
 
@@ -146,7 +160,9 @@ Se mantienen como marcadores ambiguos, no fuertes:
 
 No se introdujo ninguna dependencia ML nueva.
 
-## Validación final
+## Validaciones
+
+### Corpus ajustado sin positivo humano
 
 Run `33743029443` — **SUCCESS**.
 
@@ -155,13 +171,7 @@ Ran 64 tests in 6.588s
 OK
 ```
 
-También:
-
-- `video-tunner doctor` PASS;
-- E2E FFmpeg/sync PASS;
-- artifacts `0`.
-
-Benchmark final:
+Corpus de ese run:
 
 ```text
 cases                       21
@@ -170,6 +180,46 @@ source: constructed negative  6
 source: human speech reference 4
 expected events             11
 actual candidates            11
+false positives               0
+false negatives               0
+precision               100.00%
+recall                  100.00%
+F1                      100.00%
+decision mismatches           0
+unsafe proposals              0
+missing safe proposals        0
+executable decisions          0
+auto-apply decisions          0
+```
+
+### Primer positivo humano AMI
+
+Run `33743638690` — **SUCCESS**.
+
+```text
+Ran 65 tests in 6.789s
+OK
+```
+
+También:
+
+- el caso `human-ami-es2012d-retake` se detecta como `possible_retake`;
+- la semantic decision resultante es `REVIEW`;
+- `guard_status=review`;
+- `video-tunner doctor` PASS;
+- E2E FFmpeg/sync PASS;
+- artifacts `0`.
+
+Benchmark actual:
+
+```text
+cases                       22
+source: constructed positive 11
+source: constructed negative  6
+source: human speech reference 4
+source: human speech positive  1
+expected events             12
+actual candidates            12
 false positives               0
 false negatives               0
 precision               100.00%
@@ -198,26 +248,31 @@ auto_apply decisions == 0
 
 Demuestra:
 
-- existe ya una métrica reproducible para candidates + semantic decisions;
+- existe una métrica reproducible para candidates + semantic decisions;
 - el tuneo fue guiado por falsos positivos observados, no por intuición;
-- el corpus v1 etiquetado queda 0 FP / 0 FN;
-- los cuatro controles humanos reales no introducen ruido semántico;
+- el corpus v1 actual queda 0 FP / 0 FN;
+- cuatro controles humanos reales no introducen ruido semántico;
+- un primer retake humano espontáneo real se detecta correctamente y permanece `REVIEW`;
 - ninguna propuesta insegura aparece en este corpus;
 - nada se vuelve ejecutable ni auto-aplicable.
 
 NO demuestra todavía:
 
 - seguridad general sobre cualquier habla real;
-- precisión sobre retomas/autocorrecciones humanas espontáneas positivas;
+- precisión robusta sobre una muestra amplia de retomas/autocorrecciones humanas espontáneas;
+- precisión específica sobre positivos humanos en español;
+- comportamiento del mismo positivo AMI pasando de audio real por Whisper en este run;
 - scope seguro de `intento incorrecto → corrección válida`;
 - seguridad de joins tras una futura promoción al Edit Plan;
 - que `PROPOSED_CUT` pueda ejecutarse automáticamente.
 
 ## Siguiente trabajo dentro de 2C
 
-1. incorporar positivos humanos reales con retomas, reinicios y autocorrecciones, usando corpus públicos/licenciados o fixtures propios controlados;
-2. evaluar transcript real producido por Whisper cuando aporte evidencia nueva;
-3. ampliar el corpus sin mover thresholds para acomodar fallos;
-4. usar los fallos observados para endurecer guardas;
-5. después abordar scope de correcciones y fillers contextuales;
-6. mantener `executable=false` hasta completar esta evidencia.
+1. ampliar positivos humanos reales con retomas, reinicios y autocorrecciones;
+2. incorporar como siguiente fixture la autocorrección humana AMI ya localizada con marcador `I mean`;
+3. buscar positivos equivalentes en español cuando exista fuente/licencia adecuada;
+4. evaluar transcript real producido por Whisper cuando aporte evidencia nueva;
+5. ampliar el corpus sin mover thresholds para acomodar fallos;
+6. usar los fallos observados para endurecer guardas;
+7. después abordar scope de correcciones, fillers contextuales y join safety;
+8. mantener `executable=false` hasta completar esta evidencia.
