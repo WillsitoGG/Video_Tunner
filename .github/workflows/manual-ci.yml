@@ -2,11 +2,6 @@ name: Manual CI
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2-semantic-protection
-    paths:
-      - .github/ci-triggers/phase2-semantic-protection.txt
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
