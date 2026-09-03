@@ -38,7 +38,8 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 2D.3.1 — Sentence/join context foundation v1: ✅
 - Fase 2D.3.2 — Acoustic join validation foundation v1: ✅
 - Fase 2D.3.3 — Human-audio acoustic evidence v1: ✅
-- Fase 2D.4 — Combined Eligibility / Promotion Policy Foundation: 🟡 **siguiente**
+- Fase 2D.4 — Combined Eligibility / Promotion Policy Foundation: ✅
+- Fase 2D.5 — Human Combined Eligibility Evidence: 🟡 **siguiente**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -54,17 +55,17 @@ MASTER AUDIO + video timeline
   ↓
 Whisper word-level + Silero VAD
   ↓
-acoustic + semantic candidates auditables
+candidates
   ↓
-correction scope evidence + filler assessments
+correction scopes + filler assessments
   ↓
-join assessments (timeline/lexical/boundary evidence)
+join assessments
   ↓
-acoustic join assessments (master-audio waveform evidence)
+acoustic join assessments
   ↓
 semantic decisions + protection
   ↓
-future combined eligibility policy
+combined eligibility assessments
   ↓
 future approved Edit Plan
   ↓
@@ -74,12 +75,11 @@ render + audit
 Invariantes:
 
 ```text
-candidate != correction scope != filler assessment != join assessment != acoustic join assessment != semantic decision != edit
+candidate != scope != assessment != semantic decision != edit
 PROPOSED_CUT != executable CUT
-bounded scope != safe cut
-filler assessment != safe cut
-join context != acoustically safe join
-acoustic_context_only != semantic permission to cut
+foundation_guards_pass != safe cut
+future_promotion_candidate != approved edit
+safe_for_cut = false
 executable = false
 auto_apply = false
 automatic_edits = 0
@@ -87,17 +87,16 @@ automatic_edits = 0
 
 ## Portable / ML validado
 
-- Core portable `33600174568`: PASS; PyInstaller onedir + FFmpeg/ffprobe bundled; artifacts 0.
-- ML frozen `33621357438`: PASS; faster-whisper/CTranslate2/ONNX/Silero local/offline; artifacts 0.
-- Sync hardening `33639009841`: PASS; offset +/-, drift, confidence, fallback/manual, coverage.
-- Master analysis `33640872486`: PASS; Whisper y VAD usan el mismo master.
-- Target Spanish `33656235038`: PASS; WER `1.64%`, RTF `0.4854`, word timestamps PASS, automatic edits 0.
+- Core portable `33600174568`: PASS.
+- ML frozen `33621357438`: PASS.
+- Sync hardening `33639009841`: PASS.
+- Target Spanish `33656235038`: WER `1.64%`, RTF `0.4854`, word timestamps PASS, automatic edits 0.
 
-Modelo objetivo: **`large-v3-turbo`**. `tiny` se reserva para fixtures baratos.
+Modelo objetivo: **`large-v3-turbo`**.
 
 ## Análisis
 
-`analysis.json` actual usa **schema v7** y separa:
+`analysis.json` actual usa **schema v8**:
 
 ```text
 candidates[]
@@ -106,103 +105,89 @@ filler_assessments[]
 join_assessments[]
 acoustic_join_assessments[]
 semantic_decisions[]
+eligibility_assessments[]
 ```
 
-Safety flags relevantes:
+Safety v8:
 
 ```text
-semantic_decisions_executable = false
-correction_scopes_safe_for_cut = false
-filler_assessments_safe_for_cut = false
-join_assessments_safe_for_cut = false
-acoustic_join_assessments_are_not_edits = true
-acoustic_join_assessments_executable = false
-acoustic_join_assessments_safe_for_cut = false
-join_acoustic_validation_enabled = true
-join_acoustic_validation_is_not_cut_authorization = true
+eligibility_assessments_are_not_edits = true
+eligibility_assessments_executable = false
+eligibility_assessments_safe_for_cut = false
+future_promotion_candidates_are_not_approved_edits = true
+combined_eligibility_enabled = true
+combined_eligibility_is_not_edit_plan_promotion = true
 ```
 
-## Evidencia de Fase 2
+## Evidencia principal de Fase 2
 
 ```text
-33659725847  Semantic Candidates PASS
-33741195594  Semantic Decisions/Protection PASS
 33750836791  Human correction corpus PASS
-33755013415  3 casos AMI audio-backed semantic gate PASS
-33758185755  88/88 — correction scope, schema v4
-33771792867  101/101 — contextual fillers, schema v5
-33773287106  117/117 — join context, schema v6
-33781903986  131/131 — acoustic join, schema v7
+33755013415  Audio-backed semantic gate PASS
+33758185755  88/88 — correction scope/schema v4
+33771792867  101/101 — contextual fillers/schema v5
+33773287106  117/117 — join context/schema v6
+33781903986  131/131 — acoustic join/schema v7
 33782959293  134/134 — human acoustic gate PASS
+33790792753  138/138 — combined eligibility/schema v8 PASS
 ```
 
-Todas las capas siguen sin producir edits automáticos.
+Todas mantienen automatic edits 0 y artifacts 0.
 
-## Fase 2D.3.2 — Acoustic Join Validation Foundation v1
+## Fase 2D.4 — Combined Eligibility Foundation v1
 
-La capa acústica usa el **mismo master audio acreditado** que Whisper/VAD.
+La policy combina todas las guardas de forma **acumulativa**. Una señal posterior favorable nunca rescata una anterior.
+
+Estados v1:
 
 ```text
-master audio
-→ un único decode FFmpeg a PCM16 mono / 16 kHz temporal
-→ NumPy memmap
-→ ventanas locales de 80 ms por lado
-→ RMS / edge RMS / peak / sample jump / jump ratio
+foundation_guards_pass
+blocked_acoustic_context
+blocked_filler_context
+blocked_semantic_decision
+blocked_join_context
+blocked_correction_scope
+invalid_removed_text
+missing_required_evidence
 ```
 
-Sólo se mide `join_context_only`; un join ya bloqueado por contexto permanece `blocked_by_context`.
-
-Thresholds v1:
+`foundation_guards_pass` sólo significa que las guardas implementadas han pasado. El record sigue:
 
 ```text
-silence                  -42.0 dBFS
-max RMS delta             12.0 dB
-max boundary sample jump   0.35
-max boundary jump ratio    1.25
+future_promotion_candidate = true
+safe_for_cut = false
+executable = false
+auto_apply = false
 ```
 
-Detalle: `Validation/phase2d-acoustic-join.md`.
+La capa vuelve a validar `removedText`/target contra índices de palabra, transcript y timestamps. Para corrections con scope `bounded`, el target definitivo puede ser `attempt + marker`.
 
-## Fase 2D.3.3 — Human-audio Acoustic Evidence v1
+Benchmark v1: **12 casos**, con 4 rutas foundation positivas y 8 bloqueos deliberados que cubren cada capa.
 
-Run `33782959293` reutiliza endpoints reales de `large-v3-turbo` del run `33755013415` y mide el WAV AMI original CC BY 4.0, sin volver a ejecutar el modelo.
+Run `33790792753`:
 
 ```text
-134/134 tests PASS en 6.803 s
-3 casos humanos
-1 medición acústica real
-2 bloqueos contextuales preservados
-HUMAN_ACOUSTIC_GATE=PASS
+138/138 tests PASS en 7.035 s
+eligibility gate PASS
+schema v8 integration PASS
+removedText validation PASS
+FFmpeg/sync PASS
+doctor PASS
 artifacts 0
 ```
 
-Control humano medido:
+Detalle: `Validation/phase2d-combined-eligibility.md`.
 
-```text
-status               acoustic_context_only
-RMS delta            4.9369 dB
-boundary sample jump 0.030243
-boundary jump ratio  0.340433
-safe_for_cut          false
-```
+## Siguiente trabajo — Fase 2D.5
 
-Los casos de retake y correction ambigua permanecieron `blocked_by_context`, por lo que la acústica no puede rescatar un join previamente bloqueado.
+Validar la policy combinada sobre evidencia humana real antes de plantear cualquier 2E:
 
-No se modificaron thresholds v1. Una medición humana limpia no demuestra seguridad universal, calidad perceptual, continuidad prosódica ni ausencia general de click/pop.
-
-Detalle: `Validation/phase2d-human-acoustic-evidence.md`.
-
-## Siguiente trabajo — Fase 2D.4
-
-Diseñar una **Combined Eligibility / Promotion Policy Foundation** todavía no ejecutable:
-
-1. combinar guardas semánticas, correction scope, fillers, join context y acoustics;
-2. exigir paso acumulativo de todas las capas;
-3. cualquier ambigüedad/riesgo => REVIEW/bloqueo;
-4. validar `removedText` definitivo contra span/transcript/timestamps;
-5. crear benchmark con positivos/negativos y fallos deliberados;
-6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
-7. no promover nada al Edit Plan hasta cerrar 2D.
+1. reconstruir eligibility sobre endpoints humanos trazables ya existentes;
+2. comprobar que retakes/corrections protegidos siguen bloqueados;
+3. comprobar integridad de `removedText` con timings reales;
+4. buscar al menos un control humano que atraviese guardas foundation si la evidencia lo permite;
+5. no relajar policy para fabricar un positivo;
+6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false` y `automatic_edits=0`.
 
 ## Principios
 

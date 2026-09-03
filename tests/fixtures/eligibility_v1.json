@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "description": "Phase 2D.4 combined eligibility policy fixture. All records remain non-executable.",
+  "cases": [
+    {
+      "id": "pause-clean",
+      "candidate": {"id": "pause-0001", "kind": "pause", "start": 0.5, "end": 0.7},
+      "join": {"id": "join-0001", "candidate_id": "pause-0001", "candidate_kind": "pause", "status": "join_context_only", "target_span": {"start_index": null, "end_index_exclusive": null, "start": 0.5, "end": 0.7, "text": "", "source": "candidate_temporal_gap"}},
+      "acoustic": {"id": "acoustic-0001", "join_assessment_id": "join-0001", "candidate_id": "pause-0001", "status": "acoustic_context_only", "measurement_available": true},
+      "expected_status": "foundation_guards_pass"
+    },
+    {
+      "id": "pause-low-energy-clean",
+      "candidate": {"id": "pause-0002", "kind": "pause", "start": 0.5, "end": 0.7},
+      "join": {"id": "join-0002", "candidate_id": "pause-0002", "candidate_kind": "pause", "status": "join_context_only", "target_span": {"start_index": null, "end_index_exclusive": null, "start": 0.5, "end": 0.7, "text": "", "source": "candidate_temporal_gap"}},
+      "acoustic": {"id": "acoustic-0002", "join_assessment_id": "join-0002", "candidate_id": "pause-0002", "status": "low_energy_boundary_context", "measurement_available": true},
+      "expected_status": "foundation_guards_pass"
+    },
+    {
+      "id": "pause-acoustic-risk",
+      "candidate": {"id": "pause-0003", "kind": "pause", "start": 0.5, "end": 0.7},
+      "join": {"id": "join-0003", "candidate_id": "pause-0003", "candidate_kind": "pause", "status": "join_context_only", "target_span": {"start_index": null, "end_index_exclusive": null, "start": 0.5, "end": 0.7, "text": "", "source": "candidate_temporal_gap"}},
+      "acoustic": {"id": "acoustic-0003", "join_assessment_id": "join-0003", "candidate_id": "pause-0003", "status": "waveform_discontinuity_risk", "measurement_available": true},
+      "expected_status": "blocked_acoustic_context"
+    },
+    {
+      "id": "filler-isolated-clean",
+      "candidate": {"id": "possible_filler-0001", "kind": "possible_filler", "start": 0.7, "end": 0.9},
+      "filler": {"candidate_id": "possible_filler-0001", "status": "isolated_hesitation"},
+      "join": {"id": "join-0004", "candidate_id": "possible_filler-0001", "candidate_kind": "possible_filler", "status": "join_context_only", "target_span": {"start_index": 2, "end_index_exclusive": 3, "start": 0.7, "end": 0.9, "text": "gamma", "source": "filler_word_timing_match"}},
+      "acoustic": {"id": "acoustic-0004", "join_assessment_id": "join-0004", "candidate_id": "possible_filler-0001", "status": "acoustic_context_only", "measurement_available": true},
+      "expected_status": "foundation_guards_pass"
+    },
+    {
+      "id": "filler-protected",
+      "candidate": {"id": "possible_filler-0002", "kind": "possible_filler", "start": 0.7, "end": 0.9},
+      "filler": {"candidate_id": "possible_filler-0002", "status": "protected_repair_context"},
+      "join": {"id": "join-0005", "candidate_id": "possible_filler-0002", "candidate_kind": "possible_filler", "status": "repair_or_protected_context_risk", "target_span": {"start_index": 2, "end_index_exclusive": 3, "start": 0.7, "end": 0.9, "text": "gamma", "source": "filler_word_timing_match"}},
+      "acoustic": {"id": "acoustic-0005", "join_assessment_id": "join-0005", "candidate_id": "possible_filler-0002", "status": "blocked_by_context", "measurement_available": false},
+      "expected_status": "blocked_filler_context"
+    },
+    {
+      "id": "repetition-semantic-review",
+      "candidate": {"id": "possible_repetition-0001", "kind": "possible_repetition", "start": 0.3, "end": 0.5},
+      "semantic": {"id": "semantic-0001", "candidate_id": "possible_repetition-0001", "decision": "REVIEW", "guard_status": "review"},
+      "join": {"id": "join-0006", "candidate_id": "possible_repetition-0001", "candidate_kind": "possible_repetition", "status": "join_context_only", "target_span": {"start_index": 1, "end_index_exclusive": 2, "start": 0.3, "end": 0.5, "text": "beta", "source": "candidate_word_span"}},
+      "acoustic": {"id": "acoustic-0006", "join_assessment_id": "join-0006", "candidate_id": "possible_repetition-0001", "status": "acoustic_context_only", "measurement_available": true},
+      "expected_status": "blocked_semantic_decision"
+    },
+    {
+      "id": "repetition-join-risk",
+      "candidate": {"id": "possible_repetition-0002", "kind": "possible_repetition", "start": 0.3, "end": 0.5},
+      "semantic": {"id": "semantic-0002", "candidate_id": "possible_repetition-0002", "decision": "PROPOSED_CUT", "guard_status": "pass"},
+      "join": {"id": "join-0007", "candidate_id": "possible_repetition-0002", "candidate_kind": "possible_repetition", "status": "critical_lexical_context_risk", "target_span": {"start_index": 1, "end_index_exclusive": 2, "start": 0.3, "end": 0.5, "text": "beta", "source": "candidate_word_span"}},
+      "acoustic": {"id": "acoustic-0007", "join_assessment_id": "join-0007", "candidate_id": "possible_repetition-0002", "status": "blocked_by_context", "measurement_available": false},
+      "expected_status": "blocked_join_context"
+    },
+    {
+      "id": "repetition-clean",
+      "candidate": {"id": "possible_repetition-0003", "kind": "possible_repetition", "start": 0.3, "end": 0.5},
+      "semantic": {"id": "semantic-0003", "candidate_id": "possible_repetition-0003", "decision": "PROPOSED_CUT", "guard_status": "pass"},
+      "join": {"id": "join-0008", "candidate_id": "possible_repetition-0003", "candidate_kind": "possible_repetition", "status": "join_context_only", "target_span": {"start_index": 1, "end_index_exclusive": 2, "start": 0.3, "end": 0.5, "text": "beta", "source": "candidate_word_span"}},
+      "acoustic": {"id": "acoustic-0008", "join_assessment_id": "join-0008", "candidate_id": "possible_repetition-0003", "status": "acoustic_context_only", "measurement_available": true},
+      "expected_status": "foundation_guards_pass"
+    },
+    {
+      "id": "correction-ambiguous",
+      "candidate": {"id": "explicit_correction-0001", "kind": "explicit_correction", "start": 0.7, "end": 0.9},
+      "semantic": {"id": "semantic-0004", "candidate_id": "explicit_correction-0001", "decision": "REVIEW", "guard_status": "review"},
+      "scope": {"candidate_id": "explicit_correction-0001", "status": "ambiguous"},
+      "join": {"id": "join-0009", "candidate_id": "explicit_correction-0001", "candidate_kind": "explicit_correction", "status": "invalid_or_unbounded_target", "target_span": {"start_index": 2, "end_index_exclusive": 3, "start": 0.7, "end": 0.9, "text": "gamma", "source": "candidate_word_span"}},
+      "acoustic": {"id": "acoustic-0009", "join_assessment_id": "join-0009", "candidate_id": "explicit_correction-0001", "status": "blocked_by_context", "measurement_available": false},
+      "expected_status": "blocked_correction_scope"
+    },
+    {
+      "id": "correction-bounded-review",
+      "candidate": {"id": "explicit_correction-0002", "kind": "explicit_correction", "start": 0.7, "end": 0.9},
+      "semantic": {"id": "semantic-0005", "candidate_id": "explicit_correction-0002", "decision": "REVIEW", "guard_status": "review"},
+      "scope": {"candidate_id": "explicit_correction-0002", "status": "bounded"},
+      "join": {"id": "join-0010", "candidate_id": "explicit_correction-0002", "candidate_kind": "explicit_correction", "status": "repair_or_protected_context_risk", "target_span": {"start_index": 1, "end_index_exclusive": 3, "start": 0.3, "end": 0.9, "text": "beta gamma", "source": "bounded_correction_attempt_plus_marker"}},
+      "acoustic": {"id": "acoustic-0010", "join_assessment_id": "join-0010", "candidate_id": "explicit_correction-0002", "status": "blocked_by_context", "measurement_available": false},
+      "expected_status": "blocked_semantic_decision"
+    },
+    {
+      "id": "invalid-removed-text",
+      "candidate": {"id": "possible_repetition-0004", "kind": "possible_repetition", "start": 0.3, "end": 0.5},
+      "semantic": {"id": "semantic-0006", "candidate_id": "possible_repetition-0004", "decision": "PROPOSED_CUT", "guard_status": "pass"},
+      "join": {"id": "join-0011", "candidate_id": "possible_repetition-0004", "candidate_kind": "possible_repetition", "status": "join_context_only", "target_span": {"start_index": 1, "end_index_exclusive": 2, "start": 0.3, "end": 0.5, "text": "WRONG", "source": "candidate_word_span"}},
+      "acoustic": {"id": "acoustic-0011", "join_assessment_id": "join-0011", "candidate_id": "possible_repetition-0004", "status": "acoustic_context_only", "measurement_available": true},
+      "expected_status": "invalid_removed_text"
+    },
+    {
+      "id": "missing-acoustic-evidence",
+      "candidate": {"id": "pause-0004", "kind": "pause", "start": 0.5, "end": 0.7},
+      "join": {"id": "join-0012", "candidate_id": "pause-0004", "candidate_kind": "pause", "status": "join_context_only", "target_span": {"start_index": null, "end_index_exclusive": null, "start": 0.5, "end": 0.7, "text": "", "source": "candidate_temporal_gap"}},
+      "expected_status": "missing_required_evidence"
+    }
+  ],
+  "transcript_words": [
+    {"text": "alpha", "start": 0.1, "end": 0.3},
+    {"text": "beta", "start": 0.3, "end": 0.5},
+    {"text": "gamma", "start": 0.7, "end": 0.9},
+    {"text": "delta", "start": 0.9, "end": 1.1},
+    {"text": "epsilon", "start": 1.1, "end": 1.3}
+  ]
+}
