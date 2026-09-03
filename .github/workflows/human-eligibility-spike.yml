@@ -2,11 +2,6 @@ name: Human Combined Eligibility Spike
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2d-human-combined-eligibility
-    paths:
-      - ".github/ci-triggers/human-combined-eligibility.txt"
 
 concurrency:
   group: video-tunner-human-eligibility-${{ github.ref }}
