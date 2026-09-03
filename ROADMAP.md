@@ -61,40 +61,13 @@ Foundation run `33634775313` — SUCCESS tras corregir PTS/padding.
 
 Hardening run `33639009841` — SUCCESS con 37 tests, negative offset, drift +1000 ppm, low-signal failure-safe, manual override y coverage parcial.
 
-Ver `Validation/sync-foundation-spike.md` y `Validation/sync-hardening.md`.
-
-Thresholds de confidence/residual/drift/coverage siguen provisionales hasta corpus real.
-
 ## Fase 1C — Transcripción + VAD sobre master audio — COMPLETADA
 
 `analyze` trabaja siempre sobre master audio acreditado. Whisper y Silero VAD reciben exactamente el mismo master; todos los timestamps permanecen en timeline de vídeo.
 
-Run `33640872486` — SUCCESS:
+Run `33640872486` — SUCCESS: 41 tests, build frozen analysis, embedded/external master, automatic edits `0`, artifacts `0`.
 
-- 41 tests PASS;
-- build frozen analysis PASS;
-- embedded/external master PASS;
-- external +0.500 s → +0.49581 s;
-- automatic edits `0`;
-- artifacts `0`.
-
-### `large-v3-turbo` + español real
-
-Run definitivo `33656235038` — SUCCESS:
-
-- fixture `46.58025 s`;
-- 61 palabras de referencia / 62 de hipótesis;
-- 1 error;
-- WER `1.64%` frente a criterio `<=15%`;
-- word timestamps PASS;
-- CPU int8 `22.609 s`, RTF `0.4854`;
-- peak working set `1818.7 MiB`;
-- modelo `1546.5 MiB`;
-- candidates `16`;
-- automatic edits `0`;
-- artifacts `0`.
-
-**Fase 1C cerrada sin introducir auto-apply.**
+Target Spanish `33656235038` — SUCCESS: WER `1.64%`, word timestamps PASS, RTF `0.4854`, automatic edits `0`, artifacts `0`.
 
 ## Fase 2 — Cleaner inteligente — EN CURSO
 
@@ -102,29 +75,20 @@ Objetivo: convertir transcript + VAD + candidates en propuestas semánticas audi
 
 ### 2A — Semantic Candidates v1 — COMPLETADA
 
-Implementado sobre word timestamps:
+Implementado:
 
 - `possible_repetition`;
 - `possible_retake`;
 - `explicit_correction`;
 - evidencia exacta (`removed_text`, contexto, índices, timestamps, confidence);
-- lectura posterior preservada fuera del span candidato en repeticiones/retomas;
-- correcciones explícitas detectadas sin inventar todavía el límite del intento erróneo;
-- modo Conservador más estricto que Agresivo;
-- deduplicación de openers desplazados;
+- lectura posterior preservada fuera del span candidato;
+- modo Conservador más estricto;
 - `decision=undecided`;
 - `suggested_decision=REVIEW`;
 - `auto_apply=false`;
 - `span_safe_for_auto_apply=false`.
 
-Run `33659725847` — SUCCESS:
-
-```text
-Ran 48 tests in 6.469s
-OK
-```
-
-Artifacts `0`. Ver `Validation/phase2-semantic-candidates.md`.
+Run `33659725847` — SUCCESS: 48 tests, artifacts `0`.
 
 ### 2B — Semantic Decisions + Protection v1 — COMPLETADA
 
@@ -152,69 +116,103 @@ executable = false
 auto_apply = false
 ```
 
-`analysis.json` actual usa schema v3 y separa `candidates[]` de `semantic_decisions[]`.
+`analysis.json` usa schema v3 y separa `candidates[]` de `semantic_decisions[]`.
 
 Guardas implementadas:
 
-- span integrity: word indices/timestamps/`removed_text`;
-- números, importes, porcentajes y unidades;
+- span integrity;
+- números/importes/porcentajes/unidades;
 - negaciones;
 - sujeto/persona;
-- tiempo verbal/aspecto y marcadores temporales;
+- tiempo verbal/aspecto;
 - causalidad/contraste;
-- señal heurística de entidades/nombres relevantes;
-- relación intento → corrección para `explicit_correction`.
+- señal heurística de entidades;
+- relación intento → corrección.
 
-Política:
+Run final `33741195594` — SUCCESS: 55 tests, doctor PASS, artifacts `0`, automatic edits `0`.
 
-- repetición exacta adyacente puede ser `PROPOSED_CUT`, nunca ejecutable;
-- retake con material real/conflicto protegido → `REVIEW`;
-- `explicit_correction` permanece `REVIEW` hasta inferir de forma segura el scope de la toma incorrecta;
-- candidate inconsistente → `KEEP` fail-safe;
-- `automatic_edits = 0`.
+### 2C — Validación semántica real — EN CURSO
 
-Run previo `33661062365`: 54/55 PASS; único fallo = test heredado esperaba schema v2.
+#### 2C.1 — Benchmark/Validation Foundation v1 — COMPLETADA
 
-Run final `33741195594` — SUCCESS:
+Se ha creado un harness reproducible para medir:
+
+- TP / FP / FN;
+- precision / recall / F1;
+- decision mismatches;
+- unsafe proposals;
+- missing safe proposals;
+- executable decisions;
+- auto-apply decisions.
+
+Corpus v1 final:
 
 ```text
-Ran 55 tests in 6.671s
-OK
+21 casos
+11 constructed_positive
+6 constructed_negative
+4 human_speech_reference
+11 eventos esperados
 ```
 
-`doctor` PASS, E2E sync/FFmpeg PASS, artifacts `0`.
+Los 4 controles humanos reutilizan diálogos SpanishPod ya validados con audio + `large-v3-turbo` en `33656235038`; son controles negativos humanos, no positivos de retoma/autocorrección.
 
-Ver `Validation/phase2-semantic-protection.md`.
+Baseline `33742519997` — SUCCESS:
 
-### 2C — Validación semántica real — SIGUIENTE
+```text
+60 tests
+FP 2
+FN 0
+precision 84.62%
+recall 100%
+F1 91.67%
+unsafe proposals 0
+```
 
-Crear fixtures/corpus explícitos de habla real con:
+Los dos FP medidos eran:
 
-- retomas;
-- reinicios;
-- repeticiones;
-- errores/autocorrecciones;
-- cifras/importes/porcentajes;
-- negaciones;
-- nombres/entidades;
-- cambios de sujeto;
-- cambios temporales;
-- fillers.
+- reutilización legítima cercana de opener;
+- `quiero decir` literal.
 
-Objetivos:
+Tuneo Conservador guiado por evidencia:
 
-- medir falsos positivos/falsos negativos;
-- validar qué guardas funcionan y cuáles faltan;
-- probar especialmente correcciones tipo `200 → perdón → 250 mil euros`;
-- confirmar que Conservador cae a KEEP/REVIEW ante conflicto;
-- no introducir modelos semánticos sin un caso de uso medible y bounded por candidates/guardas deterministas.
+- rechazar retakes aparentes separados por continuación normal si no hay señal de reparación/vacilación;
+- registrar `repair_evidence`;
+- tratar `quiero decir` / `I mean` como marcadores ambiguos y no fuertes en contextos literales.
+
+Final `33743029443` — SUCCESS:
+
+```text
+64 tests en 6.588 s
+FP 0
+FN 0
+precision 100%
+recall 100%
+F1 100%
+unsafe proposals 0
+executable decisions 0
+auto_apply decisions 0
+artifacts 0
+```
+
+**Este 100% sólo vale para corpus v1.** No generalizar a habla arbitraria.
+
+Ver `Validation/phase2c-semantic-validation.md`.
+
+#### 2C.2 — Positivos humanos espontáneos — SIGUIENTE
+
+- incorporar habla humana real con retomas, reinicios y autocorrecciones;
+- usar corpus públicos/licenciados o fixtures propios controlados;
+- evaluar transcripción real Whisper cuando aporte evidencia nueva;
+- mantener thresholds predefinidos y no relajarlos para ocultar fallos;
+- usar falsos positivos/negativos observados para guiar tuneos.
 
 ### 2D — Scope de correcciones + fillers contextuales — FUTURA
 
-- inferir de forma segura qué parte anterior es la toma incorrecta y qué parte posterior es la corrección válida;
-- distinguir muletillas realmente eliminables de palabras/sonidos necesarios para naturalidad/significado;
+- inferir de forma segura qué parte anterior es la toma incorrecta y cuál es la corrección válida;
+- distinguir fillers eliminables de elementos necesarios para naturalidad/significado;
 - límites de frase y join safety;
-- ampliar protección semántica sólo con evidencia real.
+- ampliar protección sólo con evidencia real.
 
 ### 2E — Promotion to Edit Plan — FUTURA
 
@@ -225,7 +223,7 @@ Sólo después de 2C/2D:
 - convertir únicamente decisiones inequívocamente seguras en Edit Plan;
 - verificar joins/removedText;
 - mantener límite global de eliminación y fail-safe;
-- el resto permanece `REVIEW / KEEP`.
+- resto en `REVIEW / KEEP`.
 
 ## Fase 3 — Calidad audiovisual / auditoría
 
@@ -245,10 +243,10 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones después 
 
 ## Orden inmediato
 
-1. crear corpus/fixtures de validación semántica real;
-2. medir falsos positivos/falsos negativos de candidates + decisions;
-3. tensionar cifras/unidades/negaciones/sujeto/tiempo/entidades;
-4. resolver scope seguro de correcciones explícitas;
-5. validar fillers contextuales;
-6. mantener `executable=false` hasta disponer de evidencia suficiente;
-7. no promover nada a Edit Plan antes de superar estas validaciones.
+1. conseguir positivos humanos reales con retomas/reinicios/autocorrecciones;
+2. incorporarlos al mismo benchmark de 2C;
+3. medir FP/FN y unsafe proposals sin mover thresholds;
+4. corregir sólo problemas observados;
+5. después resolver scope de correcciones y fillers contextuales;
+6. mantener `executable=false`;
+7. no promover a Edit Plan hasta superar estas validaciones.
