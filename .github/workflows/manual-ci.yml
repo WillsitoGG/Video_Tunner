@@ -2,11 +2,6 @@ name: Manual CI
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2d-correction-scope
-    paths:
-      - .github/ci-triggers/phase2d-correction-scope-final.txt
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
