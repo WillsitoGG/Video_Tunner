@@ -115,7 +115,7 @@ foreach ($case in $cases) {
     if ($LASTEXITCODE -ne 0) { throw "No se pudo recortar audio para $caseId." }
 
     $duration = [double](& $ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $clipWav)
-    if ($duration -lt 5.0) { throw "Clip AMI demasiado corto para $caseId: $duration" }
+    if ($duration -lt 5.0) { throw "Clip AMI demasiado corto para ${caseId}: $duration" }
 
     $video = Join-Path $caseRoot "$caseId.mp4"
     & $ffmpeg -hide_banner -loglevel error -y `
@@ -139,7 +139,7 @@ foreach ($case in $cases) {
     $transcriptPath = Join-Path $output "${caseId}_transcript.json"
     $analysisPath = Join-Path $output "${caseId}_analysis.json"
     foreach ($path in @($transcriptPath, $analysisPath)) {
-        if (-not (Test-Path $path)) { throw "Falta output para $caseId: $path" }
+        if (-not (Test-Path $path)) { throw "Falta output para ${caseId}: $path" }
     }
 
     $transcript = Get-Content $transcriptPath -Raw | ConvertFrom-Json
