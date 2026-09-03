@@ -14,14 +14,15 @@ Obligatorio:
 4. Whisper y VAD usan exactamente el mismo master;
 5. auto-sync sólo con evidencia suficiente; override/manual fallback;
 6. original siempre intacto;
-7. `candidate != correction scope != semantic decision != edit`;
+7. `candidate != correction scope != filler assessment != semantic decision != edit`;
 8. `PROPOSED_CUT != executable CUT`;
 9. `bounded scope != safe cut`;
-10. ante duda: `KEEP / REVIEW`;
-11. Conservador por defecto.
+10. `filler assessment != safe cut`;
+11. ante duda: `KEEP / REVIEW`;
+12. Conservador por defecto.
 
 ```text
-sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → correction scopes → semantic decisions/protection → future Edit Plan → render → audit
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → correction scopes + filler assessments → semantic decisions/protection → future Edit Plan → render → audit
 ```
 
 ## 2. Estado
@@ -40,9 +41,10 @@ Completado:
 - Fase 2C.1 — benchmark foundation;
 - Fase 2C.2 — retake humano + correcciones humanas bilingües;
 - Fase 2C.3 — audio humano real → portable frozen → `large-v3-turbo` → semantic gate;
-- Fase 2D.1 — correction scope foundation v1 + schema v4.
+- Fase 2D.1 — correction scope foundation v1 + schema v4;
+- Fase 2D.2 — contextual fillers foundation v1 + schema v5.
 
-Siguiente: **Fase 2D.2 — fillers contextuales**. Después: sentence/join safety.
+Siguiente: **Fase 2D.3 — sentence boundaries + join safety**.
 
 No existe promoción semántica al Edit Plan.
 
@@ -58,11 +60,9 @@ No existe promoción semántica al Edit Plan.
 - Human correction final `33750836791`: 74 tests; corpus gate PASS; unsafe 0; executable 0; auto_apply 0; artifacts 0.
 - Phase 2C.3 lightweight `33754755238`: 76/76 PASS; E2E FFmpeg/sync; doctor; artifacts 0.
 - Phase 2C.3 audio-backed `33755013415`: 3 AMI audio cases; 0 failures; semantic gate PASS; automatic_edits/executable/auto_apply 0; artifacts 0.
-- Phase 2D.1 foundation `33757158460`: 83 tests PASS en 6.767 s; artifacts 0.
-- Phase 2D.1 benchmark `33757481376`: 87 tests PASS en 6.595 s; scope gate PASS; artifacts 0.
-- Phase 2D.1 final `33758185755`: **88/88 tests PASS en 6.711 s; schema v4/pipeline integration PASS; E2E FFmpeg/sync PASS; doctor PASS; artifacts 0.**
-
-Run `33757887930` fue rojo sólo por un test legado que esperaba schema v3 tras introducir deliberadamente schema v4; 87/88 tests pasaron y no falló lógica de scope/safety.
+- Phase 2D.1 final `33758185755`: 88/88 PASS; schema v4; E2E FFmpeg/sync; doctor; artifacts 0.
+- Phase 2D.2 benchmark `33771489008`: **101/101 PASS en 7.030 s; filler context gate PASS; human AMI repair filler protected; artifacts 0.**
+- Phase 2D.2 final `33771792867`: **101/101 PASS en 5.031 s; schema v5/pipeline integration PASS; E2E FFmpeg/sync; doctor; artifacts 0.**
 
 No generalizar métricas de corpus fuera de su muestra.
 
@@ -95,11 +95,12 @@ Evidencia insuficiente => `review_required`, sin master. Nunca mezclar implícit
 
 `analyze` siempre usa master acreditado. Master pre-resuelto exige `ingest.json` y SHA-256 coincidente.
 
-Schema actual `analysis.json`: **v4**.
+Schema actual `analysis.json`: **v5**.
 
 ```text
 candidates[]
 correction_scopes[]
+filler_assessments[]
 semantic_decisions[]
 ```
 
@@ -110,6 +111,9 @@ semantic_decisions_executable = false
 correction_scopes_are_not_edits = true
 correction_scopes_executable = false
 correction_scopes_safe_for_cut = false
+filler_assessments_are_not_edits = true
+filler_assessments_executable = false
+filler_assessments_safe_for_cut = false
 automatic_edits = 0
 ```
 
@@ -152,25 +156,11 @@ Guardas: span/timestamps/removed_text, cifras/unidades/importes/%, negación, su
 
 ## 8. Correcciones y retakes — reglas derivadas de evidencia humana
 
-### Marcadores ambiguos
+En Conservador, `I mean / quiero decir` requiere evidencia local adicional: frontera de reparación, sustitución numérica o `question_reframe_cue`.
 
-En Conservador, `I mean / quiero decir` requiere evidencia local adicional:
+`perdón / perdona / sorry` exige contexto léxico a ambos lados; disculpa + vacilación sin intento interrumpido no es correction candidate.
 
-- frontera explícita de reparación/truncamiento; o
-- sustitución numérica; o
-- `question_reframe_cue` cuando la reformulación interrogativa sobrevive al ASR aunque desaparezcan guiones/truncamientos.
-
-`perdón / perdona / sorry`:
-
-- exige contexto léxico a izquierda/derecha;
-- disculpa + vacilación (`perdón eh ...`) sin intento interrumpido => no correction candidate;
-- después de fragmento truncado sí => `explicit_correction → REVIEW`.
-
-### Repeticiones exactas tras ASR
-
-Whisper puede eliminar una vacilación y fabricar una repetición textual adyacente perfecta.
-
-Regla conservadora actual:
+Whisper puede eliminar una vacilación y fabricar una repetición textual perfecta. Regla temporal conservadora actual:
 
 ```text
 min_seconds_per_token_for_repeat_proposal = 0.120
@@ -190,59 +180,65 @@ ambiguous
 invalid
 ```
 
-Estrategias v1:
-
-```text
-repeated_corrected_prefix_anchor
-local_numeric_replacement
-no_deterministic_left_boundary
-```
-
 Reglas:
 
 1. `bounded` = boundary local determinista encontrado; **no** = cut seguro;
 2. `ambiguous` conserva correction detection pero deja `attempt_span=null`;
 3. cada scope se enlaza a `candidate_id`;
-4. todo scope mantiene:
+4. todo scope mantiene `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
+5. un `bounded` incorrecto donde debía ser `ambiguous` es fallo de seguridad.
+
+Detalle: `Validation/phase2d-correction-scope.md`.
+
+## 10. Contextual Fillers — Phase 2D.2
+
+`possible_filler` sigue siendo candidate acústico. La capa `filler_assessments[]` añade contexto, no ejecución.
+
+Estados v1:
+
+```text
+isolated_hesitation
+hesitation_cluster
+protected_repair_context
+boundary_hesitation
+uncertain_asr
+invalid
+```
+
+Reglas:
+
+1. filler solapado/cercano a `possible_retake` o `explicit_correction` => `protected_repair_context`;
+2. fillers adyacentes => `hesitation_cluster`;
+3. transcript boundary o gap >= `0.60 s` => `boundary_hesitation`;
+4. probabilidad ASR < `0.60` o ausente => `uncertain_asr`;
+5. `isolated_hesitation` sólo es evidencia contextual, **no safe-for-cut**;
+6. todo assessment mantiene:
    ```text
    safe_for_cut=false
    executable=false
    auto_apply=false
    ```
-5. un `bounded` incorrecto donde debía ser `ambiguous` es fallo de seguridad.
 
-Benchmark v1:
-
-```text
-12 casos
-6 bounded
-3 ambiguous
-3 no-candidate controls
-```
+Benchmark v1: 15 casos ES/EN, con retake humano AMI y control humano SpanishPod.
 
 Gate:
 
 ```text
-candidate contract clean
-bounded_exactness == 1.0
-status/strategy/attempt mismatches == 0
-unsafe_bounded == 0
+record_count_mismatches == 0
+status_mismatches == 0
+status_accuracy == 1.0
+repair_link_mismatches == 0
+repair_protection_recall == 1.0
 safety_violations == 0
 ```
 
-Detalle: `Validation/phase2d-correction-scope.md`.
+Limitación crítica derivada del audio real de 2C.3: Whisper puede omitir un filler (`uh`). No inventar fillers que no sobreviven al ASR. La capa sólo clasifica candidates presentes.
 
-## 10. Semantic Validation gate
+Detalle: `Validation/phase2d-contextual-fillers.md`.
 
-Medir siempre:
+## 11. Semantic Validation gate
 
-- TP / FP / FN;
-- precision / recall / F1;
-- decision mismatches;
-- unsafe proposals;
-- missing safe proposals;
-- executable decisions;
-- auto-apply decisions.
+Medir siempre TP/FP/FN, precision/recall/F1, decision mismatches, unsafe proposals, missing safe proposals, executable y auto-apply.
 
 ```text
 precision >= 0.95
@@ -256,36 +252,26 @@ auto_apply decisions == 0
 
 Una FP review-only es ruido. Un `PROPOSED_CUT` incorrecto es fallo de seguridad. No mover thresholds para esconder nuevos fallos.
 
-## 11. Phase 2C.3 — audio-backed evidence
+## 12. Phase 2C.3 — audio-backed evidence
 
 AMI ES2012d Mix-Headset se descarga sólo a `RUNNER_TEMP`, se verifica por SHA-256 y no se sube como artifact.
 
-Final `33755013415`:
-
-```text
-3 cases
-0 failures
-SEMANTIC_AUDIO_GATE=PASS
-automatic_edits=0
-executable=0
-auto_apply=0
-artifacts=0
-```
+Final `33755013415`: semantic gate PASS, automatic_edits/executable/auto_apply 0, artifacts 0.
 
 Detalle: `Validation/phase2c-audio-backed-validation.md`.
 
-## 12. Siguiente — Fase 2D.2 Fillers contextuales
+## 13. Siguiente — Fase 2D.3 Sentence boundaries + join safety
 
-La detección acústica actual sólo marca tokens de vacilación obvios (`eh`, `um`, etc.) como `possible_filler`, siempre review-only.
+Objetivo: demostrar que un futuro corte puede unir ambos lados sin romper frase, turno, palabra, intención o prosodia.
 
-Objetivo 2D.2:
+Reglas iniciales:
 
-1. no asumir que el token aislado es eliminable;
-2. evaluar contexto léxico, temporal y relación con retakes/corrections;
-3. distinguir vacilación local de elemento discursivo natural;
-4. crear positivos/negativos etiquetados y medir FP/FN;
-5. no habilitar `safe_for_cut`, execution ni auto-apply;
-6. después abordar sentence boundaries + join safety.
+1. sentence/turn boundary es evidencia separada del candidate;
+2. no usar sólo puntuación ASR como verdad absoluta;
+3. proteger joins junto a negaciones, entidades, cifras, cambios de sujeto y reparaciones;
+4. auditar gap, contexto izquierdo/derecho y continuidad temporal;
+5. `removedText` definitivo sólo cuando el span y ambos lados estén definidos;
+6. no habilitar `safe_for_cut`, execution ni auto-apply durante la foundation de 2D.3.
 
 Hasta superar 2D:
 
@@ -296,17 +282,17 @@ auto_apply=false
 automatic_edits=0
 ```
 
-## 13. Edit Plan / render
+## 14. Edit Plan / render
 
-Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, correction scopes o semantic decisions no ejecutables.
+Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, correction scopes, filler assessments o semantic decisions no ejecutables.
 
-Pendiente: fillers contextuales, sentence/join safety, removedText definitivo, join audit, fades/loudness y post-render verification.
+Pendiente: sentence/join safety, removedText definitivo, join audit, fades/loudness y post-render verification.
 
-## 14. Technology harvest
+## 15. Technology harvest
 
 Video_Tunner NO es fork. Referencias: Railly/vcut, Cadence-Lab, ai-video-editor, SYSTRAN/faster-whisper. Antes de adoptar código: licencia + commit + motivo + validación propia.
 
-## 15. GitHub / CI / Release
+## 16. GitHub / CI / Release
 
 GitHub es source of truth.
 
@@ -317,6 +303,6 @@ GitHub es source of truth.
 - si no hay `workflow_dispatch` en conector, trigger one-shot y restauración inmediata;
 - no publicar GitHub Release sin autorización expresa de Guille.
 
-## 16. Docs
+## 17. Docs
 
 Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.
