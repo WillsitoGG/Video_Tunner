@@ -36,9 +36,9 @@ Completado:
 - Fase 1C — Whisper/VAD sobre master + `large-v3-turbo` español real;
 - Fase 2A — Semantic Candidates v1;
 - Fase 2B — Semantic Decisions + Protection v1;
-- Fase 2C — **benchmark/validation foundation v1**.
+- Fase 2C — **benchmark/validation foundation v1 + primer retake humano positivo**.
 
-Fase 2C completa sigue **EN CURSO**: faltan positivos humanos reales con retomas/autocorrecciones y posteriormente scope de correcciones/fillers/join safety. No existe promoción semántica al Edit Plan.
+Fase 2C completa sigue **EN CURSO**: sólo existe todavía un positivo humano espontáneo real; faltan más retomas/autocorrecciones, positivos en español, scope de correcciones/fillers y join safety. No existe promoción semántica al Edit Plan.
 
 ## 3. Evidencia principal
 
@@ -49,8 +49,9 @@ Fase 2C completa sigue **EN CURSO**: faltan positivos humanos reales con retomas
 - Target-model Spanish `33656235038`: PASS — WER 1.64%, RTF 0.4854, peak 1818.7 MiB, modelo 1546.5 MiB, automatic edits 0.
 - Semantic Candidates `33659725847`: PASS — 48 tests, doctor PASS, artifacts 0.
 - Semantic Decisions/Protection `33741195594`: PASS — 55 tests en 6.671 s, doctor PASS, artifacts 0.
-- Semantic validation baseline `33742519997`: PASS — 60 tests; corpus inicial 2 FP / 0 FN, precision 84.62%, recall 100%, F1 91.67%, unsafe proposals 0.
-- Semantic validation final `33743029443`: PASS — 64 tests en 6.588 s; corpus v1 0 FP / 0 FN, precision/recall/F1 100%, unsafe proposals 0, executable 0, auto-apply 0, artifacts 0.
+- Semantic validation baseline `33742519997`: PASS — 60 tests; 2 FP / 0 FN, precision 84.62%, recall 100%, F1 91.67%, unsafe proposals 0.
+- Semantic validation ajustada `33743029443`: PASS — 64 tests en 6.588 s; 21 casos, 0 FP / 0 FN, precision/recall/F1 100%, unsafe proposals 0, executable 0, auto-apply 0, artifacts 0.
+- Primer positivo humano `33743638690`: PASS — 65 tests en 6.789 s; corpus 22 casos / 12 eventos, retake humano AMI detectado como `possible_retake → REVIEW`, 0 FP / 0 FN, unsafe proposals 0, executable 0, auto-apply 0, artifacts 0.
 
 El 100% de 2C corresponde exclusivamente al corpus v1 etiquetado; no generalizar a habla real arbitraria.
 
@@ -241,19 +242,22 @@ Medir siempre:
 
 Una FP que queda `REVIEW` es ruido; una `PROPOSED_CUT` incorrecta es fallo de seguridad. No mezclarlas.
 
-### Corpus v1
+### Corpus v1 actual
 
 ```text
-21 casos
+22 casos
 11 constructed_positive
 6 constructed_negative
 4 human_speech_reference
-11 eventos esperados
+1 human_speech_positive
+12 eventos esperados
 ```
 
-Los 4 controles humanos reutilizan diálogos SpanishPod ya acreditados por el run ML real `33656235038`; son negativos humanos, no positivos de retoma/autocorrección.
+Los 4 controles `human_speech_reference` reutilizan diálogos SpanishPod ya acreditados por `33656235038`; son negativos humanos.
 
-El harness genera timings deterministas para aislar semántica de ASR; esos timings no son ground truth temporal.
+El primer `human_speech_positive` procede de AMI Meeting Corpus ES2012d: un retake espontáneo manualmente transcrito. Su procedencia y URL quedan en `source_reference` del fixture. Se mantiene `REVIEW`.
+
+El harness genera timings deterministas para aislar semántica de ASR; esos timings no son ground truth temporal ni prueban todavía audio AMI → Whisper → semántica.
 
 ### Baseline medido
 
@@ -281,7 +285,7 @@ Conservador:
 - registrar `repair_evidence`;
 - `quiero decir` / `I mean` son ambiguos: no corrección al inicio ni en frames literales `lo que quiero decir` / `what I mean`; siguen disponibles tras intento previo.
 
-### Resultado final
+### Validación ajustada
 
 `33743029443`:
 
@@ -302,6 +306,34 @@ auto_apply decisions 0
 artifacts 0
 ```
 
+### Primer positivo humano
+
+`33743638690`:
+
+```text
+65 tests PASS en 6.789 s
+22 casos
+12 expected / 12 actual
+0 FP
+0 FN
+precision 100%
+recall 100%
+F1 100%
+unsafe proposals 0
+decision mismatches 0
+missing safe proposals 0
+executable decisions 0
+auto_apply decisions 0
+artifacts 0
+```
+
+El caso AMI se detecta como:
+
+```text
+possible_retake → REVIEW
+guard_status = review
+```
+
 Gate v1:
 
 ```text
@@ -320,13 +352,15 @@ Ver `Validation/phase2c-semantic-validation.md`.
 
 ## 11. Pendiente dentro de Fase 2C
 
-1. incorporar positivos humanos reales con retomas/reinicios/autocorrecciones;
-2. ejecutar Whisper real sólo cuando aporte evidencia nueva;
-3. medir con el mismo harness y conservar fallos visibles;
-4. inferir scope `intento incorrecto → corrección válida`;
-5. validar fillers contextuales;
-6. añadir límites de frase y join safety;
-7. mantener `executable=false` hasta evidencia suficiente.
+1. ampliar positivos humanos reales con retomas/reinicios/autocorrecciones;
+2. incorporar la autocorrección humana AMI con `I mean` ya localizada como siguiente fixture;
+3. buscar positivos humanos equivalentes en español con fuente/licencia adecuada;
+4. ejecutar Whisper real sólo cuando aporte evidencia nueva;
+5. medir con el mismo harness y conservar fallos visibles;
+6. inferir scope `intento incorrecto → corrección válida`;
+7. validar fillers contextuales;
+8. añadir límites de frase y join safety;
+9. mantener `executable=false` hasta evidencia suficiente.
 
 Cualquier modelo semántico futuro debe estar bounded por candidates deterministas y guardas; local-first y fail-safe.
 
@@ -371,4 +405,4 @@ Cambios relevantes => mantener sincronizados README, AGENTS, ROADMAP, RELEASE_ST
 - Target Spanish: `large-v3-turbo`, WER 1.64%, RTF 0.4854.
 - Semantic Candidates v1: repetitions/retakes/explicit corrections review-only.
 - Semantic Decisions + Protection v1: schema v3, guardas deterministas, ninguna decision ejecutable.
-- Semantic Validation Foundation v1: harness TP/FP/FN + safety, baseline medido, tuneo conservador guiado por 2 FP, corpus v1 final 0 FP/0 FN/0 unsafe proposals; Fase 2C sigue en curso por falta de positivos humanos reales.
+- Semantic Validation Foundation v1: harness TP/FP/FN + safety, baseline medido, tuneo conservador guiado por 2 FP, corpus actual 22 casos con primer retake humano AMI positivo y 0 FP/0 FN/0 unsafe proposals; Fase 2C continúa abierta para ampliar evidencia humana.
