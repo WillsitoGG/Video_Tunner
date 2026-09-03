@@ -88,7 +88,7 @@
     "id": "repetition-bilateral-context",
     "source_type": "constructed_positive",
     "language": "es",
-    "segments": [["antes", "alpha", "alpha", "despues"]],
+    "segments": [["inicio", "alpha", "alpha", "final"]],
     "candidate": {"kind": "possible_repetition", "span": [1, 2]},
     "expected_status": "join_context_only",
     "expected_target_source": "candidate_word_span",
