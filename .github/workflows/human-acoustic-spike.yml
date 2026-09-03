@@ -2,11 +2,6 @@ name: Human Acoustic Join Spike
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2d-human-acoustic-evidence
-    paths:
-      - ".github/ci-triggers/human-acoustic-join.txt"
 
 concurrency:
   group: video-tunner-human-acoustic-${{ github.ref }}
