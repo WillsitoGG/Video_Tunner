@@ -21,6 +21,22 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Preflight PowerShell semantic harness syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ".\.github\scripts\run_semantic_audio_validation.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "Semantic audio validation script has PowerShell parser errors."
+          }
+          Write-Host "SEMANTIC_AUDIO_POWERSHELL_PARSE=PASS"
+
       - name: Download licensed AMI semantic fixture
         shell: pwsh
         run: .\.github\scripts\download_ami_semantic_fixture.ps1
