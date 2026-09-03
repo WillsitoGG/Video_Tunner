@@ -98,7 +98,7 @@ def run_fake_analysis(transcript: TranscriptResult) -> dict:
 
 
 class SemanticPipelineIntegrationTests(unittest.TestCase):
-    def test_analyze_emits_candidate_decision_and_empty_scope_layer_for_repetition(self):
+    def test_analyze_emits_candidate_decision_and_join_evidence_for_repetition(self):
         report = run_fake_analysis(
             timed_transcript("vamos a lanzar vamos a lanzar el producto mañana")
         )
@@ -116,17 +116,25 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
             for item in report["semantic_decisions"]
             if item["candidate_id"] == repetition["id"]
         )
-        self.assertEqual(report["schema_version"], 5)
+        join = next(
+            item for item in report["join_assessments"] if item["candidate_id"] == repetition["id"]
+        )
+        self.assertEqual(report["schema_version"], 6)
         self.assertEqual(report["correction_scopes"], [])
         self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
         self.assertEqual(report["filler_assessments"], [])
         self.assertEqual(report["summary"]["filler_assessments"]["count"], 0)
+        self.assertEqual(join["status"], "transcript_edge")
+        self.assertFalse(join["safe_for_cut"])
+        self.assertFalse(join["executable"])
+        self.assertFalse(join["auto_apply"])
         self.assertEqual(decision["decision"], "PROPOSED_CUT")
         self.assertEqual(decision["guard_status"], "pass")
         self.assertFalse(decision["executable"])
         self.assertFalse(decision["auto_apply"])
         self.assertEqual(report["summary"]["automatic_edits"], 0)
         self.assertEqual(report["summary"]["semantic_decisions"]["executable"], 0)
+        self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
         self.assertTrue(report["safety"]["semantic_protection_enabled"])
         self.assertTrue(report["safety"]["semantic_decisions_are_not_edits"])
         self.assertTrue(report["safety"]["correction_scopes_are_not_edits"])
@@ -135,8 +143,12 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertTrue(report["safety"]["filler_assessments_are_not_edits"])
         self.assertFalse(report["safety"]["filler_assessments_executable"])
         self.assertFalse(report["safety"]["filler_assessments_safe_for_cut"])
+        self.assertTrue(report["safety"]["join_assessments_are_not_edits"])
+        self.assertFalse(report["safety"]["join_assessments_executable"])
+        self.assertFalse(report["safety"]["join_assessments_safe_for_cut"])
+        self.assertFalse(report["safety"]["join_acoustic_validation_enabled"])
 
-    def test_analyze_links_explicit_correction_candidate_scope_and_review_decision(self):
+    def test_analyze_links_correction_scope_join_evidence_and_review_decision(self):
         report = run_fake_analysis(
             timed_transcript("la facturación fue de 200 perdón de 250 mil euros")
         )
@@ -146,11 +158,14 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         scope = next(
             item for item in report["correction_scopes"] if item["candidate_id"] == correction["id"]
         )
+        join = next(
+            item for item in report["join_assessments"] if item["candidate_id"] == correction["id"]
+        )
         decision = next(
             item for item in report["semantic_decisions"] if item["candidate_id"] == correction["id"]
         )
 
-        self.assertEqual(report["schema_version"], 5)
+        self.assertEqual(report["schema_version"], 6)
         self.assertEqual(scope["status"], "bounded")
         self.assertEqual(scope["strategy"], "repeated_corrected_prefix_anchor")
         self.assertEqual(scope["attempt_span"]["text"], "de 200")
@@ -159,6 +174,10 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertFalse(scope["executable"])
         self.assertFalse(scope["auto_apply"])
         self.assertEqual(report["filler_assessments"], [])
+        self.assertEqual(join["status"], "repair_or_protected_context_risk")
+        self.assertEqual(join["target_span"]["source"], "bounded_correction_attempt_plus_marker")
+        self.assertEqual(join["target_span"]["text"], "de 200 perdón")
+        self.assertFalse(join["safe_for_cut"])
         self.assertEqual(decision["decision"], "REVIEW")
         self.assertFalse(decision["executable"])
         self.assertEqual(report["summary"]["automatic_edits"], 0)
@@ -166,6 +185,7 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(report["summary"]["correction_scopes"]["executable"], 0)
         self.assertEqual(report["summary"]["correction_scopes"]["auto_apply"], 0)
         self.assertEqual(report["summary"]["filler_assessments"]["safe_for_cut"], 0)
+        self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
 
 
 if __name__ == "__main__":
