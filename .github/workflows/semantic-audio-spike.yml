@@ -2,11 +2,6 @@ name: Semantic Audio Spike
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2c-audio-backed-semantics
-    paths:
-      - .github/ci-triggers/semantic-audio-baseline.txt
 
 concurrency:
   group: video-tunner-semantic-audio-${{ github.ref }}
