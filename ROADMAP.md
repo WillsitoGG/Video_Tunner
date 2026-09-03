@@ -40,32 +40,17 @@ Convención única:
 video_time = offset_seconds + time_scale * external_time
 ```
 
-Implementado:
+Implementado: `ingest` CLI, master FLAC 48 kHz, SHA-256, auto-sync multi-anchor, offset +/- , drift, residual, confidence, coverage, manual override, `review_required`, sin mezcla implícita de cámara y master alineado a la timeline.
 
-- `ingest` CLI;
-- master audio FLAC 48 kHz;
-- SHA-256 y metadata de fuentes;
-- ZNCC coarse + anchors multi-window;
-- offset positivo/negativo;
-- confidence;
-- ajuste lineal de drift;
-- residual RMS;
-- rejection de outliers por MAD;
-- coverage;
-- override `--offset` y `--drift-ppm`;
-- `review_required` sin master ante evidencia insuficiente;
-- sin mezcla implícita de audio de cámara;
-- timeline final del master igual a la del vídeo.
+Foundation `33634775313` — SUCCESS.
 
-Foundation run `33634775313` — SUCCESS tras corregir PTS/padding.
-
-Hardening run `33639009841` — SUCCESS con 37 tests, negative offset, drift +1000 ppm, low-signal failure-safe, manual override y coverage parcial.
+Hardening `33639009841` — SUCCESS con 37 tests.
 
 ## Fase 1C — Transcripción + VAD sobre master audio — COMPLETADA
 
 `analyze` trabaja siempre sobre master audio acreditado. Whisper y Silero VAD reciben exactamente el mismo master; todos los timestamps permanecen en timeline de vídeo.
 
-Run `33640872486` — SUCCESS: 41 tests, build frozen analysis, embedded/external master, automatic edits `0`, artifacts `0`.
+Run `33640872486` — SUCCESS: 41 tests, frozen analysis PASS, embedded/external master PASS, automatic edits `0`, artifacts `0`.
 
 Target Spanish `33656235038` — SUCCESS: WER `1.64%`, word timestamps PASS, RTF `0.4854`, automatic edits `0`, artifacts `0`.
 
@@ -75,24 +60,11 @@ Objetivo: convertir transcript + VAD + candidates en propuestas semánticas audi
 
 ### 2A — Semantic Candidates v1 — COMPLETADA
 
-Implementado:
-
-- `possible_repetition`;
-- `possible_retake`;
-- `explicit_correction`;
-- evidencia exacta (`removed_text`, contexto, índices, timestamps, confidence);
-- lectura posterior preservada fuera del span candidato;
-- modo Conservador más estricto;
-- `decision=undecided`;
-- `suggested_decision=REVIEW`;
-- `auto_apply=false`;
-- `span_safe_for_auto_apply=false`.
+Implementado `possible_repetition`, `possible_retake`, `explicit_correction`, evidencia exacta, lectura posterior preservada y política review-only.
 
 Run `33659725847` — SUCCESS: 48 tests, artifacts `0`.
 
 ### 2B — Semantic Decisions + Protection v1 — COMPLETADA
-
-Arquitectura:
 
 ```text
 candidate → semantic decision/protection → future approved edit
@@ -118,16 +90,7 @@ auto_apply = false
 
 `analysis.json` usa schema v3 y separa `candidates[]` de `semantic_decisions[]`.
 
-Guardas implementadas:
-
-- span integrity;
-- números/importes/porcentajes/unidades;
-- negaciones;
-- sujeto/persona;
-- tiempo verbal/aspecto;
-- causalidad/contraste;
-- señal heurística de entidades;
-- relación intento → corrección.
+Guardas: span integrity, números/importes/porcentajes/unidades, negaciones, sujeto/persona, tiempo/aspecto, causalidad/contraste, señal heurística de entidades y relación intento→corrección.
 
 Run final `33741195594` — SUCCESS: 55 tests, doctor PASS, artifacts `0`, automatic edits `0`.
 
@@ -135,27 +98,7 @@ Run final `33741195594` — SUCCESS: 55 tests, doctor PASS, artifacts `0`, autom
 
 #### 2C.1 — Benchmark/Validation Foundation v1 — COMPLETADA
 
-Se ha creado un harness reproducible para medir:
-
-- TP / FP / FN;
-- precision / recall / F1;
-- decision mismatches;
-- unsafe proposals;
-- missing safe proposals;
-- executable decisions;
-- auto-apply decisions.
-
-Corpus v1 final:
-
-```text
-21 casos
-11 constructed_positive
-6 constructed_negative
-4 human_speech_reference
-11 eventos esperados
-```
-
-Los 4 controles humanos reutilizan diálogos SpanishPod ya validados con audio + `large-v3-turbo` en `33656235038`; son controles negativos humanos, no positivos de retoma/autocorrección.
+Harness reproducible para medir TP/FP/FN, precision/recall/F1, decision mismatches, unsafe proposals, missing safe proposals, executable decisions y auto-apply decisions.
 
 Baseline `33742519997` — SUCCESS:
 
@@ -169,21 +112,17 @@ F1 91.67%
 unsafe proposals 0
 ```
 
-Los dos FP medidos eran:
+Tuneo Conservador guiado únicamente por los dos FP observados:
 
-- reutilización legítima cercana de opener;
-- `quiero decir` literal.
+- reutilización legítima de opener tras continuación normal;
+- `quiero decir` / `I mean` en contexto literal.
 
-Tuneo Conservador guiado por evidencia:
-
-- rechazar retakes aparentes separados por continuación normal si no hay señal de reparación/vacilación;
-- registrar `repair_evidence`;
-- tratar `quiero decir` / `I mean` como marcadores ambiguos y no fuertes en contextos literales.
-
-Final `33743029443` — SUCCESS:
+Validación ajustada `33743029443` — SUCCESS:
 
 ```text
 64 tests en 6.588 s
+21 casos
+11 expected / 11 actual
 FP 0
 FN 0
 precision 100%
@@ -195,17 +134,45 @@ auto_apply decisions 0
 artifacts 0
 ```
 
-**Este 100% sólo vale para corpus v1.** No generalizar a habla arbitraria.
+**Este 100% sólo vale para el corpus etiquetado.**
+
+#### 2C.2 — Positivos humanos espontáneos — EN CURSO
+
+Primer positivo incorporado desde AMI Meeting Corpus ES2012d: retake humano espontáneo con opener repetido tras vacilación/interrupción.
+
+Run `33743638690` — SUCCESS:
+
+```text
+65 tests en 6.789 s
+22 casos
+12 expected / 12 actual
+FP 0
+FN 0
+precision 100%
+recall 100%
+F1 100%
+unsafe proposals 0
+executable decisions 0
+auto_apply decisions 0
+artifacts 0
+```
+
+Resultado del positivo humano:
+
+```text
+possible_retake → REVIEW
+guard_status = review
+```
+
+Pendiente dentro de 2C.2:
+
+- ampliar retomas/reinicios humanos reales;
+- incorporar la autocorrección humana AMI con `I mean` ya localizada;
+- buscar positivos humanos equivalentes en español con fuente/licencia adecuada;
+- ejecutar audio → Whisper → semántica cuando aporte evidencia nueva;
+- mantener thresholds predefinidos y no relajarlos para ocultar fallos.
 
 Ver `Validation/phase2c-semantic-validation.md`.
-
-#### 2C.2 — Positivos humanos espontáneos — SIGUIENTE
-
-- incorporar habla humana real con retomas, reinicios y autocorrecciones;
-- usar corpus públicos/licenciados o fixtures propios controlados;
-- evaluar transcripción real Whisper cuando aporte evidencia nueva;
-- mantener thresholds predefinidos y no relajarlos para ocultar fallos;
-- usar falsos positivos/negativos observados para guiar tuneos.
 
 ### 2D — Scope de correcciones + fillers contextuales — FUTURA
 
@@ -243,10 +210,11 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones después 
 
 ## Orden inmediato
 
-1. conseguir positivos humanos reales con retomas/reinicios/autocorrecciones;
-2. incorporarlos al mismo benchmark de 2C;
-3. medir FP/FN y unsafe proposals sin mover thresholds;
-4. corregir sólo problemas observados;
-5. después resolver scope de correcciones y fillers contextuales;
-6. mantener `executable=false`;
-7. no promover a Edit Plan hasta superar estas validaciones.
+1. ampliar positivos humanos reales desde AMI/u otras fuentes licenciadas;
+2. incorporar la autocorrección humana real ya localizada;
+3. buscar positivos equivalentes en español;
+4. medir FP/FN y unsafe proposals sin mover thresholds;
+5. corregir sólo problemas observados;
+6. después resolver scope de correcciones, fillers y join safety;
+7. mantener `executable=false`;
+8. no promover a Edit Plan hasta superar estas validaciones.
