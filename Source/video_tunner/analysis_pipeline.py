@@ -10,6 +10,8 @@ from .candidates import build_analysis_report, build_candidates, save_analysis_r
 from .correction_scope import build_correction_scopes
 from .correction_scope_report import attach_correction_scopes
 from .edit_plan import MODE_SETTINGS
+from .eligibility import build_eligibility_assessments
+from .eligibility_report import attach_eligibility_assessments
 from .filler_context import build_filler_assessments
 from .filler_context_report import attach_filler_assessments
 from .ingest import ingest_video
@@ -121,10 +123,10 @@ def analyze_spoken_video(
     """Resolve master audio and emit separate non-executable evidence layers.
 
     Whisper, Silero VAD and acoustic join validation consume the same accredited
-    master audio. All timestamps remain on the video timeline. Candidates,
-    correction scopes, filler assessments, join assessments, acoustic join
-    assessments and semantic decisions are deliberately separate and never
-    become executable edits in this phase.
+    master audio. Candidates, correction scopes, filler assessments, join
+    assessments, acoustic join assessments, semantic decisions and combined
+    eligibility assessments remain separate evidence layers and never become
+    executable edits in this phase.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
@@ -216,6 +218,15 @@ def analyze_spoken_video(
         join_assessments,
     )
     semantic_decisions = build_semantic_decisions(transcript, candidates)
+    eligibility_assessments = build_eligibility_assessments(
+        transcript,
+        candidates,
+        semantic_decisions=semantic_decisions,
+        correction_scopes=correction_scopes,
+        filler_assessments=filler_assessments,
+        join_assessments=join_assessments,
+        acoustic_join_assessments=acoustic_join_assessments,
+    )
 
     stem = source_path.stem
     transcript_json = write_transcript_json(transcript, output_root / f"{stem}_transcript.json")
@@ -238,6 +249,7 @@ def analyze_spoken_video(
     attach_filler_assessments(report, filler_assessments)
     attach_join_assessments(report, join_assessments)
     attach_acoustic_join_assessments(report, acoustic_join_assessments)
+    attach_eligibility_assessments(report, eligibility_assessments)
     analysis_path = save_analysis_report(report, output_root / f"{stem}_analysis.json")
 
     return {
