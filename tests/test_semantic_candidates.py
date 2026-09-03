@@ -41,6 +41,8 @@ class SemanticCandidateTests(unittest.TestCase):
         self.assertEqual(repeat["evidence"]["removed_text"], "vamos a lanzar")
         self.assertEqual(repeat["evidence"]["second_occurrence_text"], "vamos a lanzar")
         self.assertEqual(repeat["evidence"]["keep_occurrence"], "later")
+        self.assertGreater(repeat["evidence"]["first_seconds_per_token"], 0.12)
+        self.assertGreater(repeat["evidence"]["second_seconds_per_token"], 0.12)
         self.assertEqual(repeat["suggested_decision"], "REVIEW")
         self.assertFalse(repeat["auto_apply"])
 
@@ -122,6 +124,20 @@ class SemanticCandidateTests(unittest.TestCase):
         self.assertEqual(correction["evidence"]["removed_text"], "i mean")
         self.assertTrue(correction["evidence"]["repair_boundary_before"])
         self.assertFalse(correction["auto_apply"])
+
+    def test_i_mean_question_reframe_survives_asr_punctuation_loss(self):
+        transcript = transcript_from_words(
+            timed("yeah yeah i mean it is a detailed point i just wonder i mean how will people put these down")
+        )
+        candidates = build_semantic_candidates(transcript, mode="conservative")
+        corrections = [item for item in candidates if item["kind"] == "explicit_correction"]
+
+        self.assertEqual(len(corrections), 1)
+        self.assertEqual(corrections[0]["evidence"]["removed_text"], "i mean")
+        self.assertTrue(corrections[0]["evidence"]["question_reframe_cue"])
+        self.assertFalse(corrections[0]["evidence"]["repair_boundary_before"])
+        self.assertFalse(corrections[0]["evidence"]["numeric_replacement_cue"])
+        self.assertFalse(corrections[0]["auto_apply"])
 
     def test_perdon_followed_by_hesitation_without_boundary_is_rejected_conservatively(self):
         transcript = transcript_from_words(

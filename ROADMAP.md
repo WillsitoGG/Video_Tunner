@@ -56,67 +56,17 @@ Run `33741195594`: 55 tests PASS, artifacts 0.
 
 ## Fase 2 — Cleaner inteligente — EN CURSO
 
-### 2C — Validación semántica real — EN CURSO
+### 2C — Validación semántica real — COMPLETADA COMO BLOQUE DE EVIDENCIA v1
 
 #### 2C.1 — Benchmark/Validation Foundation v1 — COMPLETADA
 
 Harness TP/FP/FN + precision/recall/F1 + safety.
 
-Baseline `33742519997`:
+`33743029443`: 21 casos / 11 eventos, 0 FP/FN, unsafe 0.
 
-```text
-60 tests
-FP 2 / FN 0
-precision 84.62%
-recall 100%
-unsafe proposals 0
-```
+#### 2C.2 — Positivos/negativos humanos bilingües — COMPLETADA
 
-Tuneo conservador basado sólo en FP observados.
-
-`33743029443`:
-
-```text
-64 tests
-21 casos / 11 eventos
-FP 0 / FN 0
-precision = recall = F1 = 100% en ese corpus
-unsafe proposals 0
-executable 0
-auto_apply 0
-```
-
-#### 2C.2 — Positivos/negativos humanos — EN CURSO, BLOQUE BILINGÜE COMPLETADO
-
-Primer retake humano AMI:
-
-`33743638690` — 65 tests PASS, `possible_retake → REVIEW`, 0 FP/FN.
-
-Extensión bilingüe:
-
-- AMI EN: `I mean` reparación real + `I mean` discursivo negativo;
-- CORMA ES: `Perdón` tras fragmento abandonado + `perdón eh` disculpa negativa.
-
-Baseline `33750475437`:
-
-```text
-69 tests PASS
-26 casos / 14 eventos
-14 TP / 2 FP / 0 FN
-precision 87.50%
-recall 100%
-F1 93.33%
-unsafe proposals 0
-```
-
-Los dos FP fueron los dos usos humanos ambiguos de marcador; gate falló sólo por precision.
-
-Tuneo Conservador:
-
-- `I mean / quiero decir`: exigir frontera de reparación o sustitución numérica;
-- `perdón / perdona / sorry`: rechazar patrón de disculpa/hesitación sin intento interrumpido;
-- fragmento truncado + marcador sigue `REVIEW`;
-- Agresivo conserva detección más amplia.
+AMI EN + CORMA ES + controles SpanishPod.
 
 Final `33750836791`:
 
@@ -124,42 +74,80 @@ Final `33750836791`:
 74 tests PASS en 6.729 s
 26 casos / 14 eventos
 FP 0 / FN 0
-precision = recall = F1 = 100% en el corpus actual
+precision = recall = F1 = 100% en el corpus etiquetado actual
 unsafe proposals 0
-decision mismatches 0
-missing safe proposals 0
 executable 0
 auto_apply 0
 artifacts 0
 ```
 
-El corpus combinado incluye actualmente 3 positivos humanos y 2 negativos humanos explícitos, además de 4 controles SpanishPod.
+#### 2C.3 — Audio real → Whisper → semántica — COMPLETADA
 
-**El 100% sólo vale para el corpus etiquetado actual.**
+Audio real AMI ES2012d procesado con portable frozen y modelo fijado `large-v3-turbo`.
 
-#### 2C.3 — Audio real → Whisper → semántica — SIGUIENTE
+Ligera `33754755238`:
 
-Objetivo: comprobar qué señales manuales de reparación sobreviven al ASR real.
+```text
+76/76 tests PASS en 5.561 s
+FFmpeg/sync E2E PASS
+doctor PASS
+artifacts 0
+```
+
+Final pesada `33755013415`:
+
+```text
+3 casos reales
+0 failures
+53.810 s análisis total
+SEMANTIC_AUDIO_GATE=PASS
+automatic_edits 0
+executable 0
+auto_apply 0
+artifacts 0
+```
+
+Evidencia nueva:
+
+- Whisper puede borrar una vacilación y fabricar una repetición textual perfecta;
+- repetición con timing anómalamente comprimido => `REVIEW`;
+- Whisper puede eliminar guiones/truncamientos de una autocorrección;
+- `question_reframe_cue` recupera el caso real `I mean how...` de forma conservadora;
+- `I mean` discursivo sigue sin ser `explicit_correction`.
+
+**El 100% de 2C.2 sólo vale para ese corpus; 2C.3 demuestra comportamiento de tres casos audio-backed, no seguridad universal.**
+
+### 2D — Scope de correcciones + fillers contextuales + join safety — EN CURSO
+
+#### 2D.1 — Correction scope — SIGUIENTE
+
+Objetivo: inferir y medir el span `intento incorrecto → marcador/corrección` sin confundir marker detection con boundary de borrado.
 
 Orden:
 
-1. seleccionar pocos clips humanos con licencia/provenance clara, priorizando español;
-2. ejecutar `large-v3-turbo` sólo si aporta evidencia nueva;
-3. comparar transcript manual vs transcript Whisper para truncamientos, pausas y marcadores;
-4. alimentar el mismo semantic gate;
-5. registrar FP/FN sin mover thresholds;
-6. endurecer sólo problemas observados.
+1. definir representación explícita de `attempt_span` / `correction_marker_span` / `corrected_span` como evidencia, sin edit executable;
+2. construir corpus etiquetado de scopes positivos/negativos;
+3. medir exactitud de boundary/span separada de candidate detection;
+4. proteger números, unidades, negaciones, sujeto/persona, tiempo/aspecto, entidades y causalidad;
+5. si boundary es ambiguo => `REVIEW`, sin propuesta de corte automática;
+6. validar primero con tests deterministas y después con pocos audios reales si aporta evidencia nueva.
 
-### 2D — Scope de correcciones + fillers contextuales — FUTURA
+#### 2D.2 — Fillers contextuales — FUTURA
 
-- inferir con seguridad el span `intento incorrecto → corrección válida`;
-- no confundir marker-only con scope de borrado;
-- distinguir fillers eliminables de elementos semánticos/naturales;
-- límites de frase y join safety.
+- distinguir muletilla eliminable de marcador discursivo necesario;
+- Conservador debe priorizar naturalidad e integridad semántica;
+- no usar listas de palabras como prueba suficiente.
+
+#### 2D.3 — Sentence boundaries + join safety — FUTURA
+
+- límites de frase/turno;
+- joins que no alteren negación, sujeto o prosodia;
+- removedText exacto;
+- guardas acústicas/temporales antes de cualquier promoción.
 
 ### 2E — Promotion to Edit Plan — FUTURA
 
-Sólo después de 2C/2D:
+Sólo después de 2D:
 
 - decidir clases auto-aplicables;
 - thresholds por modo;
@@ -181,11 +169,10 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. preparar 2C.3 con pocos clips humanos reales y trazables;
-2. priorizar español y casos donde truncamiento/puntuación puedan perderse en Whisper;
-3. medir transcript real + semantic gate;
-4. después resolver correction scope;
-5. fillers contextuales;
-6. sentence/join safety;
-7. mantener `executable=false`;
-8. no promover al Edit Plan hasta superar la evidencia.
+1. cerrar/mergear evidencia 2C.3;
+2. arrancar 2D.1 correction scope;
+3. medir scope exactness sin habilitar edits;
+4. fillers contextuales;
+5. sentence/join safety;
+6. mantener `executable=false` y `auto_apply=false`;
+7. no promover al Edit Plan hasta superar 2D.

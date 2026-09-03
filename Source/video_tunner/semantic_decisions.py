@@ -8,6 +8,7 @@ from typing import Any
 from .transcription import TranscriptResult, WordTiming
 
 CONTEXT_WORDS = 8
+MIN_REPEAT_SECONDS_PER_TOKEN_FOR_PROPOSAL = 0.12
 _TOKEN_RE = re.compile(r"[^a-z0-9%€$£.,+-]+")
 _DIGIT_RE = re.compile(r"[+-]?(?:\d+[.,]?\d*|[.,]\d+)(?:%|€|\$|£)?")
 
@@ -282,6 +283,38 @@ def build_semantic_decisions(
                     )
                 )
                 continue
+
+            first_rate = float(evidence.get("first_seconds_per_token") or 0.0)
+            second_rate = float(evidence.get("second_seconds_per_token") or 0.0)
+            timing_compressed = (
+                first_rate <= 0.0
+                or second_rate <= 0.0
+                or min(first_rate, second_rate) < MIN_REPEAT_SECONDS_PER_TOKEN_FOR_PROPOSAL
+            )
+            protections["repeat_timing"] = {
+                "first_seconds_per_token": first_rate,
+                "second_seconds_per_token": second_rate,
+                "minimum_for_proposal": MIN_REPEAT_SECONDS_PER_TOKEN_FOR_PROPOSAL,
+                "compressed": timing_compressed,
+            }
+            if timing_compressed:
+                decisions.append(
+                    _decision(
+                        candidate,
+                        index=len(decisions) + 1,
+                        decision="REVIEW",
+                        confidence=max(0.9, float(candidate.get("confidence") or 0.8)),
+                        rationale=[
+                            "La repetición es textualmente exacta, pero sus timestamps están anómalamente comprimidos.",
+                            "El audio real demostró que Whisper puede omitir una vacilación y fabricar adyacencia textual; fail-safe REVIEW.",
+                        ],
+                        guard_status="review",
+                        span_validation=validation,
+                        protections=protections,
+                    )
+                )
+                continue
+
             decisions.append(
                 _decision(
                     candidate,

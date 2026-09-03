@@ -58,6 +58,16 @@ NUMBER_WORDS = {
     "eighty", "ninety", "hundred", "thousand",
 }
 
+# In real AMI audio, large-v3-turbo removed the manual truncation around
+# "I just wondered - I mean h- how..." but preserved the reformulation as
+# "I just wonder I mean how...". Interrogative reframing is therefore an
+# ASR-surviving conservative cue. Keep the set narrow: Spanish "que" is excluded
+# because it is usually a complementizer rather than an interrogative signal.
+QUESTION_REFRAME_MARKERS = {
+    "como", "cuando", "donde", "quien", "cual", "cuanto",
+    "how", "what", "when", "where", "who", "which", "why",
+}
+
 # A compact bilingual stopword list is enough for the guardrail here: the goal
 # is only to reject repetitions made entirely of connective tissue.
 STOPWORDS = {
@@ -194,6 +204,12 @@ def _next_lexical_token(tokens: list[str], start: int) -> str:
     return next((token for token in tokens[start:] if token), "")
 
 
+def _question_reframe_cue(tokens: list[str], index: int, end: int) -> bool:
+    if not any(token for token in tokens[max(0, index - CONTEXT_WORDS):index]):
+        return False
+    return _next_lexical_token(tokens, end) in QUESTION_REFRAME_MARKERS
+
+
 def _has_lexical_context(tokens: list[str], start: int, end: int) -> bool:
     return any(token for token in tokens[start:end])
 
@@ -215,6 +231,7 @@ def _find_correction_markers(
 
             repair_boundary = _repair_boundary_before(words, index)
             numeric_replacement = _numeric_replacement_cue(tokens, index, end)
+            question_reframe = _question_reframe_cue(tokens, index, end)
             next_token = _next_lexical_token(tokens, end)
             has_left_context = _has_lexical_context(tokens, max(0, index - CONTEXT_WORDS), index)
             has_right_context = _has_lexical_context(tokens, end, min(len(tokens), end + CONTEXT_WORDS))
@@ -222,7 +239,7 @@ def _find_correction_markers(
             if (
                 marker in AMBIGUOUS_CORRECTION_MARKERS
                 and require_ambiguous_evidence
-                and not (repair_boundary or numeric_replacement)
+                and not (repair_boundary or numeric_replacement or question_reframe)
             ):
                 continue
 
@@ -253,6 +270,7 @@ def _find_correction_markers(
                         "span_scope": "marker_only",
                         "repair_boundary_before": repair_boundary,
                         "numeric_replacement_cue": numeric_replacement,
+                        "question_reframe_cue": question_reframe,
                     },
                 )
             )
@@ -282,7 +300,11 @@ def _find_exact_repetitions(
             gap = words[second].start - words[second - 1].end
             if gap > float(settings["max_retake_gap_seconds"]):
                 continue
-            phrase_text = _text(words[start:second])
+            first_span = words[start:second]
+            second_span = words[second:second + size]
+            first_duration = max(0.0, first_span[-1].end - first_span[0].start)
+            second_duration = max(0.0, second_span[-1].end - second_span[0].start)
+            phrase_text = _text(first_span)
             confidence = 0.82 + min(0.14, 0.025 * size)
             result.append(
                 _candidate(
@@ -294,8 +316,12 @@ def _find_exact_repetitions(
                     confidence=confidence,
                     evidence={
                         "first_occurrence_text": phrase_text,
-                        "second_occurrence_text": _text(words[second:second + size]),
+                        "second_occurrence_text": _text(second_span),
                         "repeat_token_count": size,
+                        "first_occurrence_seconds": round(first_duration, 6),
+                        "second_occurrence_seconds": round(second_duration, 6),
+                        "first_seconds_per_token": round(first_duration / size, 6),
+                        "second_seconds_per_token": round(second_duration / size, 6),
                         "gap_to_second_seconds": round(max(0.0, gap), 6),
                         "keep_occurrence": "later",
                     },
