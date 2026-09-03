@@ -2,10 +2,6 @@ name: Manual CI
 
 on:
   workflow_dispatch:
-  push:
-    branches: [phase2c-semantic-validation]
-    paths:
-      - .github/ci-triggers/phase2c-human-positive.txt
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
