@@ -171,5 +171,15 @@
     "source_reference": "SpanishPod_newbie_lesson_A0116_dialogue.ogg; reused from run 33656235038",
     "text": "Quieres una menta Por qué Me huele la boca Sí toma",
     "expected_events": []
+  },
+  {
+    "id": "human-ami-es2012d-retake",
+    "description": "Retoma real de habla humana espontánea con opener repetido tras vacilación/interrupción.",
+    "source_type": "human_speech_positive",
+    "source_reference": "AMI ES2012d manual transcript, CC BY 4.0: https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2012d/browsable/ES2012d.manualtranscript-j.html",
+    "text": "have a look at the uh th- have a look at the prototypes",
+    "expected_events": [
+      {"kind": "possible_retake", "removed_text": "have a look at the uh th-", "decision": "REVIEW"}
+    ]
   }
 ]
