@@ -2,6 +2,7 @@
   {
     "id": "exact-repeat-launch",
     "description": "Repetición adyacente exacta típica de segunda lectura.",
+    "source_type": "constructed_positive",
     "text": "vamos a lanzar vamos a lanzar el producto mañana",
     "expected_events": [
       {"kind": "possible_repetition", "removed_text": "vamos a lanzar", "decision": "PROPOSED_CUT"}
@@ -10,6 +11,7 @@
   {
     "id": "exact-repeat-negation",
     "description": "La repetición exacta contiene una negación que debe conservarse en la segunda copia.",
+    "source_type": "constructed_positive",
     "text": "no vamos a cancelar no vamos a cancelar la campaña",
     "expected_events": [
       {"kind": "possible_repetition", "removed_text": "no vamos a cancelar", "decision": "PROPOSED_CUT"}
@@ -18,6 +20,7 @@
   {
     "id": "exact-repeat-number-unit",
     "description": "Repetición exacta con cifra e importe; sólo es propuesta porque queda una copia idéntica.",
+    "source_type": "constructed_positive",
     "text": "son 10 euros son 10 euros este mes",
     "expected_events": [
       {"kind": "possible_repetition", "removed_text": "son 10 euros", "decision": "PROPOSED_CUT"}
@@ -26,6 +29,7 @@
   {
     "id": "correction-number",
     "description": "Autocorrección explícita de cifra e importe.",
+    "source_type": "constructed_positive",
     "text": "la facturación fue de 200 perdón de 250 mil euros",
     "expected_events": [
       {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
@@ -34,6 +38,7 @@
   {
     "id": "correction-percent",
     "description": "Autocorrección explícita de porcentaje.",
+    "source_type": "constructed_positive",
     "text": "el margen era 10% perdón 15% este año",
     "expected_events": [
       {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
@@ -42,6 +47,7 @@
   {
     "id": "correction-negation",
     "description": "La autocorrección cambia la polaridad de la frase.",
+    "source_type": "constructed_positive",
     "text": "esto no funciona perdón esto funciona correctamente",
     "expected_events": [
       {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
@@ -50,6 +56,7 @@
   {
     "id": "correction-person",
     "description": "La autocorrección cambia la persona/sujeto explícito.",
+    "source_type": "constructed_positive",
     "text": "yo presentaré perdón ella presentará mañana",
     "expected_events": [
       {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
@@ -58,6 +65,7 @@
   {
     "id": "correction-tense",
     "description": "La autocorrección cambia referencia temporal.",
+    "source_type": "constructed_positive",
     "text": "fue ayer perdón será mañana",
     "expected_events": [
       {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
@@ -66,6 +74,7 @@
   {
     "id": "correction-entity",
     "description": "La autocorrección cambia un nombre propio.",
+    "source_type": "constructed_positive",
     "text": "hablé con Marta perdón con María ayer",
     "expected_events": [
       {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
@@ -74,6 +83,7 @@
   {
     "id": "retake-fumble",
     "description": "Reinicio de frase tras una vacilación mínima.",
+    "source_type": "constructed_positive",
     "text": "vamos a lanzar eh vamos a lanzar el producto",
     "expected_events": [
       {"kind": "possible_retake", "removed_text": "vamos a lanzar eh", "decision": "REVIEW"}
@@ -82,6 +92,7 @@
   {
     "id": "retake-content",
     "description": "Reinicio con contenido intermedio no trivial que nunca debe declararse descartable automáticamente.",
+    "source_type": "constructed_positive",
     "text": "vamos a lanzar el producto vamos a lanzar la campaña mañana",
     "expected_events": [
       {"kind": "possible_retake", "removed_text": "vamos a lanzar el producto", "decision": "REVIEW"}
@@ -90,37 +101,75 @@
   {
     "id": "intentional-emphasis",
     "description": "Énfasis oral corto que no debe confundirse con retoma en modo Conservador.",
+    "source_type": "constructed_negative",
     "text": "esto es muy muy importante para todos",
     "expected_events": []
   },
   {
     "id": "discourse-marker",
     "description": "O sea es un marcador discursivo válido, no una autocorrección fuerte por defecto.",
+    "source_type": "constructed_negative",
     "text": "o sea esto es importante para el cierre",
     "expected_events": []
   },
   {
     "id": "ordinary-filler",
     "description": "Una muletilla aislada no pertenece todavía a la capa semántica de retomas/correcciones.",
+    "source_type": "constructed_negative",
     "text": "eh bueno pues empezamos con el informe de hoy",
     "expected_events": []
   },
   {
     "id": "legitimate-reuse",
     "description": "El mismo opener reaparece tras una continuación normal; en Conservador no debe convertirse en retake.",
+    "source_type": "constructed_negative",
     "text": "vamos a lanzar el producto ahora y luego vamos a lanzar una campaña distinta",
     "expected_events": []
   },
   {
     "id": "literal-quiero-decir",
     "description": "Quiero decir al inicio puede ser una construcción literal y no una autocorrección.",
+    "source_type": "constructed_negative",
     "text": "quiero decir algo importante sobre el proyecto",
     "expected_events": []
   },
   {
     "id": "literal-lo-que-quiero-decir",
     "description": "Lo que quiero decir es una construcción literal interna, no un marcador de reparación.",
+    "source_type": "constructed_negative",
     "text": "lo que quiero decir es que necesitamos tiempo",
+    "expected_events": []
+  },
+  {
+    "id": "human-spanishpod-a0006",
+    "description": "Control negativo derivado de diálogo humano real; incluye repetición intencional corta 'bien, bien'.",
+    "source_type": "human_speech_reference",
+    "source_reference": "SpanishPod_newbie_lesson_A0006_dialogue.ogg; reused from run 33656235038",
+    "text": "Hola guapa Cómo te va Bien bien Y tú Qué tal Todo bien gracias Me alegra",
+    "expected_events": []
+  },
+  {
+    "id": "human-spanishpod-a0007",
+    "description": "Control negativo derivado de diálogo humano real con cambios de persona y entidades geográficas válidas.",
+    "source_type": "human_speech_reference",
+    "source_reference": "SpanishPod_newbie_lesson_A0007_dialogue.ogg; reused from run 33656235038",
+    "text": "De dónde eres Soy de Perú Y tú Yo soy de Colombia Qué bien",
+    "expected_events": []
+  },
+  {
+    "id": "human-spanishpod-a0013",
+    "description": "Control negativo derivado de diálogo humano real con preguntas y negación legítima.",
+    "source_type": "human_speech_reference",
+    "source_reference": "SpanishPod_newbie_lesson_A0013_dialogue.ogg; reused from run 33656235038",
+    "text": "Voy a lavar la ropa Hay detergente Sí hay abajo en la cocina Dónde En qué parte No sé Búscalo",
+    "expected_events": []
+  },
+  {
+    "id": "human-spanishpod-a0116",
+    "description": "Control negativo derivado de diálogo humano real con pregunta causal y respuesta breve.",
+    "source_type": "human_speech_reference",
+    "source_reference": "SpanishPod_newbie_lesson_A0116_dialogue.ogg; reused from run 33656235038",
+    "text": "Quieres una menta Por qué Me huele la boca Sí toma",
     "expected_events": []
   }
 ]
