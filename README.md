@@ -30,7 +30,7 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 1C — Transcripción/VAD sobre master audio + `large-v3-turbo` español real: ✅
 - Fase 2A — Semantic Candidates v1: ✅
 - Fase 2B — Semantic Decisions + Protection v1: ✅
-- Fase 2C — Validación semántica real: 🟡 **benchmark foundation v1 completada; positivos humanos espontáneos pendientes**
+- Fase 2C — Validación semántica real: 🟡 **benchmark v1 + primer retake humano positivo validados; ampliar positivos humanos pendiente**
 - Release pública: ninguna
 
 Video_Tunner sigue siendo producto/repo propio, no un fork.
@@ -157,7 +157,7 @@ Guardas v1: integridad de span, cifras/importes/porcentajes/unidades, negaciones
 
 Run `33741195594`: 55 tests PASS, `doctor` PASS, artifacts `0`, automatic edits `0`.
 
-## Fase 2C — Semantic Validation Foundation v1 — COMPLETADA COMO BASE
+## Fase 2C — Semantic Validation Foundation v1
 
 Se añade un benchmark etiquetado y reproducible que mide detección y seguridad por separado:
 
@@ -167,17 +167,9 @@ tests/fixtures/semantic_corpus_v1.json
 tests/test_semantic_validation.py
 ```
 
-Corpus final:
+### Baseline
 
-```text
-21 casos
-11 positivos construidos
-6 negativos construidos
-4 controles derivados de habla humana real ya validada
-11 eventos esperados
-```
-
-Baseline run `33742519997`:
+Run `33742519997`:
 
 ```text
 60 tests PASS
@@ -191,10 +183,14 @@ unsafe proposals = 0
 
 Los dos FP eran reutilización legítima de opener y `quiero decir` literal. Se tunearon únicamente esas dos fuentes de ruido en modo Conservador.
 
-Validación final run `33743029443`:
+### Corpus ajustado
+
+Run `33743029443`:
 
 ```text
 64 tests PASS en 6.588 s
+21 casos
+11 eventos esperados / 11 candidates
 FP = 0
 FN = 0
 precision = 100%
@@ -206,9 +202,39 @@ auto_apply decisions = 0
 artifacts = 0
 ```
 
-Los cuatro controles humanos reutilizan contenido SpanishPod ya validado con audio + `large-v3-turbo` en `33656235038`, evitando repetir una CI ML pesada sin necesidad.
+Incluía 11 positivos construidos, 6 negativos construidos y 4 controles negativos derivados de habla humana real SpanishPod ya validada con audio + `large-v3-turbo` en `33656235038`.
 
-**Limitación:** el 100% corresponde únicamente a este corpus v1. Todavía faltan positivos humanos espontáneos con retomas/autocorrecciones reales; por tanto Fase 2C completa sigue EN CURSO y no se habilita ningún edit semántico automático.
+### Primer positivo humano real
+
+Se añadió un retake de habla espontánea del **AMI Meeting Corpus** como `human_speech_positive`.
+
+Run `33743638690`:
+
+```text
+65 tests PASS en 6.789 s
+22 casos
+12 eventos esperados / 12 candidates
+FP = 0
+FN = 0
+precision = 100%
+recall = 100%
+F1 = 100%
+unsafe proposals = 0
+executable decisions = 0
+auto_apply decisions = 0
+artifacts = 0
+```
+
+El retake humano AMI se detecta como:
+
+```text
+possible_retake → REVIEW
+guard_status = review
+```
+
+Nunca se convierte en edit ni en decisión ejecutable.
+
+**Limitación:** el 100% corresponde únicamente al corpus v1 actual. Sólo existe un positivo humano espontáneo real y el harness usa timings deterministas; todavía faltan más retomas/autocorrecciones humanas, positivos en español y validaciones audio → Whisper → semántica cuando aporten evidencia nueva. Fase 2C completa sigue EN CURSO.
 
 Ver `Validation/phase2c-semantic-validation.md`.
 
@@ -249,12 +275,14 @@ En portable strict no existe fallback silencioso a caches globales.
 
 ## Siguiente trabajo dentro de Fase 2C
 
-1. incorporar positivos humanos reales con retomas, reinicios y autocorrecciones;
-2. medirlos con el mismo harness sin relajar thresholds para esconder fallos;
-3. resolver scope seguro `intento incorrecto → corrección válida`;
-4. validar fillers contextuales;
-5. añadir límites de frase y join safety;
-6. mantener todas las semantic decisions no ejecutables hasta demostrar qué clases pueden promoverse con seguridad.
+1. ampliar positivos humanos reales con retomas, reinicios y autocorrecciones;
+2. incorporar la autocorrección humana AMI con `I mean` ya localizada como siguiente fixture;
+3. buscar positivos equivalentes en español con fuente/licencia adecuada;
+4. medir con el mismo harness sin relajar thresholds para esconder fallos;
+5. resolver scope seguro `intento incorrecto → corrección válida`;
+6. validar fillers contextuales;
+7. añadir límites de frase y join safety;
+8. mantener todas las semantic decisions no ejecutables hasta demostrar qué clases pueden promoverse con seguridad.
 
 ## Principios
 
