@@ -22,31 +22,18 @@ Repo propio, no fork. Upstreams sólo como referencias/integraciones trazables.
 - ML frozen `33621357438` PASS.
 
 ### Fase 1B — Ingesta dual + sincronización A/V
-- master FLAC;
-- offset positivo/negativo;
-- drift;
-- confidence/residual/coverage;
-- manual override y `review_required`.
-
-Hardening `33639009841` PASS.
+Master FLAC, offset +/-, drift, confidence/residual/coverage, manual override y `review_required`. Hardening `33639009841` PASS.
 
 ### Fase 1C — Transcripción + VAD sobre master
-Whisper y Silero VAD reciben exactamente el mismo master.
-
-Target Spanish `33656235038`: WER `1.64%`, word timestamps PASS, RTF `0.4854`, automatic edits 0.
+Whisper y Silero VAD reciben exactamente el mismo master. Target Spanish `33656235038`: WER `1.64%`, word timestamps PASS, RTF `0.4854`, automatic edits 0.
 
 ### Fase 2A — Semantic Candidates v1
-`possible_repetition`, `possible_retake`, `explicit_correction`, todo review-only.
-
-Run `33659725847`: 48 tests PASS.
+`possible_repetition`, `possible_retake`, `explicit_correction`, todo review-only. Run `33659725847`: 48 tests PASS.
 
 ### Fase 2B — Semantic Decisions + Protection v1
 
 ```text
 candidate → semantic decision/protection → future approved edit
-```
-
-```text
 KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT
 executable = false
 auto_apply = false
@@ -58,96 +45,27 @@ Run `33741195594`: 55 tests PASS, artifacts 0.
 
 ### 2C — Validación semántica real — COMPLETADA COMO BLOQUE DE EVIDENCIA v1
 
-#### 2C.1 — Benchmark/Validation Foundation v1 — COMPLETADA
+- 2C.1 final `33743029443`: 21 casos / 11 eventos, 0 FP/FN, unsafe 0.
+- 2C.2 final `33750836791`: 74 tests; 26 casos / 14 eventos; 0 FP/FN en corpus etiquetado; unsafe/executable/auto_apply 0.
+- 2C.3 audio-backed `33755013415`: 3 casos reales AMI; semantic gate PASS; automatic_edits/executable/auto_apply 0; artifacts 0.
 
-`33743029443`: 21 casos / 11 eventos, 0 FP/FN, unsafe 0.
+No generalizar las métricas del corpus a habla arbitraria.
 
-#### 2C.2 — Positivos/negativos humanos bilingües — COMPLETADA
-
-Final `33750836791`:
-
-```text
-74 tests PASS en 6.729 s
-26 casos / 14 eventos
-FP 0 / FN 0
-precision = recall = F1 = 100% en el corpus etiquetado actual
-unsafe proposals 0
-executable 0
-auto_apply 0
-artifacts 0
-```
-
-#### 2C.3 — Audio real → Whisper → semántica — COMPLETADA
-
-Final pesada `33755013415`:
-
-```text
-3 casos reales
-0 failures
-53.810 s análisis total
-SEMANTIC_AUDIO_GATE=PASS
-automatic_edits 0
-executable 0
-auto_apply 0
-artifacts 0
-```
-
-Evidencia nueva:
-
-- Whisper puede borrar una vacilación y fabricar una repetición textual perfecta;
-- timing anómalamente comprimido => `REVIEW`;
-- Whisper puede eliminar guiones/truncamientos de una autocorrección;
-- `question_reframe_cue` recupera `I mean how...` conservadoramente;
-- `I mean` discursivo sigue sin ser `explicit_correction`.
-
-**El 100% de 2C.2 sólo vale para ese corpus; 2C.3 demuestra tres casos audio-backed, no seguridad universal.**
-
-### 2D — Scope de correcciones + fillers contextuales + join safety — EN CURSO
+### 2D — Scope + fillers + join safety — EN CURSO
 
 #### 2D.1 — Correction Scope Foundation v1 — COMPLETADA
 
-`analysis.json` schema v4:
+Schema v4 con `correction_scopes[]`. Estados `bounded / ambiguous / invalid`. Todo scope conserva `safe_for_cut=false`, `executable=false`, `auto_apply=false`.
 
-```text
-candidates[]
-correction_scopes[]
-semantic_decisions[]
-```
-
-Estados:
-
-```text
-bounded
-ambiguous
-invalid
-```
-
-Todo scope conserva `safe_for_cut=false`, `executable=false`, `auto_apply=false`.
-
-Benchmark: 12 casos. Final `33758185755`: **88/88 tests PASS en 6.711 s**, E2E FFmpeg/sync + doctor PASS, artifacts 0.
+Benchmark 12 casos. Final `33758185755`: **88/88 PASS en 6.711 s**, E2E FFmpeg/sync + doctor PASS, artifacts 0.
 
 Detalle: `Validation/phase2d-correction-scope.md`.
 
-#### 2D.2 — Fillers contextuales foundation v1 — COMPLETADA
+#### 2D.2 — Fillers contextuales Foundation v1 — COMPLETADA
 
-Nueva separación:
+Schema v5 con `filler_assessments[]`.
 
-```text
-possible_filler candidate
-→ filler assessment
-→ future join/safety decision
-```
-
-`analysis.json` pasa a schema v5:
-
-```text
-candidates[]
-correction_scopes[]
-filler_assessments[]
-semantic_decisions[]
-```
-
-Estados v1:
+Estados:
 
 ```text
 isolated_hesitation
@@ -158,64 +76,86 @@ uncertain_asr
 invalid
 ```
 
-Reglas principales:
+Benchmark 15 casos ES/EN. Final `33771792867`: **101/101 PASS en 5.031 s**, E2E FFmpeg/sync + doctor PASS, artifacts 0.
 
-- filler dentro/junto a retake/correction => protegido;
-- cluster => evaluación conjunta;
-- transcript boundary o gap >= 0.60 s => boundary hesitation;
-- ASR < 0.60 => uncertain;
-- ninguna clase es `safe_for_cut` todavía.
+Limitación: si Whisper omite un filler, la capa no lo inventa.
 
-Benchmark v1:
+Detalle: `Validation/phase2d-contextual-fillers.md`.
+
+#### 2D.3 — Sentence boundaries + join safety — EN CURSO
+
+##### 2D.3.1 — Boundary/timeline/lexical foundation v1 — COMPLETADA
+
+Schema v6:
 
 ```text
-15 casos ES/EN
-retakes/corrections
-clusters
-boundaries
-baja confianza
-AMI humano + SpanishPod control
+candidates[]
+correction_scopes[]
+filler_assessments[]
+join_assessments[]
+semantic_decisions[]
 ```
+
+Estados de join:
+
+```text
+join_context_only
+sentence_boundary_risk
+segment_boundary_risk
+critical_lexical_context_risk
+repair_or_protected_context_risk
+transcript_edge
+invalid_or_unbounded_target
+```
+
+Principios:
+
+- target corrupto o correction scope ambiguous => no join target;
+- proteger repairs, cifras/unidades/negación/persona/tiempo/causalidad;
+- puntuación ASR = señal, no verdad;
+- `join_context_only` = contexto bilateral sin guarda v1, **no cut seguro**;
+- todo join assessment sigue `safe_for_cut=false`, `executable=false`, `auto_apply=false`.
+
+Benchmark 15 casos, incluyendo retake humano AMI.
 
 Evidencia:
 
 ```text
-33771489008  101/101 PASS en 7.030 s — contextual benchmark
-33771792867  101/101 PASS en 5.031 s — schema v5 + pipeline integration
+33772715214  112/112 PASS en 6.670 s — foundation
+33773287106  117/117 PASS en 6.891 s — benchmark + schema v6
 ```
 
-E2E FFmpeg/sync y doctor PASS; artifacts 0.
+E2E FFmpeg/sync + doctor PASS; artifacts 0.
 
-Limitación: audio real 2C.3 demostró que Whisper puede omitir un filler. 2D.2 sólo clasifica fillers que sobreviven al ASR; no debe inventarlos.
+`join_acoustic_validation_enabled=false`: esta foundation no acredita continuidad de waveform/energía/prosodia.
 
-Detalle: `Validation/phase2d-contextual-fillers.md`.
+Detalle: `Validation/phase2d-join-safety.md`.
 
-#### 2D.3 — Sentence boundaries + join safety — SIGUIENTE
+##### 2D.3.2 — Acoustic join validation — SIGUIENTE
 
-Objetivo: demostrar que los dos lados de un futuro corte pueden unirse sin romper palabras, frase, turno, intención o prosodia.
+Objetivo: evaluar el join hipotético sobre **master audio**, sin promover todavía edits.
 
 Orden:
 
-1. representar evidencia de boundary izquierdo/derecho por separado del candidate;
-2. no confiar sólo en puntuación ASR;
-3. medir distancia temporal a palabras, gaps y contexto léxico;
-4. proteger joins adyacentes a negaciones, cifras, entidades, cambios de sujeto y reparaciones;
-5. construir corpus positivo/negativo de join safety;
-6. definir `removedText` exacto sólo cuando span + ambos lados sean auditables;
-7. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false` durante la foundation.
+1. extraer/analizar ventanas reales antes y después de los endpoints del join;
+2. medir energía/RMS, salto de waveform/DC y otros proxies conservadores;
+3. detectar speech-boundary y discontinuity risk;
+4. benchmark sintético pequeño y reproducible;
+5. usar audio humano real sólo si aporta evidencia nueva;
+6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false` durante esta foundation;
+7. no modificar aún el hard concat de `render.py` ni promover al Edit Plan.
 
 ### 2E — Promotion to Edit Plan — FUTURA
 
-Sólo después de 2D:
-
+Sólo después de cerrar 2D con evidencia suficiente:
 - decidir clases auto-aplicables;
 - thresholds por modo;
 - verificar joins y removedText;
-- límite global de eliminación y fail-safe;
+- límites globales y fail-safe;
 - resto en `REVIEW / KEEP`.
 
 ## Fase 3 — Calidad audiovisual / auditoría
-Normalización, joins, denoise controlado, join audit, post-render verification e informe.
+Normalización, join treatment, denoise controlado, join audit, post-render verification e informe.
 
 ## Fase 4 — UX mínima
 Seleccionar vídeo, audio externo opcional, sync, analizar, revisar, renderizar y abrir outputs.
@@ -228,8 +168,8 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. mergear 2D.2 contextual fillers foundation;
-2. arrancar 2D.3 sentence boundaries + join safety;
-3. construir benchmark de joins antes de promover nada;
+1. mergear 2D.3.1 join boundary/timeline/lexical foundation;
+2. arrancar 2D.3.2 acoustic join validation;
+3. medir waveform/energy risk sin habilitar cortes;
 4. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
 5. no promover al Edit Plan hasta superar 2D.
