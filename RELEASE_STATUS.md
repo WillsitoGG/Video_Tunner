@@ -21,7 +21,8 @@
 - Fase 2D.2: COMPLETADA — contextual filler foundation v1 + schema v5
 - Fase 2D.3.1: COMPLETADA — join boundary/timeline/lexical foundation + schema v6
 - Fase 2D.3.2: COMPLETADA — acoustic join validation foundation + schema v7
-- Fase 2D.3.3: **SIGUIENTE — human-audio acoustic evidence**
+- Fase 2D.3.3: COMPLETADA — human-audio acoustic evidence v1
+- Fase 2D.4: **SIGUIENTE — Combined Eligibility / Promotion Policy Foundation**
 
 ## Evidencia principal
 
@@ -38,48 +39,23 @@ Phase 2C.3 audio-backed final    33755013415  PASS — 3/3 semantic cases
 Phase 2D.1 final                 33758185755  PASS — 88/88, schema v4
 Phase 2D.2 final                 33771792867  PASS — 101/101, schema v5
 Phase 2D.3.1 final               33773287106  PASS — 117/117, schema v6
-Phase 2D.3.2 foundation          33781430382  PASS — 131/131, real PCM tests
 Phase 2D.3.2 final               33781903986  PASS — 131/131, schema v7
+Phase 2D.3.3 human acoustic      33782959293  PASS — 134/134, human gate
 ```
 
 Todas mantienen `automatic_edits = 0` donde aplica y artifacts = 0.
 
 ## Fase 2D.3.2 — Acoustic Join Validation Foundation v1
 
-`analysis.json` usa schema v7:
-
-```text
-candidates[]
-correction_scopes[]
-filler_assessments[]
-join_assessments[]
-acoustic_join_assessments[]
-semantic_decisions[]
-```
-
-Arquitectura:
+`analysis.json` usa schema v7 con `acoustic_join_assessments[]`.
 
 ```text
 master audio acreditado
-→ un decode temporal FFmpeg
+→ decode temporal FFmpeg
 → PCM16 mono 16 kHz
 → NumPy memmap
 → ventanas locales de 80 ms
 → acoustic join assessment
-```
-
-La capa sólo mide `join_context_only`. Joins ya bloqueados por semántica/timeline/segmentación/reparación quedan `blocked_by_context`.
-
-Estados:
-
-```text
-blocked_by_context
-insufficient_audio_context
-low_energy_boundary_context
-level_discontinuity_risk
-waveform_discontinuity_risk
-combined_discontinuity_risk
-acoustic_context_only
 ```
 
 Thresholds v1:
@@ -91,19 +67,44 @@ MAX_BOUNDARY_SAMPLE_JUMP       0.35
 MAX_BOUNDARY_JUMP_RATIO        1.25
 ```
 
-Benchmark: 11 casos reproducibles. Tests adicionales ejecutan decode real FFmpeg/PCM.
+Final `33781903986`: 131/131 PASS en 7.401 s; schema v7; real FFmpeg/PCM; E2E FFmpeg/sync; doctor; artifacts 0.
 
-Final `33781903986`:
+## Fase 2D.3.3 — Human-audio Acoustic Evidence v1
+
+Run `33782959293` reutiliza endpoints reales de `large-v3-turbo` congelados desde `33755013415` y los aplica sobre el WAV AMI original CC BY 4.0, validado por bytes y SHA-256.
 
 ```text
-131/131 tests PASS en 7.401 s
-acoustic benchmark gate PASS
-real FFmpeg/PCM tests PASS
-schema v7 pipeline integration PASS
-E2E FFmpeg/sync PASS
-doctor PASS
-artifacts 0
+134/134 tests PASS en 6.803 s
+cases                 3
+failures              0
+measured_cases        1
+blocked_cases         2
+automatic_edits       0
+executable            0
+auto_apply            0
+HUMAN_ACOUSTIC_GATE   PASS
+artifacts              0
 ```
+
+Medición humana real:
+
+```text
+status                    acoustic_context_only
+left RMS                  -35.9051 dBFS
+right RMS                 -30.9682 dBFS
+RMS delta                   4.9369 dB
+boundary sample jump        0.030243
+boundary jump ratio         0.340433
+safe_for_cut                false
+```
+
+Retake humano: `repair_or_protected_context_risk` → `blocked_by_context`.
+
+Correction humana ambigua: `ambiguous` scope → `invalid_or_unbounded_target` → `blocked_by_context`.
+
+No se modifican thresholds v1. Esta microfase no acredita seguridad universal, continuidad espectral/prosódica ni calidad perceptual de un render.
+
+Evidencia: `Validation/phase2d-human-acoustic-evidence.md`.
 
 ## Safety actual
 
@@ -129,15 +130,11 @@ auto_apply = false
 automatic_edits = 0
 ```
 
-La foundation acústica no acredita todavía calidad perceptual universal, continuidad espectral/prosódica, zero-cross optimization, crossfades ni ausencia universal de click/pop después de render.
-
-Evidencia: `Validation/phase2d-acoustic-join.md`.
-
 ## Pendiente antes de Release
 
-- Fase 2D.3.3: evidencia acústica con audio humano real;
+- Fase 2D.4: política combinada de elegibilidad/promoción no ejecutable;
+- validar `removedText` definitivo y guardas acumulativas;
 - cerrar 2D antes de cualquier promoción al Edit Plan;
-- definir política combinada y `removedText` definitivo;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;
