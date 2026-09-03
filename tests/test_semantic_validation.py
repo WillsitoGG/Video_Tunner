@@ -19,37 +19,31 @@ class SemanticValidationTests(unittest.TestCase):
 
     def test_corpus_is_large_enough_to_exercise_risk_classes(self):
         summary = self.report["summary"]
-        self.assertEqual(summary["cases"], 16)
+        self.assertEqual(summary["cases"], 17)
         self.assertEqual(summary["expected_events"], 11)
-        self.assertGreaterEqual(summary["actual_candidates"], 11)
+        self.assertEqual(summary["actual_candidates"], 11)
 
-    def test_baseline_candidate_metrics_are_measured_not_hidden(self):
+    def test_tuned_candidate_metrics_reach_clean_labelled_baseline(self):
         summary = self.report["summary"]
         self.assertEqual(summary["false_negative"], 0)
-        self.assertEqual(summary["false_positive"], 2)
+        self.assertEqual(summary["false_positive"], 0)
         self.assertEqual(summary["candidate_recall"], 1.0)
-        self.assertEqual(summary["candidate_precision"], 0.8462)
-        self.assertEqual(summary["candidate_f1"], 0.9167)
+        self.assertEqual(summary["candidate_precision"], 1.0)
+        self.assertEqual(summary["candidate_f1"], 1.0)
+        self.assertFalse(any(item["false_positives"] for item in self.report["cases"]))
 
-        false_positive_cases = {
-            item["id"]
+    def test_known_baseline_false_positives_are_now_rejected_conservatively(self):
+        controlled = {
+            item["id"]: item
             for item in self.report["cases"]
-            if item["false_positives"]
+            if item["id"] in {
+                "legitimate-reuse",
+                "literal-quiero-decir",
+                "literal-lo-que-quiero-decir",
+            }
         }
-        self.assertEqual(
-            false_positive_cases,
-            {"legitimate-reuse", "literal-quiero-decir"},
-        )
-
-    def test_false_positive_candidates_remain_review_only(self):
-        for case in self.report["cases"]:
-            if case["id"] not in {"legitimate-reuse", "literal-quiero-decir"}:
-                continue
-            self.assertTrue(case["actual_candidates"])
-            self.assertTrue(
-                all(item["decision"] == "REVIEW" for item in case["actual_candidates"]),
-                case["id"],
-            )
+        self.assertEqual(len(controlled), 3)
+        self.assertTrue(all(not item["actual_candidates"] for item in controlled.values()))
 
     def test_decision_contract_has_zero_safety_violations(self):
         summary = self.report["summary"]
@@ -59,11 +53,11 @@ class SemanticValidationTests(unittest.TestCase):
         self.assertEqual(summary["executable_decisions"], 0)
         self.assertEqual(summary["auto_apply_decisions"], 0)
 
-    def test_phase2c_foundation_gate_passes_without_enabling_edits(self):
+    def test_phase2c_gate_passes_without_enabling_edits(self):
         gate = validation_gate(
             self.report,
-            minimum_precision=0.80,
-            minimum_recall=0.90,
+            minimum_precision=0.95,
+            minimum_recall=0.95,
         )
         self.assertTrue(gate["passed"], gate)
         self.assertTrue(gate["checks"]["proposal_safety"])
