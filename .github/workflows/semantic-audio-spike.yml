@@ -1,0 +1,49 @@
+name: Semantic Audio Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-semantic-audio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-semantic-audio:
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download licensed AMI semantic fixture
+        shell: pwsh
+        run: .\.github\scripts\download_ami_semantic_fixture.ps1
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Build analysis portable
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+
+      - name: Run regression suite
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
+      - name: Validate real human audio through target model and semantic gate
+        shell: pwsh
+        run: .\.github\scripts\run_semantic_audio_validation.ps1
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "This workflow validates real AMI human audio through the frozen analysis portable and pinned large-v3-turbo model."
+          Write-Host "AMI audio is CC BY 4.0 and remains ephemeral in RUNNER_TEMP."
+          Write-Host "No model, audio, generated video, ZIP or analysis output artifact is uploaded."
