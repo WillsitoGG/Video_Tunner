@@ -98,7 +98,7 @@ class AnalysisPipelineTests(unittest.TestCase):
             for key in ("analysis", "transcript_json", "transcript_txt", "subtitles_srt"):
                 self.assertTrue(Path(result[key]).is_file(), key)
             report = json.loads(Path(result["analysis"]).read_text(encoding="utf-8"))
-            self.assertEqual(report["schema_version"], 5)
+            self.assertEqual(report["schema_version"], 6)
             self.assertEqual(report["input"]["master_audio"]["file"], master.name)
             self.assertEqual(report["input"]["ingest"]["status"], "ready")
             self.assertTrue(report["safety"]["master_audio_is_timeline_source"])
@@ -111,6 +111,10 @@ class AnalysisPipelineTests(unittest.TestCase):
             self.assertTrue(report["safety"]["filler_assessments_are_not_edits"])
             self.assertFalse(report["safety"]["filler_assessments_executable"])
             self.assertFalse(report["safety"]["filler_assessments_safe_for_cut"])
+            self.assertTrue(report["safety"]["join_assessments_are_not_edits"])
+            self.assertFalse(report["safety"]["join_assessments_executable"])
+            self.assertFalse(report["safety"]["join_assessments_safe_for_cut"])
+            self.assertFalse(report["safety"]["join_acoustic_validation_enabled"])
             self.assertEqual(report["semantic_decisions"], [])
             self.assertEqual(report["correction_scopes"], [])
             self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
@@ -123,6 +127,14 @@ class AnalysisPipelineTests(unittest.TestCase):
             self.assertFalse(filler["auto_apply"])
             self.assertEqual(report["summary"]["filler_assessments"]["count"], 1)
             self.assertEqual(report["summary"]["filler_assessments"]["safe_for_cut"], 0)
+            self.assertGreaterEqual(len(report["join_assessments"]), 1)
+            self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
+            self.assertEqual(report["summary"]["join_assessments"]["executable"], 0)
+            self.assertEqual(report["summary"]["join_assessments"]["auto_apply"], 0)
+            for assessment in report["join_assessments"]:
+                self.assertFalse(assessment["safe_for_cut"])
+                self.assertFalse(assessment["executable"])
+                self.assertFalse(assessment["auto_apply"])
             self.assertEqual(report["summary"]["automatic_edits"], 0)
 
     def test_review_required_stops_before_whisper_or_vad(self):

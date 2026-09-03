@@ -35,7 +35,8 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 2C.3 — Audio humano real → `large-v3-turbo` → semantic gate: ✅
 - Fase 2D.1 — Correction scope foundation v1: ✅
 - Fase 2D.2 — Fillers contextuales foundation v1: ✅
-- Fase 2D.3 — Sentence boundaries + join safety: 🟡 **siguiente**
+- Fase 2D.3.1 — Sentence/join context foundation v1: ✅
+- Fase 2D.3.2 — Acoustic join validation: 🟡 **siguiente**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -55,6 +56,8 @@ acoustic + semantic candidates auditables
   ↓
 correction scope evidence + filler assessments
   ↓
+join assessments (timeline/lexical/boundary evidence)
+  ↓
 semantic decisions + protection
   ↓
 future approved Edit Plan
@@ -65,10 +68,11 @@ render + audit
 Invariantes:
 
 ```text
-candidate != correction scope != filler assessment != semantic decision != edit
+candidate != correction scope != filler assessment != join assessment != semantic decision != edit
 PROPOSED_CUT != executable CUT
 bounded scope != safe cut
 filler assessment != safe cut
+join context != acoustically safe join
 executable = false
 auto_apply = false
 automatic_edits = 0
@@ -116,12 +120,13 @@ video-tunner analyze "video.mp4" --audio "micro.wav" --model large-v3-turbo --la
 video-tunner analyze "video.mp4" --master-audio "video_master_audio.flac" --ingest-report "video_ingest.json" --model large-v3-turbo --language es --output-dir Output
 ```
 
-`analysis.json` actual usa **schema v5** y separa:
+`analysis.json` actual usa **schema v6** y separa:
 
 ```text
 candidates[]
 correction_scopes[]
 filler_assessments[]
+join_assessments[]
 semantic_decisions[]
 ```
 
@@ -137,6 +142,10 @@ correction_scopes_safe_for_cut = false
 filler_assessments_are_not_edits = true
 filler_assessments_executable = false
 filler_assessments_safe_for_cut = false
+join_assessments_are_not_edits = true
+join_assessments_executable = false
+join_assessments_safe_for_cut = false
+join_acoustic_validation_enabled = false
 ```
 
 ## Fase 2A — Semantic Candidates v1
@@ -191,18 +200,7 @@ artifacts 0
 
 AMI y CORMA aportan positivos/negativos humanos para retakes, autocorrecciones y usos ambiguos de `I mean` / `perdón`.
 
-Run final `33750836791`:
-
-```text
-74 tests PASS en 6.729 s
-26 casos / 14 eventos
-FP 0 / FN 0
-precision = recall = F1 = 100% en el corpus etiquetado actual
-unsafe proposals 0
-executable 0
-auto_apply 0
-artifacts 0
-```
+Run final `33750836791`: 74 tests PASS; corpus gate PASS; artifacts 0.
 
 El **100% sólo acredita ese corpus etiquetado**; no debe generalizarse a habla arbitraria.
 
@@ -221,61 +219,21 @@ artifacts 0
 SEMANTIC_AUDIO_GATE=PASS
 ```
 
-Hallazgos:
-
-- Whisper puede omitir vacilaciones y fabricar una repetición textual exacta;
-- timing anómalamente comprimido => `REVIEW`;
-- Whisper puede eliminar guiones/truncamientos alrededor de una autocorrección;
-- `question_reframe_cue` recupera conservadoramente `I mean how...`;
-- `I mean` discursivo sigue sin convertirse en `explicit_correction`.
+Hallazgos: Whisper puede omitir vacilaciones, fabricar una repetición textual exacta y eliminar truncamientos alrededor de autocorrecciones. Timing anómalamente comprimido => `REVIEW`.
 
 Evidencia: `Validation/phase2c-audio-backed-validation.md`.
 
 ## Fase 2D.1 — Correction Scope Foundation v1
 
-Se añadió una capa explícita entre candidate y semantic decision:
+`bounded` significa que existe un boundary local determinista suficiente para describir un `attempt_span`; **no** significa que el span sea seguro de cortar.
 
-```text
-explicit_correction
-→ correction scope evidence
-→ semantic decision
-```
+Run final `33758185755`: 88/88 PASS; schema v4; E2E FFmpeg/sync + doctor PASS; artifacts 0.
 
-Estados:
-
-```text
-bounded
-ambiguous
-invalid
-```
-
-`bounded` significa que se ha encontrado un boundary local determinista suficiente para describir un `attempt_span` candidato. **No** significa que el span sea seguro de cortar.
-
-Benchmark `tests/fixtures/correction_scope_v1.json`: 12 casos.
-
-Run final `33758185755`:
-
-```text
-88/88 tests PASS en 6.711 s
-schema v4 + pipeline integration PASS
-E2E FFmpeg/sync PASS
-doctor PASS
-artifacts 0
-```
-
-Evidencia completa: `Validation/phase2d-correction-scope.md`.
+Evidencia: `Validation/phase2d-correction-scope.md`.
 
 ## Fase 2D.2 — Fillers Contextuales Foundation v1
 
-La detección `possible_filler` y la valoración de contexto quedan separadas:
-
-```text
-possible_filler candidate
-→ filler assessment
-→ future join/safety decision
-```
-
-Estados v1:
+`possible_filler` y la valoración contextual quedan separados. Estados v1:
 
 ```text
 isolated_hesitation
@@ -286,44 +244,72 @@ uncertain_asr
 invalid
 ```
 
-Reglas clave:
-
-- filler dentro/junto a retake o correction => `protected_repair_context`;
-- fillers adyacentes => `hesitation_cluster`;
-- inicio/final o pausa amplia => `boundary_hesitation`;
-- ASR con baja confianza => `uncertain_asr`;
-- incluso `isolated_hesitation` continúa `safe_for_cut=false`.
-
-Benchmark `tests/fixtures/filler_context_v1.json`:
-
-```text
-15 casos
-ES + EN
-fillers aislados, clusters, boundaries, baja confianza y repair context
-incluye el retake humano AMI y un control humano SpanishPod
-```
+Incluso `isolated_hesitation` continúa `safe_for_cut=false`.
 
 Runs:
 
 ```text
-33771489008  101/101 tests PASS en 7.030 s — benchmark/context foundation
-33771792867  101/101 tests PASS en 5.031 s — schema v5 + pipeline integration
+33771489008  101/101 PASS en 7.030 s — benchmark/context foundation
+33771792867  101/101 PASS en 5.031 s — schema v5 + pipeline integration
 ```
 
-Ambos mantienen E2E FFmpeg/sync PASS, doctor PASS y artifacts 0.
+Limitación: el audio real de 2C.3 demostró que Whisper puede omitir un filler; esta capa no inventa tokens ausentes del transcript.
 
-Limitación importante: el audio real de 2C.3 demostró que Whisper puede **omitir** un `uh`. Esta capa clasifica fillers que sobreviven al ASR; no inventa fillers ausentes del transcript.
+Evidencia: `Validation/phase2d-contextual-fillers.md`.
 
-Evidencia completa: `Validation/phase2d-contextual-fillers.md`.
+## Fase 2D.3.1 — Sentence/Join Context Foundation v1
 
-## Siguiente trabajo — Fase 2D.3
+Nueva capa no ejecutable:
 
-1. modelar sentence/turn boundaries como evidencia separada;
-2. definir join safety temporal y acústica;
-3. impedir joins que rompan palabra, frase, negación, sujeto o prosodia;
-4. definir `removedText` definitivo sólo cuando ambos lados del join sean auditables;
-5. construir benchmark positivo/negativo de joins;
-6. mantener `safe_for_cut=false`, `executable=false` y `auto_apply=false` hasta superar el gate.
+```text
+candidate / bounded correction scope / filler assessment
+→ join assessment
+→ future acoustic join validation
+```
+
+Estados v1:
+
+```text
+join_context_only
+sentence_boundary_risk
+segment_boundary_risk
+critical_lexical_context_risk
+repair_or_protected_context_risk
+transcript_edge
+invalid_or_unbounded_target
+```
+
+El join assessment:
+
+- valida el target span antes de evaluarlo;
+- registra contexto bilateral y gaps temporales;
+- protege fronteras de frase/segmento;
+- protege cifras, unidades, negación, persona, tiempo y causalidad;
+- trata retakes/corrections y fillers protegidos como riesgo;
+- deja scopes ambiguos y spans corruptos sin target ejecutable;
+- **no** evalúa todavía continuidad de waveform.
+
+Benchmark `tests/fixtures/join_safety_v1.json`: 15 casos, incluido el retake humano AMI.
+
+Runs:
+
+```text
+33772715214  112/112 PASS en 6.670 s — foundation
+33773287106  117/117 PASS en 6.891 s — benchmark + schema v6 integration
+```
+
+E2E FFmpeg/sync y doctor PASS; artifacts 0.
+
+Evidencia: `Validation/phase2d-join-safety.md`.
+
+## Siguiente trabajo — Fase 2D.3.2 Acoustic Join Validation
+
+1. medir sobre **master audio** los dos bordes reales de un join hipotético;
+2. detectar discontinuidades de nivel/waveform y contexto acústico insuficiente;
+3. construir fixtures sintéticos positivos/negativos y, cuando aporte evidencia nueva, audio humano real;
+4. mantener separada la evidencia acústica de la semántica/timeline;
+5. no convertir un join acústicamente limpio en permiso semántico de corte;
+6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false` hasta superar todo 2D.
 
 ## Principios
 
@@ -331,7 +317,7 @@ Evidencia completa: `Validation/phase2d-contextual-fillers.md`.
 - local-first;
 - originales intactos;
 - sync fiable antes de IA temporal;
-- Conservador por defecto;
+- conservador por defecto;
 - ante duda: KEEP/REVIEW;
 - GitHub como source of truth;
 - CI deliberada y sin artifacts pesados ordinarios.

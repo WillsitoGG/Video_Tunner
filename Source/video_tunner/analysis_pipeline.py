@@ -11,6 +11,8 @@ from .edit_plan import MODE_SETTINGS
 from .filler_context import build_filler_assessments
 from .filler_context_report import attach_filler_assessments
 from .ingest import ingest_video
+from .join_safety import build_join_assessments
+from .join_safety_report import attach_join_assessments
 from .media import probe_media
 from .semantic_candidates import build_semantic_candidates
 from .semantic_decisions import build_semantic_decisions
@@ -114,12 +116,12 @@ def analyze_spoken_video(
     master_audio: str | Path | None = None,
     ingest_report_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Resolve master audio and emit separate evidence/decision layers.
+    """Resolve master audio and emit separate non-executable evidence layers.
 
     Whisper and Silero VAD consume the same master audio. All timestamps remain
-    on the video timeline. Candidates, correction scopes, filler assessments and
-    semantic decisions are deliberately separate and never become executable
-    edits in this phase.
+    on the video timeline. Candidates, correction scopes, filler assessments,
+    join assessments and semantic decisions are deliberately separate and never
+    become executable edits in this phase.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
@@ -200,6 +202,12 @@ def analyze_spoken_video(
     )
     correction_scopes = build_correction_scopes(transcript, candidates)
     filler_assessments = build_filler_assessments(transcript, candidates)
+    join_assessments = build_join_assessments(
+        transcript,
+        candidates,
+        correction_scopes=correction_scopes,
+        filler_assessments=filler_assessments,
+    )
     semantic_decisions = build_semantic_decisions(transcript, candidates)
 
     stem = source_path.stem
@@ -221,6 +229,7 @@ def analyze_spoken_video(
     attach_semantic_decisions(report, semantic_decisions)
     attach_correction_scopes(report, correction_scopes)
     attach_filler_assessments(report, filler_assessments)
+    attach_join_assessments(report, join_assessments)
     analysis_path = save_analysis_report(report, output_root / f"{stem}_analysis.json")
 
     return {
