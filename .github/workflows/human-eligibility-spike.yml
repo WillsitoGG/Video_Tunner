@@ -1,0 +1,60 @@
+name: Human Combined Eligibility Spike
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - phase2d-human-combined-eligibility
+    paths:
+      - ".github/ci-triggers/human-combined-eligibility.txt"
+
+concurrency:
+  group: video-tunner-human-eligibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-human-eligibility:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ensure FFmpeg is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --no-progress -y
+          }
+          ffmpeg -version | Select-Object -First 1
+
+      - name: Install lightweight analysis dependencies
+        run: python -m pip install -e . numpy==2.5.2
+
+      - name: Run regression suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Download licensed AMI fixture
+        shell: pwsh
+        run: .\.github\scripts\download_ami_semantic_fixture.ps1
+
+      - name: Validate combined eligibility on real human evidence
+        shell: pwsh
+        run: |
+          python -m video_tunner.human_eligibility_validation `
+            --expectations ".\tests\fixtures\human_eligibility_ami_v1.json" `
+            --human-fixture ".\tests\fixtures\human_acoustic_ami_v1.json" `
+            --master-audio "$env:AMI_SEMANTIC_FIXTURE_WAV"
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "This workflow applies schema-v8 combined eligibility to frozen real large-v3-turbo endpoints and the real AMI waveform."
+          Write-Host "It does not rerun or download the Whisper model."
+          Write-Host "AMI remains ephemeral in RUNNER_TEMP; no audio/output artifact is uploaded."
