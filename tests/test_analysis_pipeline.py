@@ -137,7 +137,7 @@ class AnalysisPipelineTests(unittest.TestCase):
             for key in ("analysis", "transcript_json", "transcript_txt", "subtitles_srt"):
                 self.assertTrue(Path(result[key]).is_file(), key)
             report = json.loads(Path(result["analysis"]).read_text(encoding="utf-8"))
-            self.assertEqual(report["schema_version"], 7)
+            self.assertEqual(report["schema_version"], 8)
             self.assertEqual(report["input"]["master_audio"]["file"], master.name)
             self.assertEqual(report["input"]["ingest"]["status"], "ready")
             self.assertTrue(report["safety"]["master_audio_is_timeline_source"])
@@ -158,6 +158,12 @@ class AnalysisPipelineTests(unittest.TestCase):
             self.assertFalse(report["safety"]["acoustic_join_assessments_safe_for_cut"])
             self.assertTrue(report["safety"]["join_acoustic_validation_enabled"])
             self.assertTrue(report["safety"]["join_acoustic_validation_is_not_cut_authorization"])
+            self.assertTrue(report["safety"]["eligibility_assessments_are_not_edits"])
+            self.assertFalse(report["safety"]["eligibility_assessments_executable"])
+            self.assertFalse(report["safety"]["eligibility_assessments_safe_for_cut"])
+            self.assertTrue(report["safety"]["future_promotion_candidates_are_not_approved_edits"])
+            self.assertTrue(report["safety"]["combined_eligibility_enabled"])
+            self.assertTrue(report["safety"]["combined_eligibility_is_not_edit_plan_promotion"])
             self.assertEqual(report["semantic_decisions"], [])
             self.assertEqual(report["correction_scopes"], [])
             self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
@@ -173,10 +179,21 @@ class AnalysisPipelineTests(unittest.TestCase):
                 len(report["acoustic_join_assessments"]),
                 len(report["join_assessments"]),
             )
+            self.assertEqual(
+                len(report["eligibility_assessments"]),
+                len(report["join_assessments"]),
+            )
             self.assertEqual(report["summary"]["acoustic_join_assessments"]["safe_for_cut"], 0)
             self.assertEqual(report["summary"]["acoustic_join_assessments"]["executable"], 0)
             self.assertEqual(report["summary"]["acoustic_join_assessments"]["auto_apply"], 0)
+            self.assertEqual(report["summary"]["eligibility_assessments"]["safe_for_cut"], 0)
+            self.assertEqual(report["summary"]["eligibility_assessments"]["executable"], 0)
+            self.assertEqual(report["summary"]["eligibility_assessments"]["auto_apply"], 0)
             for assessment in report["acoustic_join_assessments"]:
+                self.assertFalse(assessment["safe_for_cut"])
+                self.assertFalse(assessment["executable"])
+                self.assertFalse(assessment["auto_apply"])
+            for assessment in report["eligibility_assessments"]:
                 self.assertFalse(assessment["safe_for_cut"])
                 self.assertFalse(assessment["executable"])
                 self.assertFalse(assessment["auto_apply"])
