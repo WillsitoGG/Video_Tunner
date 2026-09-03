@@ -34,8 +34,8 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 2C.2 — Positivos/negativos humanos bilingües: ✅
 - Fase 2C.3 — Audio humano real → `large-v3-turbo` → semantic gate: ✅
 - Fase 2D.1 — Correction scope foundation v1: ✅
-- Fase 2D.2 — Fillers contextuales: 🟡 **siguiente**
-- Fase 2D.3 — Sentence boundaries + join safety: ⏳
+- Fase 2D.2 — Fillers contextuales foundation v1: ✅
+- Fase 2D.3 — Sentence boundaries + join safety: 🟡 **siguiente**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -53,7 +53,7 @@ Whisper word-level + Silero VAD
   ↓
 acoustic + semantic candidates auditables
   ↓
-correction scope evidence
+correction scope evidence + filler assessments
   ↓
 semantic decisions + protection
   ↓
@@ -65,9 +65,10 @@ render + audit
 Invariantes:
 
 ```text
-candidate != correction scope != semantic decision != edit
+candidate != correction scope != filler assessment != semantic decision != edit
 PROPOSED_CUT != executable CUT
 bounded scope != safe cut
+filler assessment != safe cut
 executable = false
 auto_apply = false
 automatic_edits = 0
@@ -115,11 +116,12 @@ video-tunner analyze "video.mp4" --audio "micro.wav" --model large-v3-turbo --la
 video-tunner analyze "video.mp4" --master-audio "video_master_audio.flac" --ingest-report "video_ingest.json" --model large-v3-turbo --language es --output-dir Output
 ```
 
-`analysis.json` actual usa **schema v4** y separa:
+`analysis.json` actual usa **schema v5** y separa:
 
 ```text
 candidates[]
 correction_scopes[]
+filler_assessments[]
 semantic_decisions[]
 ```
 
@@ -132,6 +134,9 @@ semantic_decisions_executable = false
 correction_scopes_are_not_edits = true
 correction_scopes_executable = false
 correction_scopes_safe_for_cut = false
+filler_assessments_are_not_edits = true
+filler_assessments_executable = false
+filler_assessments_safe_for_cut = false
 ```
 
 ## Fase 2A — Semantic Candidates v1
@@ -244,64 +249,81 @@ ambiguous
 invalid
 ```
 
-Estrategias v1:
-
-```text
-repeated_corrected_prefix_anchor
-local_numeric_replacement
-no_deterministic_left_boundary
-```
-
 `bounded` significa que se ha encontrado un boundary local determinista suficiente para describir un `attempt_span` candidato. **No** significa que el span sea seguro de cortar.
 
-Benchmark `tests/fixtures/correction_scope_v1.json`:
+Benchmark `tests/fixtures/correction_scope_v1.json`: 12 casos.
+
+Run final `33758185755`:
 
 ```text
-12 casos
-6 bounded esperados
-3 ambiguous esperados
-3 controles sin correction candidate
+88/88 tests PASS en 6.711 s
+schema v4 + pipeline integration PASS
+E2E FFmpeg/sync PASS
+doctor PASS
+artifacts 0
+```
+
+Evidencia completa: `Validation/phase2d-correction-scope.md`.
+
+## Fase 2D.2 — Fillers Contextuales Foundation v1
+
+La detección `possible_filler` y la valoración de contexto quedan separadas:
+
+```text
+possible_filler candidate
+→ filler assessment
+→ future join/safety decision
+```
+
+Estados v1:
+
+```text
+isolated_hesitation
+hesitation_cluster
+protected_repair_context
+boundary_hesitation
+uncertain_asr
+invalid
+```
+
+Reglas clave:
+
+- filler dentro/junto a retake o correction => `protected_repair_context`;
+- fillers adyacentes => `hesitation_cluster`;
+- inicio/final o pausa amplia => `boundary_hesitation`;
+- ASR con baja confianza => `uncertain_asr`;
+- incluso `isolated_hesitation` continúa `safe_for_cut=false`.
+
+Benchmark `tests/fixtures/filler_context_v1.json`:
+
+```text
+15 casos
+ES + EN
+fillers aislados, clusters, boundaries, baja confianza y repair context
+incluye el retake humano AMI y un control humano SpanishPod
 ```
 
 Runs:
 
 ```text
-33757158460  83 tests PASS en 6.767 s — foundation
-33757481376  87 tests PASS en 6.595 s — benchmark gate
-33758185755  88/88 tests PASS en 6.711 s — schema v4 + pipeline integration
+33771489008  101/101 tests PASS en 7.030 s — benchmark/context foundation
+33771792867  101/101 tests PASS en 5.031 s — schema v5 + pipeline integration
 ```
 
-El run intermedio `33757887930` falló únicamente porque un test legado aún esperaba schema v3; ninguna heurística de scope ni safety guard falló.
+Ambos mantienen E2E FFmpeg/sync PASS, doctor PASS y artifacts 0.
 
-El gate de scope v1 exige:
+Limitación importante: el audio real de 2C.3 demostró que Whisper puede **omitir** un `uh`. Esta capa clasifica fillers que sobreviven al ASR; no inventa fillers ausentes del transcript.
 
-```text
-candidate contract clean
-bounded_exactness == 1.0
-status/strategy/attempt mismatches == 0
-unsafe_bounded == 0
-safety_violations == 0
-```
+Evidencia completa: `Validation/phase2d-contextual-fillers.md`.
 
-Ejemplo seguro de ambigüedad:
+## Siguiente trabajo — Fase 2D.3
 
-```text
-i just wonder i mean how will people put these down i wonder
-→ explicit_correction detected
-→ correction scope = ambiguous
-→ attempt_span = null
-```
-
-Evidencia completa: `Validation/phase2d-correction-scope.md`.
-
-## Siguiente trabajo — Fase 2D.2
-
-1. distinguir vacilaciones vocales realmente eliminables de elementos discursivos naturales;
-2. no tratar una lista de tokens (`eh`, `um`, etc.) como prueba suficiente;
-3. usar contexto léxico/temporal y protecciones semánticas;
-4. construir benchmark de positivos/negativos contextuales;
-5. mantener `safe_for_cut=false`, `executable=false` y `auto_apply=false`;
-6. después abordar sentence boundaries + join safety.
+1. modelar sentence/turn boundaries como evidencia separada;
+2. definir join safety temporal y acústica;
+3. impedir joins que rompan palabra, frase, negación, sujeto o prosodia;
+4. definir `removedText` definitivo sólo cuando ambos lados del join sean auditables;
+5. construir benchmark positivo/negativo de joins;
+6. mantener `safe_for_cut=false`, `executable=false` y `auto_apply=false` hasta superar el gate.
 
 ## Principios
 
