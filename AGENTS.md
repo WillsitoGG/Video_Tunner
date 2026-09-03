@@ -11,19 +11,20 @@ Obligatorio:
 1. portable real: ZIP → descomprimir → ejecutar;
 2. vídeo con audio embebido o vídeo + audio externo;
 3. resolver master audio antes de análisis temporal;
-4. Whisper y VAD usan exactamente el mismo master;
+4. Whisper, VAD y acoustic join validation usan exactamente el mismo master acreditado;
 5. auto-sync sólo con evidencia suficiente; override/manual fallback;
 6. original siempre intacto;
-7. `candidate != correction scope != filler assessment != join assessment != semantic decision != edit`;
+7. `candidate != correction scope != filler assessment != join assessment != acoustic join assessment != semantic decision != edit`;
 8. `PROPOSED_CUT != executable CUT`;
 9. `bounded scope != safe cut`;
 10. `filler assessment != safe cut`;
 11. `join context != acoustically safe join`;
-12. ante duda: `KEEP / REVIEW`;
-13. conservador por defecto.
+12. `acoustic_context_only != semantic permission to cut`;
+13. ante duda: `KEEP / REVIEW`;
+14. conservador por defecto.
 
 ```text
-sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → correction scopes + filler assessments → join assessments → semantic decisions/protection → future Edit Plan → render → audit
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → correction scopes + filler assessments → join assessments → acoustic join assessments → semantic decisions/protection → future Edit Plan → render → audit
 ```
 
 ## 2. Estado
@@ -41,14 +42,15 @@ Completado:
 - Fase 2B — Semantic Decisions + Protection v1;
 - Fase 2C.1 — benchmark foundation;
 - Fase 2C.2 — retake humano + correcciones humanas bilingües;
-- Fase 2C.3 — audio humano real → portable frozen → `large-v3-turbo` → semantic gate;
+- Fase 2C.3 — audio humano real → `large-v3-turbo` → semantic gate;
 - Fase 2D.1 — correction scope foundation v1 + schema v4;
 - Fase 2D.2 — contextual fillers foundation v1 + schema v5;
-- Fase 2D.3.1 — sentence/join context foundation v1 + schema v6.
+- Fase 2D.3.1 — sentence/join context foundation v1 + schema v6;
+- Fase 2D.3.2 — acoustic join validation foundation v1 + schema v7.
 
-Siguiente: **Fase 2D.3.2 — Acoustic Join Validation**.
+Siguiente: **Fase 2D.3.3 — human-audio acoustic join evidence**.
 
-No existe promoción semántica al Edit Plan.
+No existe promoción semántica/acústica al Edit Plan.
 
 ## 3. Evidencia principal
 
@@ -59,12 +61,13 @@ No existe promoción semántica al Edit Plan.
 - Target Spanish `33656235038`: PASS — WER 1.64%, RTF 0.4854, automatic edits 0.
 - Semantic Candidates `33659725847`: PASS — 48 tests.
 - Semantic Decisions/Protection `33741195594`: PASS — 55 tests.
-- Human correction final `33750836791`: 74 tests; corpus gate PASS; unsafe 0; executable 0; auto_apply 0; artifacts 0.
-- Phase 2C.3 audio-backed `33755013415`: 3 AMI audio cases; semantic gate PASS; automatic_edits/executable/auto_apply 0; artifacts 0.
-- Phase 2D.1 final `33758185755`: 88/88 PASS; schema v4; E2E FFmpeg/sync; doctor; artifacts 0.
-- Phase 2D.2 final `33771792867`: 101/101 PASS en 5.031 s; schema v5; E2E FFmpeg/sync; doctor; artifacts 0.
-- Phase 2D.3.1 foundation `33772715214`: 112/112 PASS en 6.670 s; join foundation; artifacts 0.
-- Phase 2D.3.1 final `33773287106`: **117/117 PASS en 6.891 s; benchmark + schema v6 integration; E2E FFmpeg/sync; doctor; artifacts 0.**
+- Human correction final `33750836791`: corpus gate PASS; unsafe/executable/auto_apply 0.
+- Phase 2C.3 audio-backed `33755013415`: 3 AMI audio cases; semantic gate PASS; artifacts 0.
+- Phase 2D.1 final `33758185755`: 88/88 PASS; schema v4; artifacts 0.
+- Phase 2D.2 final `33771792867`: 101/101 PASS; schema v5; artifacts 0.
+- Phase 2D.3.1 final `33773287106`: 117/117 PASS; schema v6; artifacts 0.
+- Phase 2D.3.2 foundation `33781430382`: 131/131 PASS en 6.998 s; real FFmpeg/PCM tests + acoustic gate PASS; artifacts 0.
+- Phase 2D.3.2 final `33781903986`: **131/131 PASS en 7.401 s; schema v7/pipeline integration; real FFmpeg/PCM tests; E2E FFmpeg/sync; doctor; artifacts 0.**
 
 No generalizar métricas de corpus fuera de su muestra.
 
@@ -97,30 +100,27 @@ Evidencia insuficiente => `review_required`, sin master. Nunca mezclar implícit
 
 `analyze` siempre usa master acreditado. Master pre-resuelto exige `ingest.json` y SHA-256 coincidente.
 
-Schema actual `analysis.json`: **v6**.
+Schema actual `analysis.json`: **v7**.
 
 ```text
 candidates[]
 correction_scopes[]
 filler_assessments[]
 join_assessments[]
+acoustic_join_assessments[]
 semantic_decisions[]
 ```
 
 ```text
-semantic_protection_enabled = true
-semantic_decisions_are_not_edits = true
 semantic_decisions_executable = false
-correction_scopes_are_not_edits = true
-correction_scopes_executable = false
 correction_scopes_safe_for_cut = false
-filler_assessments_are_not_edits = true
-filler_assessments_executable = false
 filler_assessments_safe_for_cut = false
-join_assessments_are_not_edits = true
-join_assessments_executable = false
 join_assessments_safe_for_cut = false
-join_acoustic_validation_enabled = false
+acoustic_join_assessments_are_not_edits = true
+acoustic_join_assessments_executable = false
+acoustic_join_assessments_safe_for_cut = false
+join_acoustic_validation_enabled = true
+join_acoustic_validation_is_not_cut_authorization = true
 automatic_edits = 0
 ```
 
@@ -152,44 +152,21 @@ PROPOSED_TRIM
 PROPOSED_CUT
 ```
 
-Siempre:
+Siempre `executable=false`, `auto_apply=false`.
 
-```text
-executable = false
-auto_apply = false
-```
+## 8. Correcciones y retakes
 
-Guardas: span/timestamps/removed_text, cifras/unidades/importes/%, negación, sujeto/persona, tiempo/aspecto, causalidad/contraste, señal de entidades.
+`I mean / quiero decir` requiere evidencia local adicional. `perdón / perdona / sorry` exige contexto léxico. Whisper puede eliminar vacilaciones/truncamientos; timing anómalamente comprimido => REVIEW.
 
-## 8. Correcciones y retakes — reglas derivadas de evidencia humana
+## 9. Correction Scope — 2D.1
 
-En Conservador, `I mean / quiero decir` requiere evidencia local adicional: frontera de reparación, sustitución numérica o `question_reframe_cue`.
-
-`perdón / perdona / sorry` exige contexto léxico a ambos lados; disculpa + vacilación sin intento interrumpido no es correction candidate.
-
-Whisper puede eliminar una vacilación y fabricar una repetición textual perfecta. Timing anómalamente comprimido => `REVIEW`.
-
-## 9. Correction Scope — Phase 2D.1
-
-Detección de correction y scope son capas distintas.
-
-Estados:
-
-```text
-bounded
-ambiguous
-invalid
-```
-
-`bounded` = boundary local determinista encontrado; **no** = cut seguro. Todo scope mantiene `safe_for_cut=false`, `executable=false`, `auto_apply=false`.
+Estados `bounded / ambiguous / invalid`. `bounded` = boundary local determinista, no cut seguro.
 
 Detalle: `Validation/phase2d-correction-scope.md`.
 
-## 10. Contextual Fillers — Phase 2D.2
+## 10. Contextual Fillers — 2D.2
 
-`possible_filler` sigue siendo candidate acústico. `filler_assessments[]` añade contexto, no ejecución.
-
-Estados v1:
+Estados:
 
 ```text
 isolated_hesitation
@@ -200,17 +177,13 @@ uncertain_asr
 invalid
 ```
 
-Todo assessment mantiene `safe_for_cut=false`, `executable=false`, `auto_apply=false`.
-
-Limitación: Whisper puede omitir un filler; no inventar fillers ausentes del transcript.
+Todo assessment permanece no ejecutable. Whisper puede omitir un filler; no inventar tokens ausentes.
 
 Detalle: `Validation/phase2d-contextual-fillers.md`.
 
-## 11. Join Context Safety — Phase 2D.3.1
+## 11. Join Context Safety — 2D.3.1
 
-`join_assessments[]` describe los dos lados de un hipotético join sobre la timeline y el transcript. No analiza todavía el waveform.
-
-Estados v1:
+Estados:
 
 ```text
 join_context_only
@@ -222,83 +195,75 @@ transcript_edge
 invalid_or_unbounded_target
 ```
 
-Reglas:
-
-1. validar target span antes de estudiar el join;
-2. scope de correction `ambiguous` => sin target de join;
-3. span semántico incoherente => `invalid_or_unbounded_target`;
-4. edge de transcript => `transcript_edge`;
-5. cambio de segmento ASR => riesgo;
-6. puntuación fuerte => evidencia de sentence boundary, no verdad absoluta;
-7. cifras/unidades/negación/persona/tiempo/causalidad alrededor del join => riesgo;
-8. retake/correction o filler protegido => riesgo de reparación;
-9. `join_context_only` sólo significa ausencia de guardas v1 activadas; **no** significa safe-for-cut;
-10. todo assessment mantiene:
-   ```text
-   safe_for_cut=false
-   executable=false
-   auto_apply=false
-   ```
-
-Benchmark v1: 15 casos, incluido retake humano AMI.
-
-Gate:
-
-```text
-record_count_mismatches == 0
-status_mismatches == 0
-target_source_mismatches == 0
-bilateral_context_mismatches == 0
-safety_violations == 0
-status_accuracy == 1.0
-```
-
-Final `33773287106`: 117/117 PASS en 6.891 s; artifacts 0.
+`join_context_only` sólo significa que ninguna guarda timeline/léxica v1 se activó. No autoriza corte.
 
 Detalle: `Validation/phase2d-join-safety.md`.
 
-## 12. Semantic Validation gate
+## 12. Acoustic Join Validation — 2D.3.2
 
-Medir siempre TP/FP/FN, precision/recall/F1, decision mismatches, unsafe proposals, missing safe proposals, executable y auto-apply.
+La capa mide el **master real** sólo para joins con `join_context_only`.
+
+Implementación:
 
 ```text
-precision >= 0.95
-recall >= 0.95
-unsafe proposals == 0
-decision mismatches == 0
-missing safe proposals == 0
-executable decisions == 0
-auto_apply decisions == 0
+master acreditado
+→ un decode FFmpeg temporal a PCM16 mono 16 kHz
+→ NumPy memmap
+→ 80 ms antes + 80 ms después
+→ RMS / edge RMS / peak / sample jump / jump ratio
 ```
 
-Una FP review-only es ruido. Un `PROPOSED_CUT` incorrecto es fallo de seguridad. No mover thresholds para esconder nuevos fallos.
+Thresholds v1:
 
-## 13. Siguiente — Phase 2D.3.2 Acoustic Join Validation
+```text
+SILENCE_DBFS                 = -42.0
+MAX_RMS_DELTA_DB             = 12.0
+MAX_BOUNDARY_SAMPLE_JUMP     = 0.35
+MAX_BOUNDARY_JUMP_RATIO      = 1.25
+```
 
-Objetivo: medir sobre el **master audio real** los bordes de un hipotético join sin confundir limpieza acústica con permiso semántico.
+Estados:
 
-Reglas iniciales:
+```text
+blocked_by_context
+insufficient_audio_context
+low_energy_boundary_context
+level_discontinuity_risk
+waveform_discontinuity_risk
+combined_discontinuity_risk
+acoustic_context_only
+```
 
-1. usar el mismo master audio acreditado que Whisper/VAD;
-2. analizar ventanas reales alrededor de `target_span.start/end`;
-3. detectar contexto insuficiente, saltos de nivel/waveform y discontinuidades obvias;
-4. registrar métricas y thresholds auditables;
-5. construir fixtures sintéticos antes de cualquier promoción;
-6. audio humano real sólo cuando aporte evidencia nueva y con procedencia clara;
-7. un join acústicamente limpio **no** autoriza por sí solo un corte;
-8. durante 2D.3.2:
-   ```text
-   safe_for_cut=false
-   executable=false
-   auto_apply=false
-   automatic_edits=0
-   ```
+Reglas:
+
+1. no medir un join que ya está bloqueado por contexto;
+2. no cargar horas de audio completas en RAM; usar `memmap`;
+3. `acoustic_context_only` no equivale a join perceptualmente limpio ni safe-for-cut;
+4. `low_energy_boundary_context` tampoco equivale a safe-for-cut;
+5. todo acoustic assessment conserva `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
+6. no modificar thresholds para ocultar FP/FN;
+7. renderer hard-concat no cambia en esta fase.
+
+Benchmark v1: 11 casos reproducibles. Gate: status exact, measurement contract exact, risk recall 1.0, safety violations 0.
+
+Detalle: `Validation/phase2d-acoustic-join.md`.
+
+## 13. Siguiente — 2D.3.3 Human-audio Acoustic Evidence
+
+Antes de cerrar todo 2D:
+
+1. usar audio humano real con procedencia/licencia trazable;
+2. aplicar la capa a endpoints derivados de joins reales;
+3. medir comportamiento de thresholds v1;
+4. documentar FP/FN y ajustar sólo si la evidencia lo exige;
+5. no promover todavía al Edit Plan;
+6. después diseñar política combinada + `removedText` definitivo.
 
 ## 14. Edit Plan / render
 
-Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, correction scopes, filler assessments, join assessments o semantic decisions no ejecutables.
+Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, scopes o assessments no ejecutables.
 
-Pendiente: acoustic join validation, removedText definitivo, join audit, fades/loudness y post-render verification.
+Pendiente: evidencia acústica humana, promotion policy, removedText definitivo, join treatment/audit, fades/loudness y post-render verification.
 
 ## 15. Technology harvest
 
@@ -312,7 +277,7 @@ GitHub es source of truth.
 - no modelos, vídeos, ZIPs o artifacts pesados ordinarios;
 - Manual CI ligera no sustituye ML/portable;
 - workflows manual-only normalmente;
-- si no hay `workflow_dispatch` en conector, trigger one-shot y restauración inmediata;
+- trigger one-shot sólo cuando sea necesario y restaurar inmediatamente;
 - no publicar GitHub Release sin autorización expresa de Guille.
 
 ## 17. Docs

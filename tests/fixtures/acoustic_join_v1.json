@@ -1,0 +1,79 @@
+[
+  {
+    "id": "continuous-sine-context",
+    "source_type": "constructed_positive",
+    "pattern": "continuous_sine",
+    "expected_status": "acoustic_context_only",
+    "expected_measurement": true
+  },
+  {
+    "id": "low-energy-boundary",
+    "source_type": "constructed_positive",
+    "pattern": "low_energy",
+    "expected_status": "low_energy_boundary_context",
+    "expected_measurement": true
+  },
+  {
+    "id": "large-level-delta",
+    "source_type": "constructed_risk",
+    "pattern": "level_delta",
+    "expected_status": "level_discontinuity_risk",
+    "expected_measurement": true
+  },
+  {
+    "id": "hard-waveform-step",
+    "source_type": "constructed_risk",
+    "pattern": "waveform_step",
+    "expected_status": "waveform_discontinuity_risk",
+    "expected_measurement": true
+  },
+  {
+    "id": "combined-level-waveform-risk",
+    "source_type": "constructed_risk",
+    "pattern": "combined_risk",
+    "expected_status": "combined_discontinuity_risk",
+    "expected_measurement": true
+  },
+  {
+    "id": "sub-threshold-level-delta",
+    "source_type": "constructed_control",
+    "pattern": "acceptable_level_delta",
+    "expected_status": "acoustic_context_only",
+    "expected_measurement": true
+  },
+  {
+    "id": "small-waveform-step",
+    "source_type": "constructed_control",
+    "pattern": "small_waveform_step",
+    "expected_status": "acoustic_context_only",
+    "expected_measurement": true
+  },
+  {
+    "id": "low-energy-step-still-low-energy",
+    "source_type": "constructed_control",
+    "pattern": "low_energy_step",
+    "expected_status": "low_energy_boundary_context",
+    "expected_measurement": true
+  },
+  {
+    "id": "missing-left-window",
+    "source_type": "constructed_risk",
+    "pattern": "empty_left",
+    "expected_status": "insufficient_audio_context",
+    "expected_measurement": false
+  },
+  {
+    "id": "lexical-risk-blocks-acoustics",
+    "source_type": "constructed_risk",
+    "context_status": "critical_lexical_context_risk",
+    "expected_status": "blocked_by_context",
+    "expected_measurement": false
+  },
+  {
+    "id": "repair-risk-blocks-acoustics",
+    "source_type": "constructed_risk",
+    "context_status": "repair_or_protected_context_risk",
+    "expected_status": "blocked_by_context",
+    "expected_measurement": false
+  }
+]

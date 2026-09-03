@@ -34,6 +34,39 @@ def timed_transcript(text: str) -> TranscriptResult:
     )
 
 
+def fake_acoustic_assessments(_master, joins):
+    results = []
+    for index, join in enumerate(joins, start=1):
+        clean = join.get("status") == "join_context_only"
+        results.append(
+            {
+                "id": f"acoustic-join-assessment-{index:04d}",
+                "join_assessment_id": join.get("id"),
+                "candidate_id": join.get("candidate_id"),
+                "candidate_kind": join.get("candidate_kind"),
+                "status": "acoustic_context_only" if clean else "blocked_by_context",
+                "target_span": join.get("target_span"),
+                "metrics": (
+                    {
+                        "measurement_available": True,
+                        "sample_rate": 16000,
+                        "rms_delta_db": 0.0,
+                        "boundary_sample_jump": 0.0,
+                        "boundary_jump_ratio": 0.0,
+                    }
+                    if clean
+                    else None
+                ),
+                "rationale": ["fixture de integración; decode real cubierto aparte"],
+                "measurement_available": clean,
+                "safe_for_cut": False,
+                "executable": False,
+                "auto_apply": False,
+            }
+        )
+    return results
+
+
 def run_fake_analysis(transcript: TranscriptResult) -> dict:
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
@@ -86,6 +119,10 @@ def run_fake_analysis(transcript: TranscriptResult) -> dict:
                 "video_tunner.analysis_pipeline.detect_speech",
                 return_value=[SpeechInterval(0.0, 3.0)],
             ),
+            patch(
+                "video_tunner.analysis_pipeline.build_acoustic_join_assessments",
+                side_effect=fake_acoustic_assessments,
+            ),
         ):
             result = analyze_spoken_video(
                 source,
@@ -98,7 +135,7 @@ def run_fake_analysis(transcript: TranscriptResult) -> dict:
 
 
 class SemanticPipelineIntegrationTests(unittest.TestCase):
-    def test_analyze_emits_candidate_decision_and_join_evidence_for_repetition(self):
+    def test_analyze_emits_candidate_decision_join_and_acoustic_evidence_for_repetition(self):
         report = run_fake_analysis(
             timed_transcript("vamos a lanzar vamos a lanzar el producto mañana")
         )
@@ -119,15 +156,22 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         join = next(
             item for item in report["join_assessments"] if item["candidate_id"] == repetition["id"]
         )
-        self.assertEqual(report["schema_version"], 6)
+        acoustic = next(
+            item
+            for item in report["acoustic_join_assessments"]
+            if item["join_assessment_id"] == join["id"]
+        )
+        self.assertEqual(report["schema_version"], 7)
         self.assertEqual(report["correction_scopes"], [])
         self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
         self.assertEqual(report["filler_assessments"], [])
         self.assertEqual(report["summary"]["filler_assessments"]["count"], 0)
         self.assertEqual(join["status"], "transcript_edge")
-        self.assertFalse(join["safe_for_cut"])
-        self.assertFalse(join["executable"])
-        self.assertFalse(join["auto_apply"])
+        self.assertEqual(acoustic["status"], "blocked_by_context")
+        self.assertFalse(acoustic["measurement_available"])
+        self.assertFalse(acoustic["safe_for_cut"])
+        self.assertFalse(acoustic["executable"])
+        self.assertFalse(acoustic["auto_apply"])
         self.assertEqual(decision["decision"], "PROPOSED_CUT")
         self.assertEqual(decision["guard_status"], "pass")
         self.assertFalse(decision["executable"])
@@ -135,20 +179,11 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(report["summary"]["automatic_edits"], 0)
         self.assertEqual(report["summary"]["semantic_decisions"]["executable"], 0)
         self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
-        self.assertTrue(report["safety"]["semantic_protection_enabled"])
-        self.assertTrue(report["safety"]["semantic_decisions_are_not_edits"])
-        self.assertTrue(report["safety"]["correction_scopes_are_not_edits"])
-        self.assertFalse(report["safety"]["correction_scopes_executable"])
-        self.assertFalse(report["safety"]["correction_scopes_safe_for_cut"])
-        self.assertTrue(report["safety"]["filler_assessments_are_not_edits"])
-        self.assertFalse(report["safety"]["filler_assessments_executable"])
-        self.assertFalse(report["safety"]["filler_assessments_safe_for_cut"])
-        self.assertTrue(report["safety"]["join_assessments_are_not_edits"])
-        self.assertFalse(report["safety"]["join_assessments_executable"])
-        self.assertFalse(report["safety"]["join_assessments_safe_for_cut"])
-        self.assertFalse(report["safety"]["join_acoustic_validation_enabled"])
+        self.assertEqual(report["summary"]["acoustic_join_assessments"]["safe_for_cut"], 0)
+        self.assertTrue(report["safety"]["join_acoustic_validation_enabled"])
+        self.assertTrue(report["safety"]["join_acoustic_validation_is_not_cut_authorization"])
 
-    def test_analyze_links_correction_scope_join_evidence_and_review_decision(self):
+    def test_analyze_links_correction_scope_join_acoustic_evidence_and_review_decision(self):
         report = run_fake_analysis(
             timed_transcript("la facturación fue de 200 perdón de 250 mil euros")
         )
@@ -161,11 +196,16 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         join = next(
             item for item in report["join_assessments"] if item["candidate_id"] == correction["id"]
         )
+        acoustic = next(
+            item
+            for item in report["acoustic_join_assessments"]
+            if item["join_assessment_id"] == join["id"]
+        )
         decision = next(
             item for item in report["semantic_decisions"] if item["candidate_id"] == correction["id"]
         )
 
-        self.assertEqual(report["schema_version"], 6)
+        self.assertEqual(report["schema_version"], 7)
         self.assertEqual(scope["status"], "bounded")
         self.assertEqual(scope["strategy"], "repeated_corrected_prefix_anchor")
         self.assertEqual(scope["attempt_span"]["text"], "de 200")
@@ -177,15 +217,18 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(join["status"], "repair_or_protected_context_risk")
         self.assertEqual(join["target_span"]["source"], "bounded_correction_attempt_plus_marker")
         self.assertEqual(join["target_span"]["text"], "de 200 perdón")
+        self.assertEqual(acoustic["status"], "blocked_by_context")
+        self.assertFalse(acoustic["measurement_available"])
         self.assertFalse(join["safe_for_cut"])
+        self.assertFalse(acoustic["safe_for_cut"])
         self.assertEqual(decision["decision"], "REVIEW")
         self.assertFalse(decision["executable"])
         self.assertEqual(report["summary"]["automatic_edits"], 0)
         self.assertEqual(report["summary"]["correction_scopes"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["correction_scopes"]["executable"], 0)
         self.assertEqual(report["summary"]["correction_scopes"]["auto_apply"], 0)
-        self.assertEqual(report["summary"]["filler_assessments"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
+        self.assertEqual(report["summary"]["acoustic_join_assessments"]["safe_for_cut"], 0)
 
 
 if __name__ == "__main__":

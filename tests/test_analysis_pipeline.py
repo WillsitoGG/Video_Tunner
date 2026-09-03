@@ -32,6 +32,39 @@ def _sample_transcript() -> TranscriptResult:
     )
 
 
+def _fake_acoustic_assessments(_master, joins):
+    results = []
+    for index, join in enumerate(joins, start=1):
+        context_clean = join.get("status") == "join_context_only"
+        results.append(
+            {
+                "id": f"acoustic-join-assessment-{index:04d}",
+                "join_assessment_id": join.get("id"),
+                "candidate_id": join.get("candidate_id"),
+                "candidate_kind": join.get("candidate_kind"),
+                "status": "acoustic_context_only" if context_clean else "blocked_by_context",
+                "target_span": join.get("target_span"),
+                "metrics": (
+                    {
+                        "measurement_available": True,
+                        "sample_rate": 16000,
+                        "rms_delta_db": 0.0,
+                        "boundary_sample_jump": 0.0,
+                        "boundary_jump_ratio": 0.0,
+                    }
+                    if context_clean
+                    else None
+                ),
+                "rationale": ["fixture de integración; decode real cubierto en test_acoustic_join.py"],
+                "measurement_available": context_clean,
+                "safe_for_cut": False,
+                "executable": False,
+                "auto_apply": False,
+            }
+        )
+    return results
+
+
 class AnalysisPipelineTests(unittest.TestCase):
     @staticmethod
     def _write_ingest_report(source: Path, master: Path, destination: Path, *, status: str = "ready") -> None:
@@ -50,7 +83,7 @@ class AnalysisPipelineTests(unittest.TestCase):
         }
         destination.write_text(json.dumps(payload), encoding="utf-8")
 
-    def test_pipeline_uses_the_same_verified_master_for_whisper_and_vad(self):
+    def test_pipeline_uses_the_same_verified_master_for_analysis_layers(self):
         transcript = _sample_transcript()
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -85,6 +118,10 @@ class AnalysisPipelineTests(unittest.TestCase):
                     "video_tunner.analysis_pipeline.detect_speech",
                     return_value=[SpeechInterval(0.05, 1.0), SpeechInterval(1.75, 2.7)],
                 ) as vad,
+                patch(
+                    "video_tunner.analysis_pipeline.build_acoustic_join_assessments",
+                    side_effect=_fake_acoustic_assessments,
+                ) as acoustic,
             ):
                 result = analyze_spoken_video(source, output, mode="conservative", language="es")
 
@@ -92,13 +129,15 @@ class AnalysisPipelineTests(unittest.TestCase):
             self.assertEqual(Path(result["master_audio"]), master)
             transcribe.assert_called_once()
             vad.assert_called_once()
+            acoustic.assert_called_once()
             self.assertEqual(Path(transcribe.call_args.args[0]), master)
             self.assertEqual(Path(vad.call_args.args[0]), master)
+            self.assertEqual(Path(acoustic.call_args.args[0]), master)
 
             for key in ("analysis", "transcript_json", "transcript_txt", "subtitles_srt"):
                 self.assertTrue(Path(result[key]).is_file(), key)
             report = json.loads(Path(result["analysis"]).read_text(encoding="utf-8"))
-            self.assertEqual(report["schema_version"], 6)
+            self.assertEqual(report["schema_version"], 7)
             self.assertEqual(report["input"]["master_audio"]["file"], master.name)
             self.assertEqual(report["input"]["ingest"]["status"], "ready")
             self.assertTrue(report["safety"]["master_audio_is_timeline_source"])
@@ -114,7 +153,11 @@ class AnalysisPipelineTests(unittest.TestCase):
             self.assertTrue(report["safety"]["join_assessments_are_not_edits"])
             self.assertFalse(report["safety"]["join_assessments_executable"])
             self.assertFalse(report["safety"]["join_assessments_safe_for_cut"])
-            self.assertFalse(report["safety"]["join_acoustic_validation_enabled"])
+            self.assertTrue(report["safety"]["acoustic_join_assessments_are_not_edits"])
+            self.assertFalse(report["safety"]["acoustic_join_assessments_executable"])
+            self.assertFalse(report["safety"]["acoustic_join_assessments_safe_for_cut"])
+            self.assertTrue(report["safety"]["join_acoustic_validation_enabled"])
+            self.assertTrue(report["safety"]["join_acoustic_validation_is_not_cut_authorization"])
             self.assertEqual(report["semantic_decisions"], [])
             self.assertEqual(report["correction_scopes"], [])
             self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
@@ -125,13 +168,15 @@ class AnalysisPipelineTests(unittest.TestCase):
             self.assertFalse(filler["safe_for_cut"])
             self.assertFalse(filler["executable"])
             self.assertFalse(filler["auto_apply"])
-            self.assertEqual(report["summary"]["filler_assessments"]["count"], 1)
-            self.assertEqual(report["summary"]["filler_assessments"]["safe_for_cut"], 0)
             self.assertGreaterEqual(len(report["join_assessments"]), 1)
-            self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
-            self.assertEqual(report["summary"]["join_assessments"]["executable"], 0)
-            self.assertEqual(report["summary"]["join_assessments"]["auto_apply"], 0)
-            for assessment in report["join_assessments"]:
+            self.assertEqual(
+                len(report["acoustic_join_assessments"]),
+                len(report["join_assessments"]),
+            )
+            self.assertEqual(report["summary"]["acoustic_join_assessments"]["safe_for_cut"], 0)
+            self.assertEqual(report["summary"]["acoustic_join_assessments"]["executable"], 0)
+            self.assertEqual(report["summary"]["acoustic_join_assessments"]["auto_apply"], 0)
+            for assessment in report["acoustic_join_assessments"]:
                 self.assertFalse(assessment["safe_for_cut"])
                 self.assertFalse(assessment["executable"])
                 self.assertFalse(assessment["auto_apply"])
