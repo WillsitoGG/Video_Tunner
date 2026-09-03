@@ -19,17 +19,18 @@ class SemanticValidationTests(unittest.TestCase):
 
     def test_corpus_is_large_enough_to_exercise_risk_classes(self):
         summary = self.report["summary"]
-        self.assertEqual(summary["cases"], 21)
+        self.assertEqual(summary["cases"], 22)
         self.assertEqual(
             summary["source_types"],
             {
                 "constructed_negative": 6,
                 "constructed_positive": 11,
+                "human_speech_positive": 1,
                 "human_speech_reference": 4,
             },
         )
-        self.assertEqual(summary["expected_events"], 11)
-        self.assertEqual(summary["actual_candidates"], 11)
+        self.assertEqual(summary["expected_events"], 12)
+        self.assertEqual(summary["actual_candidates"], 12)
 
     def test_tuned_candidate_metrics_reach_clean_labelled_baseline(self):
         summary = self.report["summary"]
@@ -60,6 +61,19 @@ class SemanticValidationTests(unittest.TestCase):
         self.assertEqual(len(human_cases), 4)
         self.assertTrue(all(not item["actual_candidates"] for item in human_cases))
         self.assertTrue(all(item["source_reference"] for item in human_cases))
+
+    def test_human_positive_ami_retake_is_detected_but_review_only(self):
+        case = next(item for item in self.report["cases"] if item["id"] == "human-ami-es2012d-retake")
+        self.assertEqual(case["source_type"], "human_speech_positive")
+        self.assertTrue(case["source_reference"])
+        self.assertEqual(case["false_negatives"], [])
+        self.assertEqual(case["false_positives"], [])
+        self.assertEqual(len(case["actual_candidates"]), 1)
+        candidate = case["actual_candidates"][0]
+        self.assertEqual(candidate["kind"], "possible_retake")
+        self.assertEqual(candidate["removed_text"], "have a look at the uh th-")
+        self.assertEqual(candidate["decision"], "REVIEW")
+        self.assertEqual(candidate["guard_status"], "review")
 
     def test_decision_contract_has_zero_safety_violations(self):
         summary = self.report["summary"]
