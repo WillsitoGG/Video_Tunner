@@ -14,6 +14,8 @@ SEMANTIC_SETTINGS = {
         "max_retake_gap_seconds": 8.0,
         "max_intervening_tokens": 7,
         "reject_continuation_markers": True,
+        "require_ambiguous_correction_evidence": True,
+        "reject_apology_like_corrections": True,
     },
     "aggressive": {
         "min_repeat_tokens": 2,
@@ -22,11 +24,15 @@ SEMANTIC_SETTINGS = {
         "max_retake_gap_seconds": 8.0,
         "max_intervening_tokens": 9,
         "reject_continuation_markers": False,
+        "require_ambiguous_correction_evidence": False,
+        "reject_apology_like_corrections": False,
     },
 }
 
-# Deliberately small: these are strong self-correction markers, not general
-# discourse markers such as "o sea" or "es decir", which are often valid prose.
+# Deliberately small: these are candidate self-correction markers, not proof that
+# a repair occurred. Human validation in Phase 2C showed that "I mean" and
+# "perdón" can also be ordinary discourse/apology markers, so conservative mode
+# requires additional local evidence for the ambiguous cases below.
 CORRECTION_MARKERS: tuple[tuple[tuple[str, ...], float], ...] = (
     (("perdon",), 0.96),
     (("perdona",), 0.92),
@@ -36,11 +42,21 @@ CORRECTION_MARKERS: tuple[tuple[tuple[str, ...], float], ...] = (
     (("i", "mean"), 0.78),
 )
 
-# "quiero decir" / "I mean" can be literal constructions. Conservative
-# candidate generation therefore requires left context and rejects the most
-# common literal frames; the marker remains available when it follows an
-# already-spoken attempt.
 AMBIGUOUS_CORRECTION_MARKERS = {("quiero", "decir"), ("i", "mean")}
+APOLOGY_CAPABLE_MARKERS = {("perdon",), ("perdona",), ("sorry",)}
+
+# Small bilingual number-word set used only as a local replacement cue around
+# ambiguous correction markers (e.g. "veinte - quiero decir treinta").
+NUMBER_WORDS = {
+    "cero", "uno", "una", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho",
+    "nueve", "diez", "once", "doce", "trece", "catorce", "quince", "dieciseis",
+    "diecisiete", "dieciocho", "diecinueve", "veinte", "treinta", "cuarenta", "cincuenta",
+    "sesenta", "setenta", "ochenta", "noventa", "cien", "ciento", "mil",
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+    "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
+    "eighty", "ninety", "hundred", "thousand",
+}
 
 # A compact bilingual stopword list is enough for the guardrail here: the goal
 # is only to reject repetitions made entirely of connective tissue.
@@ -62,6 +78,9 @@ CONTINUATION_MARKERS = {
 RETAKE_REPAIR_MARKERS = {
     "eh", "em", "erm", "er", "um", "umm", "uh", "uhh", "mmm", "mm", "hmm",
     "perdon", "perdona", "sorry",
+}
+HESITATION_MARKERS = {
+    "eh", "em", "erm", "er", "um", "umm", "uh", "uhh", "mmm", "mm", "hmm",
 }
 
 MAX_REPEAT_TOKENS = 7
@@ -150,8 +169,42 @@ def _ambiguous_marker_is_literal(tokens: list[str], index: int, marker: tuple[st
     return False
 
 
-def _find_correction_markers(words: list[WordTiming], tokens: list[str]) -> list[dict[str, Any]]:
+def _repair_boundary_before(words: list[WordTiming], index: int) -> bool:
+    """Return True for explicit transcript evidence of an interrupted attempt."""
+    for word in words[max(0, index - 2):index]:
+        raw = word.text.strip()
+        if raw in {"-", "–", "—"}:
+            return True
+        if len(raw) > 1 and raw.endswith("-"):
+            return True
+    return False
+
+
+def _numberish(token: str) -> bool:
+    return bool(token) and (token.isdigit() or token in NUMBER_WORDS)
+
+
+def _numeric_replacement_cue(tokens: list[str], index: int, end: int) -> bool:
+    left = [token for token in tokens[max(0, index - 4):index] if token]
+    right = [token for token in tokens[end:min(len(tokens), end + 4)] if token]
+    return any(_numberish(token) for token in left) and any(_numberish(token) for token in right)
+
+
+def _next_lexical_token(tokens: list[str], start: int) -> str:
+    return next((token for token in tokens[start:] if token), "")
+
+
+def _has_lexical_context(tokens: list[str], start: int, end: int) -> bool:
+    return any(token for token in tokens[start:end])
+
+
+def _find_correction_markers(
+    words: list[WordTiming], tokens: list[str], *, settings: dict[str, Any]
+) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
+    require_ambiguous_evidence = bool(settings.get("require_ambiguous_correction_evidence"))
+    reject_apology_like = bool(settings.get("reject_apology_like_corrections"))
+
     for index in range(len(words)):
         for marker, confidence in CORRECTION_MARKERS:
             end = index + len(marker)
@@ -159,6 +212,29 @@ def _find_correction_markers(words: list[WordTiming], tokens: list[str]) -> list
                 continue
             if _ambiguous_marker_is_literal(tokens, index, marker):
                 continue
+
+            repair_boundary = _repair_boundary_before(words, index)
+            numeric_replacement = _numeric_replacement_cue(tokens, index, end)
+            next_token = _next_lexical_token(tokens, end)
+            has_left_context = _has_lexical_context(tokens, max(0, index - CONTEXT_WORDS), index)
+            has_right_context = _has_lexical_context(tokens, end, min(len(tokens), end + CONTEXT_WORDS))
+
+            if (
+                marker in AMBIGUOUS_CORRECTION_MARKERS
+                and require_ambiguous_evidence
+                and not (repair_boundary or numeric_replacement)
+            ):
+                continue
+
+            if marker in APOLOGY_CAPABLE_MARKERS and reject_apology_like:
+                # At transcript edges there is not enough local evidence to call an
+                # apology word a self-correction. Likewise, "perdón eh ..." without
+                # an interrupted left attempt is conservatively treated as discourse.
+                if not has_left_context or not has_right_context:
+                    continue
+                if next_token in HESITATION_MARKERS and not repair_boundary:
+                    continue
+
             marker_text = _text(words[index:end])
             result.append(
                 _candidate(
@@ -167,14 +243,16 @@ def _find_correction_markers(words: list[WordTiming], tokens: list[str]) -> list
                     start=index,
                     end=end,
                     reason=(
-                        "Marcador explícito de autocorrección; el alcance de la toma errónea "
-                        "requiere revisión semántica."
+                        "Marcador de posible autocorrección con evidencia local suficiente; "
+                        "el alcance de la toma errónea requiere revisión semántica."
                     ),
                     confidence=confidence,
                     evidence={
                         "marker": marker_text,
                         "marker_normalized": " ".join(marker),
                         "span_scope": "marker_only",
+                        "repair_boundary_before": repair_boundary,
+                        "numeric_replacement_cue": numeric_replacement,
                     },
                 )
             )
@@ -339,7 +417,7 @@ def build_semantic_candidates(transcript: TranscriptResult, *, mode: str) -> lis
     settings = SEMANTIC_SETTINGS[mode]
 
     candidates = [
-        *_find_correction_markers(words, tokens),
+        *_find_correction_markers(words, tokens, settings=settings),
         *_find_exact_repetitions(words, tokens, settings=settings),
         *_find_retake_openers(words, tokens, settings=settings),
     ]
