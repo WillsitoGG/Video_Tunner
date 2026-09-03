@@ -248,12 +248,15 @@ def build_eligibility_assessments(
         removed = _validate_removed_target(transcript, candidate, join)
         blockers: list[str] = []
 
-        if not removed.get("valid"):
-            status = "invalid_removed_text"
-            blockers.append(str(removed.get("reason") or "invalid_removed_text"))
-        elif kind == "explicit_correction" and (scope is None or scope.get("status") != "bounded"):
+        # An unbounded correction intentionally has no join target. Diagnose the
+        # upstream scope blocker before treating that expected absence as target
+        # corruption. This changes diagnostic precedence only, never permissiveness.
+        if kind == "explicit_correction" and (scope is None or scope.get("status") != "bounded"):
             status = "blocked_correction_scope"
             blockers.append("correction_scope_not_bounded")
+        elif not removed.get("valid"):
+            status = "invalid_removed_text"
+            blockers.append(str(removed.get("reason") or "invalid_removed_text"))
         elif kind == "possible_filler" and (
             filler is None or str(filler.get("status")) not in FILLER_PASS_STATUSES
         ):
