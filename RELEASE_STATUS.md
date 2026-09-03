@@ -14,7 +14,7 @@
 - Fase 1C: **COMPLETADA — master audio → Whisper/VAD + `large-v3-turbo` español real PASS**
 - Fase 2A: **COMPLETADA — Semantic Candidates v1**
 - Fase 2B: **COMPLETADA — Semantic Decisions + Protection v1**
-- Fase 2C: **SIGUIENTE — validación semántica real / scope de correcciones**
+- Fase 2C: **EN CURSO — benchmark foundation v1 + primer retake humano positivo PASS; ampliar positivos humanos pendiente**
 
 ## Evidencia portable / ML
 
@@ -52,14 +52,7 @@ Hardening `33639009841` — SUCCESS: 37 tests, offset negativo, drift +1000 ppm,
 
 ## Fase 1C — master audio + modelo objetivo
 
-Run `33640872486` — SUCCESS:
-
-- 41 tests PASS;
-- frozen analysis PASS;
-- embedded/external master PASS;
-- external +0.500 s → +0.49581 s;
-- automatic edits 0;
-- artifacts 0.
+Run `33640872486` — SUCCESS: 41 tests PASS, frozen analysis PASS, embedded/external master PASS, automatic edits 0, artifacts 0.
 
 Run target Spanish `33656235038` — SUCCESS:
 
@@ -77,14 +70,6 @@ model staged              1546.5 MiB
 candidates                16
 automatic edits           0
 artifacts                 0
-```
-
-Modelo de validación:
-
-```text
-repo: rtlingo/mobiuslabsgmbh-faster-whisper-large-v3-turbo
-revision: 6bd64462dd562f8062828f585c3709aa52df0083
-model.bin sha256: e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da
 ```
 
 ## Fase 2A — Semantic Candidates v1
@@ -106,75 +91,25 @@ auto_apply = false
 span_safe_for_auto_apply = false
 ```
 
-Run final `33659725847` — SUCCESS:
-
-```text
-Ran 48 tests in 6.469s
-OK
-```
-
-Doctor PASS, sync E2E PASS, artifacts 0.
+Run final `33659725847` — SUCCESS: 48 tests, doctor PASS, sync E2E PASS, artifacts 0.
 
 ## Fase 2B — Semantic Decisions + Protection v1
 
-Contrato implementado:
+Contrato:
 
 ```text
 candidate != semantic decision != edit
 PROPOSED_CUT != executable CUT
 ```
 
-Decisiones posibles:
-
-```text
-KEEP
-REVIEW
-PROPOSED_TRIM
-PROPOSED_CUT
-```
-
-Todas permanecen:
+Todas las decisiones permanecen:
 
 ```text
 executable = false
 auto_apply = false
 ```
 
-`analysis.json` actual usa **schema v3** y separa:
-
-```text
-candidates[]
-semantic_decisions[]
-```
-
-Safety:
-
-```text
-semantic_protection_enabled = true
-semantic_decisions_are_not_edits = true
-semantic_decisions_executable = false
-```
-
-Guardas v1:
-
-- integridad de span / word indices / timestamps / `removed_text`;
-- cifras;
-- importes, porcentajes y unidades;
-- negaciones;
-- persona/sujeto;
-- tiempo/aspecto;
-- causalidad/contraste;
-- señal heurística de entidades.
-
-Run `33661062365` — FAILURE diagnosticado:
-
-```text
-Ran 55 tests in 6.097s
-54 PASS
-1 FAIL
-```
-
-Único fallo: un test heredado esperaba schema v2 en vez del schema v3 deliberado. Todos los tests nuevos de 2B y los E2E de sync pasaron. Se corrigió únicamente el test, no código productivo.
+`analysis.json` usa schema v3 y separa `candidates[]` de `semantic_decisions[]`.
 
 Run final `33741195594` — **SUCCESS**:
 
@@ -184,22 +119,107 @@ OK
 ```
 
 - Semantic Decisions/Protection PASS;
-- schema v3 PASS;
 - E2E FFmpeg/sync PASS;
 - `video-tunner doctor` PASS;
 - artifacts 0;
 - `automatic_edits = 0`.
 
-Ver `Validation/phase2-semantic-protection.md`.
+## Fase 2C — Semantic Validation Foundation v1
+
+Benchmark etiquetado para separar calidad de detección y seguridad de decisiones.
+
+### Baseline
+
+Run `33742519997` — SUCCESS:
+
+```text
+Ran 60 tests in 6.603s
+FP                       2
+FN                       0
+precision           84.62%
+recall             100.00%
+F1                  91.67%
+unsafe proposals         0
+executable decisions     0
+auto_apply decisions     0
+```
+
+Los FP observados fueron reutilización legítima cercana del opener y `quiero decir` literal. Ambos eran review-only.
+
+### Tuneo
+
+Sólo se endureció el detector Conservador:
+
+- continuidad normal sin reparación => no retake;
+- evidencia de vacilación/reparación sigue permitiendo retake;
+- `quiero decir` / `I mean` se consideran ambiguos en contextos literales y siguen disponibles tras un intento previo.
+
+### Corpus ajustado
+
+Run `33743029443` — **SUCCESS**:
+
+```text
+Ran 64 tests in 6.588s
+cases                    21
+expected events          11
+actual candidates        11
+FP                        0
+FN                        0
+precision           100.00%
+recall              100.00%
+F1                  100.00%
+decision mismatches       0
+unsafe proposals          0
+missing safe proposals    0
+executable decisions      0
+auto_apply decisions      0
+artifacts                  0
+```
+
+### Primer positivo humano real
+
+Se incorpora un retake espontáneo del AMI Meeting Corpus ES2012d como `human_speech_positive`.
+
+Run `33743638690` — **SUCCESS**:
+
+```text
+Ran 65 tests in 6.789s
+cases                    22
+expected events          12
+actual candidates        12
+FP                        0
+FN                        0
+precision           100.00%
+recall              100.00%
+F1                  100.00%
+decision mismatches       0
+unsafe proposals          0
+missing safe proposals    0
+executable decisions      0
+auto_apply decisions      0
+artifacts                  0
+```
+
+- retake humano AMI: `possible_retake → REVIEW`;
+- `guard_status=review`;
+- `video-tunner doctor` PASS;
+- E2E FFmpeg/sync PASS;
+- workflow restaurado a manual-only;
+- marker one-shot eliminado.
+
+**Limitación:** el 100% sólo acredita el corpus v1 actual. Existe todavía un único positivo humano espontáneo real en el benchmark; además el harness semántico usa timings deterministas y este run no valida audio AMI → Whisper → semántica.
+
+Ver `Validation/phase2c-semantic-validation.md`.
 
 ## Pendiente antes de una Release
 
-- Fase 2C: corpus/fixtures reales con retomas, errores y autocorrecciones;
-- medir falsos positivos/falsos negativos;
+- ampliar Fase 2C con más positivos humanos reales;
+- incorporar la autocorrección humana AMI con `I mean` ya localizada;
+- buscar positivos humanos en español con fuente/licencia adecuada;
 - resolver scope seguro `intento incorrecto → corrección válida`;
 - fillers contextuales;
 - límites de frase y join safety;
-- no promover semantic decisions al Edit Plan hasta disponer de evidencia suficiente;
+- no promover semantic decisions al Edit Plan hasta evidencia suficiente;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;
