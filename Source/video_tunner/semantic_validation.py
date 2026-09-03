@@ -23,10 +23,11 @@ def _normalise(text: str) -> str:
 
 
 def transcript_from_case(case: dict[str, Any]) -> TranscriptResult:
-    """Materialise a lightweight, deterministic spoken-style transcript fixture.
+    """Materialise deterministic word timings for a labelled transcript case.
 
-    The corpus validates the semantic layer independently from ASR quality. A later
-    audio-backed corpus may feed the same evaluator with real Whisper transcripts.
+    Some corpus rows are constructed positive/risk fixtures and some are text
+    derived from already-validated human speech. This evaluator isolates semantic
+    behaviour from ASR quality; it never claims synthetic timings are ground truth.
     """
     text = str(case["text"]).strip()
     tokens = text.split()
@@ -90,9 +91,12 @@ def evaluate_semantic_cases(
     missing_safe_proposals = 0
     executable_decisions = 0
     auto_apply_decisions = 0
+    source_types: Counter[str] = Counter()
     case_reports: list[dict[str, Any]] = []
 
     for case in cases:
+        source_type = str(case.get("source_type", "constructed"))
+        source_types[source_type] += 1
         transcript = transcript_from_case(case)
         candidates = build_semantic_candidates(transcript, mode=mode)
         _assign_candidate_ids(candidates)
@@ -172,6 +176,8 @@ def evaluate_semantic_cases(
             {
                 "id": case["id"],
                 "description": case.get("description"),
+                "source_type": source_type,
+                "source_reference": case.get("source_reference"),
                 "expected_events": expected_events,
                 "actual_candidates": [
                     {
@@ -204,6 +210,7 @@ def evaluate_semantic_cases(
         "mode": mode,
         "summary": {
             "cases": len(case_reports),
+            "source_types": dict(sorted(source_types.items())),
             "expected_events": total_expected,
             "actual_candidates": total_actual,
             "true_positive": true_positive,
