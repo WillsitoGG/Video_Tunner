@@ -4,7 +4,7 @@ import re
 import unicodedata
 from typing import Any
 
-from .transcription import WordTiming
+from .transcription import TranscriptResult, WordTiming
 
 _SCOPE_CONTEXT_WORDS = 8
 _TOKEN_RE = re.compile(r"[^a-z0-9%€$£.,+-]+")
@@ -17,6 +17,13 @@ NUMBER_WORDS = {
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     "hundred", "thousand", "million", "billion",
 }
+
+
+def _all_words(transcript: TranscriptResult) -> list[WordTiming]:
+    return sorted(
+        [word for segment in transcript.segments for word in segment.words],
+        key=lambda word: (word.start, word.end),
+    )
 
 
 def _normalise(text: str) -> str:
@@ -50,11 +57,7 @@ def _numberish(raw: str) -> bool:
 def _latest_repeated_anchor(
     words: list[WordTiming], marker_start: int, marker_end: int
 ) -> tuple[int, int] | None:
-    """Find a short corrected-prefix anchor repeated immediately before the marker.
-
-    The returned tuple is (attempt_start, anchor_size). It is evidence for a
-    candidate correction scope only; it never authorizes an edit.
-    """
+    """Find a short corrected-prefix anchor repeated immediately before the marker."""
     right_tokens = [_normalise(word.text) for word in words[marker_end:marker_end + 4]]
     right_tokens = [token for token in right_tokens if token]
     if not right_tokens:
@@ -95,10 +98,9 @@ def resolve_correction_scope(
 ) -> dict[str, Any]:
     """Resolve a non-executable candidate scope for an explicit correction.
 
-    This function intentionally distinguishes correction detection from scope.
-    `bounded` means that a deterministic local boundary was found, not that a cut
-    is safe. `ambiguous` means the correction event may be real while the prior
-    wrong-take boundary remains unproven.
+    `bounded` means a deterministic local left boundary was found. It does not
+    mean the span is safe to cut. `ambiguous` means the correction event may be
+    real while its prior wrong-take boundary remains unproven.
     """
     marker_span = _span(words, marker_start, marker_end)
     corrected_window_end = min(len(words), marker_end + _SCOPE_CONTEXT_WORDS)
@@ -121,12 +123,11 @@ def resolve_correction_scope(
     repeated = _latest_repeated_anchor(words, marker_start, marker_end)
     if repeated is not None:
         attempt_start, anchor_size = repeated
-        attempt_span = _span(words, attempt_start, marker_start)
         return {
             "status": "bounded",
             "strategy": "repeated_corrected_prefix_anchor",
             "confidence": 0.82,
-            "attempt_span": attempt_span,
+            "attempt_span": _span(words, attempt_start, marker_start),
             "marker_span": marker_span,
             "corrected_window": corrected_window,
             "anchor_token_count": anchor_size,
@@ -141,12 +142,11 @@ def resolve_correction_scope(
 
     numeric_start = _numeric_attempt_start(words, marker_start, marker_end)
     if numeric_start is not None:
-        attempt_span = _span(words, numeric_start, marker_start)
         return {
             "status": "bounded",
             "strategy": "local_numeric_replacement",
             "confidence": 0.78,
-            "attempt_span": attempt_span,
+            "attempt_span": _span(words, numeric_start, marker_start),
             "marker_span": marker_span,
             "corrected_window": corrected_window,
             "anchor_token_count": 0,
@@ -175,3 +175,32 @@ def resolve_correction_scope(
             "Fail-safe: conservar marker-only y mantener REVIEW.",
         ],
     }
+
+
+def build_correction_scopes(
+    transcript: TranscriptResult, candidates: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Build scope evidence for explicit corrections without creating edits."""
+    words = _all_words(transcript)
+    scopes: list[dict[str, Any]] = []
+    for candidate in candidates:
+        if candidate.get("kind") != "explicit_correction":
+            continue
+        evidence = candidate.get("evidence") or {}
+        try:
+            marker_start = int(evidence["word_start_index"])
+            marker_end = int(evidence["word_end_index_exclusive"])
+        except (KeyError, TypeError, ValueError):
+            marker_start = -1
+            marker_end = -1
+
+        scope = resolve_correction_scope(words, marker_start=marker_start, marker_end=marker_end)
+        scopes.append(
+            {
+                "id": f"correction-scope-{len(scopes) + 1:04d}",
+                "candidate_id": candidate.get("id"),
+                "candidate_kind": candidate.get("kind"),
+                **scope,
+            }
+        )
+    return scopes
