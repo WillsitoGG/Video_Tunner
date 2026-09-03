@@ -16,6 +16,7 @@ from .transcription import TranscriptResult, WordTiming
 
 STRONG_BOUNDARY_ENDINGS = (".", "?", "!", ";")
 JOIN_CRITICAL_WINDOW = 2
+SPAN_TOLERANCE_SECONDS = 0.03
 _TOKEN_RE = re.compile(r"[^a-z0-9%€$£.,+-]+")
 _DIGIT_RE = re.compile(r"[+-]?(?:\d+[.,]?\d*|[.,]\d+)(?:%|€|\$|£)?")
 
@@ -24,6 +25,10 @@ def _normalise(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text.lower())
     asciiish = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
     return _TOKEN_RE.sub("", asciiish).strip(".,")
+
+
+def _normalised_phrase(text: str) -> list[str]:
+    return [token for raw in text.split() if (token := _normalise(raw))]
 
 
 def _flatten_words(transcript: TranscriptResult) -> tuple[list[WordTiming], list[int]]:
@@ -61,13 +66,55 @@ def _span_from_candidate(candidate: dict[str, Any], words: list[WordTiming]) -> 
         return None
     if start < 0 or end <= start or end > len(words):
         return None
+    selected = words[start:end]
+    transcript_text = _text(selected)
+    evidence_text = str(evidence.get("removed_text") or "").strip()
+    if _normalised_phrase(transcript_text) != _normalised_phrase(evidence_text):
+        return None
+    try:
+        candidate_start = float(candidate["start"])
+        candidate_end = float(candidate["end"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if (
+        abs(candidate_start - selected[0].start) > SPAN_TOLERANCE_SECONDS
+        or abs(candidate_end - selected[-1].end) > SPAN_TOLERANCE_SECONDS
+    ):
+        return None
     return {
         "start_index": start,
         "end_index_exclusive": end,
-        "start": float(words[start].start),
-        "end": float(words[end - 1].end),
-        "text": _text(words[start:end]),
+        "start": float(selected[0].start),
+        "end": float(selected[-1].end),
+        "text": transcript_text,
         "source": "candidate_word_span",
+    }
+
+
+def _span_from_filler_candidate(candidate: dict[str, Any], words: list[WordTiming]) -> dict[str, Any] | None:
+    try:
+        candidate_start = float(candidate["start"])
+        candidate_end = float(candidate["end"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    token = str((candidate.get("evidence") or {}).get("token") or "")
+    matches = [
+        index
+        for index, word in enumerate(words)
+        if abs(word.start - candidate_start) <= SPAN_TOLERANCE_SECONDS
+        and abs(word.end - candidate_end) <= SPAN_TOLERANCE_SECONDS
+        and (not token or _normalise(word.text) == _normalise(token))
+    ]
+    if len(matches) != 1:
+        return None
+    index = matches[0]
+    return {
+        "start_index": index,
+        "end_index_exclusive": index + 1,
+        "start": float(words[index].start),
+        "end": float(words[index].end),
+        "text": words[index].text,
+        "source": "filler_word_timing_match",
     }
 
 
@@ -90,10 +137,15 @@ def _span_from_correction_scope(
     marker = scope.get("marker_span") or {}
     try:
         start = int(attempt["word_start_index"])
+        marker_start = int(marker["word_start_index"])
         end = int(marker["word_end_index_exclusive"])
     except (KeyError, TypeError, ValueError):
         return None
-    if start < 0 or end <= start or end > len(words):
+    if start < 0 or marker_start < start or end <= marker_start or end > len(words):
+        return None
+    if _normalised_phrase(_text(words[start:marker_start])) != _normalised_phrase(str(attempt.get("text") or "")):
+        return None
+    if _normalised_phrase(_text(words[marker_start:end])) != _normalised_phrase(str(marker.get("text") or "")):
         return None
     return {
         "start_index": start,
@@ -108,17 +160,20 @@ def _span_from_correction_scope(
 def _pause_neighbors(
     candidate: dict[str, Any], words: list[WordTiming]
 ) -> tuple[int | None, int | None]:
-    start = float(candidate.get("start", -1.0))
-    end = float(candidate.get("end", -1.0))
+    try:
+        start = float(candidate["start"])
+        end = float(candidate["end"])
+    except (KeyError, TypeError, ValueError):
+        return None, None
     if start < 0 or end <= start:
         return None, None
     left = None
     right = None
     for index, word in enumerate(words):
-        if word.end <= start + 0.03:
+        if word.end <= start + SPAN_TOLERANCE_SECONDS:
             left = index
             continue
-        if word.start >= end - 0.03:
+        if word.start >= end - SPAN_TOLERANCE_SECONDS:
             right = index
             break
     return left, right
@@ -229,6 +284,11 @@ def build_join_assessments(
                     "text": "",
                     "source": "candidate_temporal_gap",
                 }
+        elif kind == "possible_filler":
+            target_span = _span_from_filler_candidate(candidate, words)
+            if target_span is not None:
+                left_index = int(target_span["start_index"]) - 1
+                right_index = int(target_span["end_index_exclusive"])
         elif kind == "explicit_correction":
             target_span = _span_from_correction_scope(str(candidate.get("id") or ""), correction_scopes, words)
             if target_span is not None:
@@ -246,7 +306,7 @@ def build_join_assessments(
                     candidate,
                     status="invalid_or_unbounded_target",
                     rationale=[
-                        "No existe un target span suficientemente acotado para evaluar el join; fail-safe."
+                        "No existe un target span íntegro y suficientemente acotado para evaluar el join; fail-safe."
                     ],
                     target_span=None,
                     left=None,
