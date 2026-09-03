@@ -16,7 +16,7 @@ def combined_corpus() -> list[dict]:
     return base + extra
 
 
-class SemanticHumanCorrectionBaselineTests(unittest.TestCase):
+class SemanticHumanCorrectionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.report = evaluate_semantic_cases(combined_corpus(), mode="conservative")
@@ -53,50 +53,46 @@ class SemanticHumanCorrectionBaselineTests(unittest.TestCase):
             with self.subTest(case_id=case_id):
                 case = next(item for item in self.report["cases"] if item["id"] == case_id)
                 self.assertEqual(case["false_negatives"], [])
+                self.assertEqual(case["false_positives"], [])
                 matched = [item for item in case["actual_candidates"] if item["removed_text"] == marker]
                 self.assertEqual(len(matched), 1)
                 self.assertEqual(matched[0]["kind"], "explicit_correction")
                 self.assertEqual(matched[0]["decision"], "REVIEW")
                 self.assertEqual(matched[0]["guard_status"], "review")
 
-    def test_baseline_exposes_two_review_only_marker_false_positives(self):
+    def test_human_discourse_and_apology_markers_are_not_corrections(self):
+        for case_id in (
+            "human-ami-es2012d-i-mean-discourse",
+            "human-corma-ms-fa2-perdon-apology",
+        ):
+            with self.subTest(case_id=case_id):
+                case = next(item for item in self.report["cases"] if item["id"] == case_id)
+                self.assertEqual(case["false_negatives"], [])
+                self.assertEqual(case["false_positives"], [])
+                self.assertEqual(case["actual_candidates"], [])
+
+    def test_tuned_combined_corpus_has_zero_fp_and_zero_fn(self):
         summary = self.report["summary"]
         self.assertEqual(summary["false_negative"], 0)
-        self.assertEqual(summary["false_positive"], 2)
-        self.assertEqual(summary["actual_candidates"], 16)
-        self.assertEqual(summary["candidate_precision"], 0.875)
+        self.assertEqual(summary["false_positive"], 0)
+        self.assertEqual(summary["actual_candidates"], 14)
+        self.assertEqual(summary["candidate_precision"], 1.0)
         self.assertEqual(summary["candidate_recall"], 1.0)
-        self.assertEqual(summary["candidate_f1"], 0.9333)
+        self.assertEqual(summary["candidate_f1"], 1.0)
 
-        false_positive_ids = {
-            item["id"]
-            for item in self.report["cases"]
-            if item["false_positives"]
-        }
-        self.assertEqual(
-            false_positive_ids,
-            {
-                "human-ami-es2012d-i-mean-discourse",
-                "human-corma-ms-fa2-perdon-apology",
-            },
-        )
-
-    def test_baseline_fails_quality_gate_only_on_precision_not_safety(self):
+    def test_tuned_combined_corpus_passes_quality_and_safety_gate(self):
         gate = validation_gate(
             self.report,
             minimum_precision=0.95,
             minimum_recall=0.95,
         )
-        self.assertFalse(gate["passed"])
-        self.assertEqual(gate["failures"], ["candidate_precision"])
-        self.assertTrue(gate["checks"]["candidate_recall"])
-        self.assertTrue(gate["checks"]["proposal_safety"])
-        self.assertTrue(gate["checks"]["non_executable"])
-        self.assertTrue(gate["checks"]["no_auto_apply"])
+        self.assertTrue(gate["passed"], gate)
+        self.assertTrue(all(gate["checks"].values()))
 
         summary = self.report["summary"]
         self.assertEqual(summary["unsafe_proposals"], 0)
         self.assertEqual(summary["decision_mismatches"], 0)
+        self.assertEqual(summary["missing_safe_proposals"], 0)
         self.assertEqual(summary["executable_decisions"], 0)
         self.assertEqual(summary["auto_apply_decisions"], 0)
 
