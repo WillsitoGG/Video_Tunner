@@ -30,7 +30,7 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 1C — Transcripción/VAD sobre master audio + `large-v3-turbo` español real: ✅
 - Fase 2A — Semantic Candidates v1: ✅
 - Fase 2B — Semantic Decisions + Protection v1: ✅
-- Fase 2C — Validación semántica real / scope de correcciones: 🟡 siguiente
+- Fase 2C — Validación semántica real: 🟡 **benchmark foundation v1 completada; positivos humanos espontáneos pendientes**
 - Release pública: ninguna
 
 Video_Tunner sigue siendo producto/repo propio, no un fork.
@@ -94,16 +94,9 @@ Hardening Windows run `33639009841`: 37 tests PASS, offset negativo, drift real,
 Puede:
 
 ```powershell
-# Audio embebido: ingest + master + analyze
 video-tunner analyze "video.mp4" --model large-v3-turbo --language es --output-dir Output
-
-# Audio externo: auto-sync + master + analyze
 video-tunner analyze "video.mp4" --audio "micro.wav" --model large-v3-turbo --language es --output-dir Output
-
-# Audio externo con override manual
 video-tunner analyze "video.mp4" --audio "micro.wav" --offset 1.25 --model large-v3-turbo --language es --output-dir Output
-
-# Reutilizar un master ya resuelto y acreditado
 video-tunner analyze "video.mp4" --master-audio "video_master_audio.flac" --ingest-report "video_ingest.json" --model large-v3-turbo --language es --output-dir Output
 ```
 
@@ -111,44 +104,16 @@ Reglas:
 
 - Whisper y Silero VAD reciben **exactamente el mismo master**;
 - el master cubre la timeline completa del vídeo;
-- todos los timestamps de transcript/VAD/candidates están en tiempo de vídeo;
+- todos los timestamps están en tiempo de vídeo;
 - un master pre-resuelto exige su `ingest.json`;
-- se verifica SHA-256 del vídeo fuente antes de reutilizarlo;
-- si ingest devuelve `review_required`, Whisper/VAD no arrancan;
-- Fase 1C introdujo `analysis.json` schema v2 para provenance; el schema actual es v3 desde Fase 2B;
+- se verifica SHA-256 del vídeo fuente;
+- `review_required` detiene Whisper/VAD;
+- `analysis.json` actual usa schema v3;
 - candidates nunca son edits.
 
-### Integración portable — run `33640872486`
-
-- 41 source tests PASS;
-- build frozen analysis PASS;
-- embedded y external master PASS;
-- offset real `+0.500 s` → estimado `+0.49581 s`;
-- inferencia offline;
-- automatic edits: `0`;
-- artifacts: `0`.
-
-### Modelo objetivo + español real — run `33656235038`
-
-- fixture hablado real: `46.58025 s`, 61 palabras de referencia;
-- hipótesis: 62 palabras;
-- errores: `1`;
-- **WER `1.64%`** frente al criterio predefinido `<= 15%`;
-- word timestamps: PASS;
-- análisis: `22.609 s`;
-- **RTF `0.4854`**;
-- RAM pico: **1818.7 MiB**;
-- modelo staged: **1546.5 MiB**;
-- candidates: `16`;
-- automatic edits: `0`;
-- vídeo/master: `46.58025 / 46.58025 s`;
-- artifacts: `0`.
-
-Con esta evidencia se cerró Fase 1C. Ver `Validation/master-audio-analysis-spike.md` y `Validation/spanish-large-v3-turbo-plan.md`.
+Target Spanish run `33656235038`: WER `1.64%`, RTF `0.4854`, word timestamps PASS, automatic edits `0`, artifacts `0`.
 
 ## Fase 2A — Semantic Candidates v1 — COMPLETADA
-
-`analyze` añade una primera capa semántica **determinista y review-only** sobre los word timestamps.
 
 Clases iniciales:
 
@@ -158,21 +123,7 @@ possible_retake
 explicit_correction
 ```
 
-Ejemplos:
-
-```text
-vamos a lanzar | vamos a lanzar el producto
-^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^
-candidato        lectura posterior conservada
-```
-
-```text
-la facturación fue de 200 perdón de 250 mil euros
-                          ^^^^^^^
-                          marcador detectado
-```
-
-Cada candidato semántico registra `removed_text`, contexto, word indices/timestamps, evidence y confidence, y permanece:
+Cada candidato registra `removed_text`, contexto, word indices/timestamps, evidence y confidence, y permanece:
 
 ```text
 suggested_decision = REVIEW
@@ -181,20 +132,9 @@ auto_apply = false
 span_safe_for_auto_apply = false
 ```
 
-Referencia conceptual revisada: `Railly/vcut@2142cc54dc01a0d2272f1d99717b89cd1c7c9262`; la implementación Python es propia.
-
-Run `33659725847` — **SUCCESS**:
-
-```text
-Ran 48 tests in 6.469s
-OK
-```
-
-Artifacts `0`. Ver `Validation/phase2-semantic-candidates.md`.
+Run `33659725847`: 48 tests PASS, artifacts `0`.
 
 ## Fase 2B — Semantic Decisions + Protection v1 — COMPLETADA
-
-Se introduce una capa explícita y separada:
 
 ```text
 candidate
@@ -204,7 +144,7 @@ semantic decision + protection
 KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT
 ```
 
-Contrato obligatorio:
+Contrato:
 
 ```text
 candidate != semantic decision != edit
@@ -213,66 +153,64 @@ executable = false
 auto_apply = false
 ```
 
-`analysis.json` actual usa **schema v3** y separa:
+Guardas v1: integridad de span, cifras/importes/porcentajes/unidades, negaciones, persona/sujeto, tiempo/aspecto, causalidad/contraste y señal heurística de entidades.
+
+Run `33741195594`: 55 tests PASS, `doctor` PASS, artifacts `0`, automatic edits `0`.
+
+## Fase 2C — Semantic Validation Foundation v1 — COMPLETADA COMO BASE
+
+Se añade un benchmark etiquetado y reproducible que mide detección y seguridad por separado:
 
 ```text
-candidates[]
-semantic_decisions[]
+Source/video_tunner/semantic_validation.py
+tests/fixtures/semantic_corpus_v1.json
+tests/test_semantic_validation.py
 ```
 
-El report declara además:
+Corpus final:
 
 ```text
-semantic_protection_enabled = true
-semantic_decisions_are_not_edits = true
-semantic_decisions_executable = false
+21 casos
+11 positivos construidos
+6 negativos construidos
+4 controles derivados de habla humana real ya validada
+11 eventos esperados
 ```
 
-Guardas v1 implementadas:
-
-- integridad del span: word indices, timestamps y `removed_text` deben coincidir;
-- cifras;
-- importes, porcentajes y unidades;
-- negaciones;
-- persona/sujeto;
-- tiempo/aspecto y marcadores temporales;
-- causalidad/contraste;
-- señal heurística de entidades/nombres propios.
-
-Comportamiento:
-
-- repetición adyacente exacta puede producir `PROPOSED_CUT`, siempre no ejecutable;
-- retoma con material real o cambios protegidos → `REVIEW`;
-- `explicit_correction` → siempre `REVIEW` en v1 porque detectar `perdón` no demuestra el límite exacto de la toma incorrecta;
-- candidate corrupto/inconsistente → `KEEP` fail-safe;
-- `automatic_edits` permanece `0`.
-
-Casos explícitos cubiertos:
+Baseline run `33742519997`:
 
 ```text
-200 → perdón → 250 mil euros   => REVIEW
-10% → perdón → 15%             => REVIEW
-no funciona → perdón → funciona => REVIEW
+60 tests PASS
+FP = 2
+FN = 0
+precision = 84.62%
+recall = 100%
+F1 = 91.67%
+unsafe proposals = 0
 ```
 
-### Validación final — run `33741195594`
+Los dos FP eran reutilización legítima de opener y `quiero decir` literal. Se tunearon únicamente esas dos fuentes de ruido en modo Conservador.
 
-**SUCCESS**:
+Validación final run `33743029443`:
 
 ```text
-Ran 55 tests in 6.671s
-OK
+64 tests PASS en 6.588 s
+FP = 0
+FN = 0
+precision = 100%
+recall = 100%
+F1 = 100%
+unsafe proposals = 0
+executable decisions = 0
+auto_apply decisions = 0
+artifacts = 0
 ```
 
-- semantic decisions/protection PASS;
-- pipeline schema v3 PASS;
-- E2E sync/FFmpeg PASS;
-- `video-tunner doctor` PASS;
-- artifacts `0`.
+Los cuatro controles humanos reutilizan contenido SpanishPod ya validado con audio + `large-v3-turbo` en `33656235038`, evitando repetir una CI ML pesada sin necesidad.
 
-El run previo `33661062365` hizo 54/55 PASS y falló únicamente porque un test heredado seguía esperando schema v2. Se actualizó ese test a la realidad v3 sin tocar código productivo.
+**Limitación:** el 100% corresponde únicamente a este corpus v1. Todavía faltan positivos humanos espontáneos con retomas/autocorrecciones reales; por tanto Fase 2C completa sigue EN CURSO y no se habilita ningún edit semántico automático.
 
-Ver `Validation/phase2-semantic-protection.md`.
+Ver `Validation/phase2c-semantic-validation.md`.
 
 ## Pipeline
 
@@ -309,15 +247,14 @@ Video_Tunner.exe model fetch large-v3-turbo
 
 En portable strict no existe fallback silencioso a caches globales.
 
-## Siguiente trabajo — Fase 2C
+## Siguiente trabajo dentro de Fase 2C
 
-1. crear fixtures/corpus explícitos de habla real con retomas, reinicios, repeticiones, errores y autocorrecciones;
-2. medir falsos positivos y falsos negativos;
-3. validar especialmente cifras, porcentajes, negaciones, nombres, sujeto y tiempo;
-4. inferir de forma segura el scope `intento incorrecto → corrección válida`;
-5. distinguir fillers eliminables de elementos necesarios para naturalidad/significado;
-6. reforzar protección sólo con evidencia real;
-7. mantener todas las semantic decisions no ejecutables hasta demostrar qué clases pueden promoverse con seguridad.
+1. incorporar positivos humanos reales con retomas, reinicios y autocorrecciones;
+2. medirlos con el mismo harness sin relajar thresholds para esconder fallos;
+3. resolver scope seguro `intento incorrecto → corrección válida`;
+4. validar fillers contextuales;
+5. añadir límites de frase y join safety;
+6. mantener todas las semantic decisions no ejecutables hasta demostrar qué clases pueden promoverse con seguridad.
 
 ## Principios
 
