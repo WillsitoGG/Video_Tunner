@@ -2,11 +2,6 @@ name: Manual CI
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2d-join-safety
-    paths:
-      - .github/ci-triggers/phase2d-join-safety.txt
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
