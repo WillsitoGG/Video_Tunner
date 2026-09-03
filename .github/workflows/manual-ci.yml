@@ -2,6 +2,11 @@ name: Manual CI
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2c-audio-backed-semantics
+    paths:
+      - .github/ci-triggers/phase2c-audio-lightweight.txt
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
