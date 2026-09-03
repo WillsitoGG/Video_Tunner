@@ -8,6 +8,8 @@ from .candidates import build_analysis_report, build_candidates, save_analysis_r
 from .correction_scope import build_correction_scopes
 from .correction_scope_report import attach_correction_scopes
 from .edit_plan import MODE_SETTINGS
+from .filler_context import build_filler_assessments
+from .filler_context_report import attach_filler_assessments
 from .ingest import ingest_video
 from .media import probe_media
 from .semantic_candidates import build_semantic_candidates
@@ -115,8 +117,9 @@ def analyze_spoken_video(
     """Resolve master audio and emit separate evidence/decision layers.
 
     Whisper and Silero VAD consume the same master audio. All timestamps remain
-    on the video timeline. Candidates, correction scopes and semantic decisions
-    are deliberately separate and never become executable edits in this phase.
+    on the video timeline. Candidates, correction scopes, filler assessments and
+    semantic decisions are deliberately separate and never become executable
+    edits in this phase.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
@@ -196,6 +199,7 @@ def analyze_spoken_video(
         build_semantic_candidates(transcript, mode=mode),
     )
     correction_scopes = build_correction_scopes(transcript, candidates)
+    filler_assessments = build_filler_assessments(transcript, candidates)
     semantic_decisions = build_semantic_decisions(transcript, candidates)
 
     stem = source_path.stem
@@ -216,6 +220,7 @@ def analyze_spoken_video(
     )
     attach_semantic_decisions(report, semantic_decisions)
     attach_correction_scopes(report, correction_scopes)
+    attach_filler_assessments(report, filler_assessments)
     analysis_path = save_analysis_report(report, output_root / f"{stem}_analysis.json")
 
     return {

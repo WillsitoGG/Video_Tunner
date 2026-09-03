@@ -18,8 +18,8 @@
 - Fase 2C.2: COMPLETADA — evidencia humana bilingüe
 - Fase 2C.3: COMPLETADA — audio humano real → `large-v3-turbo` → semantic gate PASS
 - Fase 2D.1: COMPLETADA — correction scope foundation v1 + schema v4
-- Fase 2D.2: **SIGUIENTE — fillers contextuales**
-- Fase 2D.3: FUTURA — sentence boundaries + join safety
+- Fase 2D.2: COMPLETADA — contextual filler foundation v1 + schema v5
+- Fase 2D.3: **SIGUIENTE — sentence boundaries + join safety**
 
 ## Evidencia principal
 
@@ -34,102 +34,123 @@ Semantic Decisions/Protection    33741195594  PASS — 55 tests
 Human correction final           33750836791  PASS — 74 tests, corpus gate PASS
 Phase 2C.3 lightweight           33754755238  PASS — 76/76, FFmpeg/sync E2E
 Phase 2C.3 audio-backed final    33755013415  PASS — 3/3 cases, semantic gate PASS
-Phase 2D.1 foundation            33757158460  PASS — 83 tests
-Phase 2D.1 benchmark             33757481376  PASS — 87 tests, scope gate PASS
 Phase 2D.1 final                 33758185755  PASS — 88/88, schema v4 integration
+Phase 2D.2 benchmark             33771489008  PASS — 101/101, filler context gate
+Phase 2D.2 final                 33771792867  PASS — 101/101, schema v5 integration
 ```
 
 Todas mantienen `automatic_edits = 0` donde aplica y artifacts pesados = 0.
 
-## Fase 2D.1 — Correction Scope Foundation v1
+## Fase 2D.2 — Contextual Fillers Foundation v1
 
 Nueva separación:
 
 ```text
-candidate
-!= correction scope evidence
+possible_filler candidate
+!= filler assessment
 != semantic decision
 != edit
 ```
 
-`analysis.json` usa schema v4:
+`analysis.json` usa schema v5:
 
 ```text
 candidates[]
 correction_scopes[]
+filler_assessments[]
 semantic_decisions[]
 ```
 
-Estados de scope:
+Estados v1:
 
 ```text
-bounded
-ambiguous
+isolated_hesitation
+hesitation_cluster
+protected_repair_context
+boundary_hesitation
+uncertain_asr
 invalid
 ```
 
-Estrategias v1:
+Reglas principales:
+
+- filler dentro/junto a retake o correction => `protected_repair_context`;
+- fillers adyacentes => `hesitation_cluster`;
+- transcript boundary o gap >= `0.60 s` => `boundary_hesitation`;
+- probabilidad ASR < `0.60` => `uncertain_asr`;
+- incluso `isolated_hesitation` permanece `safe_for_cut=false`.
+
+Benchmark etiquetado v1:
 
 ```text
-repeated_corrected_prefix_anchor
-local_numeric_replacement
-no_deterministic_left_boundary
-```
-
-Benchmark etiquetado:
-
-```text
-12 casos
-6 bounded esperados
-3 ambiguous esperados
-3 no-candidate controls
+15 casos ES/EN
+fillers aislados y clusters
+repair context
+boundaries
+baja confianza ASR
+retake humano AMI
+control humano SpanishPod
 ```
 
 Gate:
 
 ```text
-candidate contract clean
-bounded_exactness == 1.0
-status/strategy/attempt mismatches == 0
-unsafe_bounded == 0
+record_count_mismatches == 0
+status_mismatches == 0
+status_accuracy == 1.0
+repair_link_mismatches == 0
+repair_protection_recall == 1.0
 safety_violations == 0
 ```
 
-Final `33758185755`:
+Evidencia:
 
 ```text
-88/88 tests PASS en 6.711 s
+33771489008
+101/101 tests PASS en 7.030 s
+filler context benchmark PASS
+human AMI repair filler protected
+E2E FFmpeg/sync PASS
+doctor PASS
+artifacts 0
+
+33771792867
+101/101 tests PASS en 5.031 s
+analysis schema v5 integration PASS
 E2E FFmpeg/sync PASS
 doctor PASS
 artifacts 0
 ```
 
-El run `33757887930` falló únicamente porque un test legado aún esperaba `schema_version == 3`; 87/88 tests pasaron y no hubo fallo de correction scope o safety. La expectativa se actualizó a v4 y el run final quedó verde.
+Limitación importante derivada del audio real de 2C.3: `large-v3-turbo` puede omitir una vacilación como `uh`. Por tanto, 2D.2 clasifica fillers que sobreviven al ASR; **no inventa fillers ausentes del transcript**. La protección del retake colapsado por ASR permanece en la capa semántica/timing.
 
-Evidencia: `Validation/phase2d-correction-scope.md`.
+Evidencia: `Validation/phase2d-contextual-fillers.md`.
 
 ## Safety actual
 
 ```text
-candidate != correction scope != semantic decision != edit
+candidate != correction scope != filler assessment != semantic decision != edit
 PROPOSED_CUT != executable CUT
 bounded scope != safe cut
+filler assessment != safe cut
 semantic_decisions_executable = false
 correction_scopes_are_not_edits = true
 correction_scopes_executable = false
 correction_scopes_safe_for_cut = false
+filler_assessments_are_not_edits = true
+filler_assessments_executable = false
+filler_assessments_safe_for_cut = false
 executable = false
 auto_apply = false
 automatic_edits = 0
 ```
 
-Un scope `bounded` sólo describe una frontera candidata respaldada localmente. No autoriza borrado, render ni promoción al Edit Plan.
+Ni un correction scope `bounded` ni un `isolated_hesitation` autorizan borrado, render o promoción al Edit Plan.
 
 ## Pendiente antes de Release
 
-- Fase 2D.2: fillers contextuales;
 - Fase 2D.3: sentence boundaries + join safety;
-- no promover semantic decisions/scopes al Edit Plan hasta evidencia suficiente;
+- no promover semantic decisions/scopes/filler assessments al Edit Plan hasta evidencia suficiente;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;

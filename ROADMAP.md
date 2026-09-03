@@ -106,16 +106,7 @@ Evidencia nueva:
 
 #### 2D.1 — Correction Scope Foundation v1 — COMPLETADA
 
-Nueva arquitectura:
-
-```text
-candidate
-→ correction scope evidence
-→ semantic decision/protection
-→ future approved edit
-```
-
-`analysis.json` pasa a schema v4:
+`analysis.json` schema v4:
 
 ```text
 candidates[]
@@ -123,7 +114,7 @@ correction_scopes[]
 semantic_decisions[]
 ```
 
-Estados de scope:
+Estados:
 
 ```text
 bounded
@@ -131,73 +122,87 @@ ambiguous
 invalid
 ```
 
-Estrategias v1:
+Todo scope conserva `safe_for_cut=false`, `executable=false`, `auto_apply=false`.
+
+Benchmark: 12 casos. Final `33758185755`: **88/88 tests PASS en 6.711 s**, E2E FFmpeg/sync + doctor PASS, artifacts 0.
+
+Detalle: `Validation/phase2d-correction-scope.md`.
+
+#### 2D.2 — Fillers contextuales foundation v1 — COMPLETADA
+
+Nueva separación:
 
 ```text
-repeated_corrected_prefix_anchor
-local_numeric_replacement
-no_deterministic_left_boundary
+possible_filler candidate
+→ filler assessment
+→ future join/safety decision
 ```
 
-Todo scope conserva:
+`analysis.json` pasa a schema v5:
 
 ```text
-safe_for_cut=false
-executable=false
-auto_apply=false
+candidates[]
+correction_scopes[]
+filler_assessments[]
+semantic_decisions[]
 ```
+
+Estados v1:
+
+```text
+isolated_hesitation
+hesitation_cluster
+protected_repair_context
+boundary_hesitation
+uncertain_asr
+invalid
+```
+
+Reglas principales:
+
+- filler dentro/junto a retake/correction => protegido;
+- cluster => evaluación conjunta;
+- transcript boundary o gap >= 0.60 s => boundary hesitation;
+- ASR < 0.60 => uncertain;
+- ninguna clase es `safe_for_cut` todavía.
 
 Benchmark v1:
 
 ```text
-12 casos
-6 bounded esperados
-3 ambiguous esperados
-3 no-candidate controls
-```
-
-Gate:
-
-```text
-candidate contract clean
-bounded_exactness == 1.0
-status/strategy/attempt mismatches == 0
-unsafe_bounded == 0
-safety_violations == 0
+15 casos ES/EN
+retakes/corrections
+clusters
+boundaries
+baja confianza
+AMI humano + SpanishPod control
 ```
 
 Evidencia:
 
 ```text
-33757158460  83 tests PASS en 6.767 s — foundation
-33757481376  87 tests PASS en 6.595 s — benchmark
-33758185755  88/88 tests PASS en 6.711 s — schema v4 + pipeline integration
+33771489008  101/101 PASS en 7.030 s — contextual benchmark
+33771792867  101/101 PASS en 5.031 s — schema v5 + pipeline integration
 ```
 
-Run `33757887930` falló sólo por una expectativa legada de schema v3; no falló scope/safety.
+E2E FFmpeg/sync y doctor PASS; artifacts 0.
 
-Detalle: `Validation/phase2d-correction-scope.md`.
+Limitación: audio real 2C.3 demostró que Whisper puede omitir un filler. 2D.2 sólo clasifica fillers que sobreviven al ASR; no debe inventarlos.
 
-#### 2D.2 — Fillers contextuales — SIGUIENTE
+Detalle: `Validation/phase2d-contextual-fillers.md`.
 
-Objetivo: distinguir una vacilación vocal potencialmente eliminable de un elemento discursivo que aporta naturalidad, intención o estructura.
+#### 2D.3 — Sentence boundaries + join safety — SIGUIENTE
+
+Objetivo: demostrar que los dos lados de un futuro corte pueden unirse sin romper palabras, frase, turno, intención o prosodia.
 
 Orden:
 
-1. auditar `possible_filler` actual (`eh`, `um`, etc.);
-2. separar token detection de filler decision;
-3. definir evidencia contextual léxica/temporal y relación con retakes/corrections;
-4. construir corpus positivo/negativo, incluyendo habla humana cuando sea útil;
-5. medir FP/FN y fallos de seguridad;
-6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
-7. no usar una lista de tokens como prueba suficiente.
-
-#### 2D.3 — Sentence boundaries + join safety — FUTURA
-
-- límites de frase/turno;
-- joins que no alteren negación, sujeto o prosodia;
-- removedText exacto;
-- guardas acústicas/temporales antes de cualquier promoción.
+1. representar evidencia de boundary izquierdo/derecho por separado del candidate;
+2. no confiar sólo en puntuación ASR;
+3. medir distancia temporal a palabras, gaps y contexto léxico;
+4. proteger joins adyacentes a negaciones, cifras, entidades, cambios de sujeto y reparaciones;
+5. construir corpus positivo/negativo de join safety;
+6. definir `removedText` exacto sólo cuando span + ambos lados sean auditables;
+7. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false` durante la foundation.
 
 ### 2E — Promotion to Edit Plan — FUTURA
 
@@ -223,9 +228,8 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. mergear 2D.1 correction scope foundation;
-2. arrancar 2D.2 fillers contextuales;
-3. construir benchmark contextual antes de promover nada;
-4. sentence/join safety;
-5. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
-6. no promover al Edit Plan hasta superar 2D.
+1. mergear 2D.2 contextual fillers foundation;
+2. arrancar 2D.3 sentence boundaries + join safety;
+3. construir benchmark de joins antes de promover nada;
+4. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
+5. no promover al Edit Plan hasta superar 2D.

@@ -116,9 +116,11 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
             for item in report["semantic_decisions"]
             if item["candidate_id"] == repetition["id"]
         )
-        self.assertEqual(report["schema_version"], 4)
+        self.assertEqual(report["schema_version"], 5)
         self.assertEqual(report["correction_scopes"], [])
         self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
+        self.assertEqual(report["filler_assessments"], [])
+        self.assertEqual(report["summary"]["filler_assessments"]["count"], 0)
         self.assertEqual(decision["decision"], "PROPOSED_CUT")
         self.assertEqual(decision["guard_status"], "pass")
         self.assertFalse(decision["executable"])
@@ -130,6 +132,9 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertTrue(report["safety"]["correction_scopes_are_not_edits"])
         self.assertFalse(report["safety"]["correction_scopes_executable"])
         self.assertFalse(report["safety"]["correction_scopes_safe_for_cut"])
+        self.assertTrue(report["safety"]["filler_assessments_are_not_edits"])
+        self.assertFalse(report["safety"]["filler_assessments_executable"])
+        self.assertFalse(report["safety"]["filler_assessments_safe_for_cut"])
 
     def test_analyze_links_explicit_correction_candidate_scope_and_review_decision(self):
         report = run_fake_analysis(
@@ -145,7 +150,7 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
             item for item in report["semantic_decisions"] if item["candidate_id"] == correction["id"]
         )
 
-        self.assertEqual(report["schema_version"], 4)
+        self.assertEqual(report["schema_version"], 5)
         self.assertEqual(scope["status"], "bounded")
         self.assertEqual(scope["strategy"], "repeated_corrected_prefix_anchor")
         self.assertEqual(scope["attempt_span"]["text"], "de 200")
@@ -153,12 +158,14 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertFalse(scope["safe_for_cut"])
         self.assertFalse(scope["executable"])
         self.assertFalse(scope["auto_apply"])
+        self.assertEqual(report["filler_assessments"], [])
         self.assertEqual(decision["decision"], "REVIEW")
         self.assertFalse(decision["executable"])
         self.assertEqual(report["summary"]["automatic_edits"], 0)
         self.assertEqual(report["summary"]["correction_scopes"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["correction_scopes"]["executable"], 0)
         self.assertEqual(report["summary"]["correction_scopes"]["auto_apply"], 0)
+        self.assertEqual(report["summary"]["filler_assessments"]["safe_for_cut"], 0)
 
 
 if __name__ == "__main__":
