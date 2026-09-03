@@ -55,6 +55,7 @@ class SemanticCandidateTests(unittest.TestCase):
         self.assertEqual(retake["evidence"]["intervening_text"], "nuevo eh")
         self.assertEqual(retake["evidence"]["removed_text"], "vamos a lanzar el nuevo eh")
         self.assertEqual(retake["evidence"]["second_occurrence_text"], "vamos a lanzar el")
+        self.assertTrue(retake["evidence"]["repair_evidence"])
         self.assertFalse(retake["auto_apply"])
 
     def test_explicit_span_marker_does_not_guess_the_wrong_take_boundary(self):
@@ -80,6 +81,29 @@ class SemanticCandidateTests(unittest.TestCase):
 
         semantic = [item for item in candidates if item["kind"] in {"possible_repetition", "possible_retake"}]
         self.assertEqual(semantic, [])
+
+    def test_conservative_mode_rejects_nearby_legitimate_reuse_with_continuation_markers(self):
+        transcript = transcript_from_words(
+            timed("vamos a lanzar el producto ahora y luego vamos a lanzar una campaña distinta")
+        )
+        candidates = build_semantic_candidates(transcript, mode="conservative")
+        self.assertFalse(any(item["kind"] == "possible_retake" for item in candidates))
+
+    def test_ambiguous_correction_marker_is_not_flagged_when_used_literally(self):
+        for text in (
+            "quiero decir algo importante sobre el proyecto",
+            "lo que quiero decir es que necesitamos tiempo",
+        ):
+            with self.subTest(text=text):
+                transcript = transcript_from_words(timed(text))
+                candidates = build_semantic_candidates(transcript, mode="conservative")
+                self.assertFalse(any(item["kind"] == "explicit_correction" for item in candidates))
+
+    def test_ambiguous_correction_marker_still_works_after_an_attempt(self):
+        transcript = transcript_from_words(timed("son veinte quiero decir treinta unidades"))
+        candidates = build_semantic_candidates(transcript, mode="conservative")
+        correction = next(item for item in candidates if item["kind"] == "explicit_correction")
+        self.assertEqual(correction["evidence"]["removed_text"], "quiero decir")
 
     def test_conservative_mode_does_not_flag_two_word_emphasis(self):
         transcript = transcript_from_words(timed("muy bien muy bien seguimos"))
