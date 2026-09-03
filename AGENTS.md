@@ -10,16 +10,17 @@ Obligatorio:
 
 1. portable real: ZIP → descomprimir → ejecutar;
 2. vídeo con audio embebido o vídeo + audio externo;
-3. master audio antes de análisis temporal;
-4. auto-sync sólo con evidence/confidence suficiente;
-5. offset manual/override;
-6. drift corregido sólo tras validación;
-7. originales intactos;
-8. candidate ≠ decision ≠ edit;
-9. ante duda: KEEP/REVIEW.
+3. resolver master audio antes de cualquier análisis temporal;
+4. Whisper y VAD usan exactamente el mismo master audio;
+5. auto-sync sólo con evidencia suficiente; fallback/override manual;
+6. original siempre intacto;
+7. `candidate != semantic decision != edit`;
+8. `PROPOSED_CUT != executable CUT`;
+9. ante duda: `KEEP / REVIEW`;
+10. modo Conservador por defecto.
 
 ```text
-sources → ingest/sync → MASTER AUDIO + timeline → analysis → candidates → decisions → Edit Plan → render → audit
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → semantic decisions/protection → future Edit Plan → render → audit
 ```
 
 ## 2. Estado
@@ -28,34 +29,29 @@ Versión `0.1.0-dev`.
 
 Completado:
 
-- Fase 0 bootstrap;
-- Fase 0.5 technology harvest;
-- Cleaner de silencios + Edit Plan + render;
-- transcript TXT/JSON/SRT word-level;
-- Candidate Analysis review-only;
-- Fase 1A Portable Foundation core + ML PASS Windows;
-- Fase 1B dual ingest + master audio + sync/drift COMPLETADA y hardening Windows PASS;
-- Fase 1C `analyze` sobre master audio + `large-v3-turbo` en español real COMPLETADA;
-- Fase 2A **Semantic Candidates v1**: repetition/retake/explicit-correction review-only, Windows tests PASS.
+- Fase 0 — Bootstrap;
+- Fase 0.5 — Technology Harvest;
+- Fase 1A — Portable Foundation;
+- Fase 1B — dual ingest + master audio + sync/drift;
+- Fase 1C — Whisper/VAD sobre master + `large-v3-turbo` español real;
+- Fase 2A — Semantic Candidates v1;
+- Fase 2B — Semantic Decisions + Protection v1.
 
-Pendiente inmediato: **Fase 2B semantic decisions + semantic protection**, todavía sin promoción al Edit Plan.
+Pendiente inmediato: **Fase 2C — validación semántica real**. No existe todavía promoción semántica al Edit Plan.
 
 ## 3. Evidencia principal
 
-- Core portable `33600174568`: PASS.
-- ML portable `33621357438`: PASS.
+- Portable core `33600174568`: PASS.
+- Portable ML `33621357438`: PASS.
 - Sync hardening `33639009841`: PASS.
 - Master-audio analysis `33640872486`: PASS.
-- Target-model Spanish `33656235038`: PASS — WER 1.64%, RTF 0.4854, peak 1818.7 MiB, modelo 1546.5 MiB, 0 automatic edits.
-- Semantic Candidates v1 `33659725847`: PASS — 48 tests, doctor PASS, 0 artifacts.
+- Target-model Spanish `33656235038`: PASS — WER 1.64%, RTF 0.4854, peak 1818.7 MiB, modelo 1546.5 MiB, automatic edits 0.
+- Semantic Candidates `33659725847`: PASS — 48 tests, doctor PASS, artifacts 0.
+- Semantic Decisions/Protection `33741195594`: PASS — 55 tests en 6.671 s, doctor PASS, artifacts 0.
 
-Run `33659514611` falló porque Manual CI ejecutaba E2E de sync sin instalar NumPy. Todos los tests semánticos pasaron. Manual CI queda corregida para instalar `numpy==2.5.2` sin añadir Whisper/CTranslate2/ONNX al perfil ligero.
+Run `33661062365`: 54/55 PASS. El único fallo fue un test heredado que esperaba `analysis.json schema_version == 2`; Fase 2B eleva deliberadamente el schema actual a v3. Se corrigió sólo el test, no código productivo.
 
-PyInstaller `onedir` continúa como base provisional. No evaluar Nuitka sin problema/ventaja medible.
-
-## 4. Stack de análisis
-
-Pins:
+## 4. Stack fijado
 
 ```text
 faster-whisper 1.2.1
@@ -66,22 +62,19 @@ NumPy 2.5.2
 PyInstaller 6.22.2
 ```
 
-VAD usa faster-whisper + `silero_vad_v6.onnx`; no standalone Torch sin nueva evidencia.
+VAD: faster-whisper + `silero_vad_v6.onnx`. No standalone Torch.
 
-Modelo objetivo: `large-v3-turbo`. `tiny` sólo es fixture barato de runtime/CI.
+Modelo objetivo: `large-v3-turbo`; `tiny` sólo para fixtures baratos.
 
-Validación reproducible de target model:
+Validación target-model:
 
 ```text
 repo: rtlingo/mobiuslabsgmbh-faster-whisper-large-v3-turbo
 revision: 6bd64462dd562f8062828f585c3709aa52df0083
-model.bin bytes: 1617884929
 model.bin sha256: e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da
 ```
 
-Este pin pertenece al harness de validación; no obliga al producto a usar ese mirror.
-
-## 5. Portable / modelos
+## 5. Portable
 
 ```text
 Video_Tunner/
@@ -97,82 +90,51 @@ Video_Tunner/
 └── portable-manifest.json
 ```
 
-Frozen => portable strict. Sin fallback silencioso a PATH o cache global.
+Frozen => portable strict. Sin fallback silencioso a PATH o caches globales.
 
-Modelo completo mínimo: `config.json`, `model.bin`, `tokenizer.json`.
+## 6. Ingesta / sync
 
-CLI:
-
-```text
-video-tunner model status MODEL
-video-tunner model fetch MODEL [--replace]
-```
-
-## 6. Fase 1B — ingesta/sync — COMPLETADA
-
-Contrato temporal inmutable:
+Convención temporal inmutable:
 
 ```text
 video_time = offset_seconds + time_scale * external_time
 ```
 
-- offset > 0: externo empieza después del vídeo;
-- offset < 0: externo empieza antes;
-- drift ppm = `(time_scale - 1) * 1e6`.
+Auto-sync actual: log-RMS → ZNCC coarse → anchors multi-window → offset/scale → MAD outliers → confidence/residual/coverage.
 
-`sync.py`: audio mono 8 kHz → log-RMS envelope 50 Hz → coarse ZNCC → anchors → fit offset/scale → MAD outliers → confidence/residual/coverage.
+Evidencia insuficiente => `review_required`, sin master. Huecos del audio externo son silencio; nunca mezclar implícitamente audio de cámara.
 
-Política actual:
-
-```text
-confidence >= 0.65
-anchors >= 3
-residual RMS <= 0.08 s
-abs(drift) <= 2000 ppm
-coverage >= 0.98
-uncovered edge <= 5 s
-```
-
-Thresholds provisionales. Evidencia insuficiente => `review_required`, sin master. Manual override permitido. Huecos de external audio son silencio, nunca mezcla implícita de camera audio.
-
-Master output:
+Outputs:
 
 ```text
 <stem>_master_audio.flac
 <stem>_ingest.json
 ```
 
-## 7. Fase 1C — master audio + STT/VAD — COMPLETADA
+## 7. Analysis / schema
 
-`analyze` siempre usa master audio acreditado.
+`analyze` siempre usa master audio acreditado. Master pre-resuelto exige `ingest.json` y SHA-256 del vídeo fuente coincidente.
 
-Reglas:
+Fase 1C introdujo `analysis.json` schema v2 para provenance. **Schema actual: v3 desde Fase 2B.**
 
-- Whisper y Silero consumen el mismo master;
-- timestamps viven en timeline de vídeo;
-- master pre-resuelto exige ingest provenance;
-- SHA-256 fuente debe coincidir;
-- `review_required` detiene antes de ML;
-- `analysis.json` schema v2 registra provenance;
-- candidates no son edits.
-
-Target Spanish validation `33656235038`:
+Schema v3 separa:
 
 ```text
-fixture              46.58025 s
-reference words      61
-hypothesis words     62
-word errors          1
-WER                  1.64%
-word timestamps      PASS
-analyze              22.609 s
-RTF                  0.4854
-peak working set     1818.7 MiB
-model                1546.5 MiB
-automatic edits      0
+candidates[]
+semantic_decisions[]
 ```
 
-## 8. Fase 2A — Semantic Candidates v1 — COMPLETADA
+Safety flags obligatorios:
+
+```text
+semantic_protection_enabled = true
+semantic_decisions_are_not_edits = true
+semantic_decisions_executable = false
+```
+
+`automatic_edits` permanece `0`.
+
+## 8. Fase 2A — Semantic Candidates v1
 
 Módulo: `Source/video_tunner/semantic_candidates.py`.
 
@@ -184,9 +146,7 @@ possible_retake
 explicit_correction
 ```
 
-### Contrato obligatorio
-
-Todo hallazgo de esta capa:
+Todo candidate semántico:
 
 ```text
 decision = undecided
@@ -195,170 +155,130 @@ auto_apply = false
 span_safe_for_auto_apply = false
 ```
 
-Evidence mínima:
-
-- `removed_text` exacto del span candidato;
-- context_before/context_after;
-- word indices y timestamps;
-- detector y confidence;
-- evidencia específica de clase;
-- `requires_semantic_review=true`.
-
-### Repeticiones/retomas
-
-- por defecto conservar la ocurrencia posterior;
-- la segunda lectura debe quedar fuera del span candidato;
-- Conservador exige más tokens que Agresivo;
-- limitar proximidad temporal;
-- exigir palabras de contenido;
-- evitar openers desplazados/sufijos duplicados;
-- repetición intencional/lejana no debe convertirse automáticamente en retake.
+Conservar normalmente la lectura posterior. En `explicit_correction` el span es sólo el marcador; detectar `perdón` no demuestra qué texto anterior debe borrarse.
 
 Referencia conceptual: `Railly/vcut@2142cc54dc01a0d2272f1d99717b89cd1c7c9262`. Implementación Python propia.
 
-### Correcciones explícitas
+## 9. Fase 2B — Semantic Decisions + Protection v1
 
-Marcadores v1:
-
-- `perdón` / `perdona`;
-- `mejor dicho`;
-- `quiero decir`;
-- `sorry`;
-- `I mean`.
-
-No tratar `o sea`/`es decir` como error por defecto.
-
-El span de `explicit_correction` es sólo el marcador. Ejemplo:
+Módulos:
 
 ```text
-la facturación fue de 200 perdón de 250 mil euros
+Source/video_tunner/semantic_decisions.py
+Source/video_tunner/semantic_report.py
 ```
 
-No asumir todavía que `200` debe eliminarse; la capa de decisiones debe probar cuál es intento y cuál corrección antes de proponer un corte.
-
-### Evidencia
-
-Run `33659725847`: 48 tests PASS, incluidos 7 tests nuevos de semantic candidates/integración, E2E de sync y doctor. Artifacts 0.
-
-Ver `Validation/phase2-semantic-candidates.md`.
-
-## 9. Fase 2B — Semantic Decisions + Protection — SIGUIENTE
-
-Crear estructura explícita candidate → decision. Inicialmente ninguna decisión será ejecutable.
-
-Salida permitida:
+Decisiones posibles:
 
 ```text
 KEEP
 REVIEW
-proposed TRIM
-proposed CUT
+PROPOSED_TRIM
+PROPOSED_CUT
 ```
 
-con:
+Todas siguen:
 
 ```text
 executable = false
 auto_apply = false
 ```
 
-Guardas mínimas antes de cualquier promoción:
+Guardas deterministas v1:
 
-- números/importes/porcentajes/unidades;
+- integridad de word indices/timestamps;
+- `removed_text` debe coincidir con el transcript;
+- cifras;
+- importes, porcentajes y unidades;
 - negaciones;
+- persona/sujeto;
+- tiempo/aspecto y marcadores temporales;
+- causalidad/contraste;
+- señal heurística de entidades/nombres.
+
+Span inconsistente => `KEEP` + `guard_status=blocked`.
+
+Política:
+
+- repetición adyacente exactamente equivalente puede producir `PROPOSED_CUT`, nunca ejecutable;
+- retake con material real o conflicto protegido => `REVIEW`;
+- `explicit_correction` => siempre `REVIEW` en v1 y registra relación intento/corrección;
+- no inferir equivalencias ni conversiones de unidades;
+- no intentar reparar silenciosamente un candidate inválido.
+
+Casos cubiertos:
+
+```text
+200 → perdón → 250 mil euros
+10% → perdón → 15%
+no funciona → perdón → funciona
+```
+
+Ver `Validation/phase2-semantic-protection.md`.
+
+## 10. Siguiente — Fase 2C
+
+Crear corpus/fixtures de habla real con:
+
+- retomas/reinicios;
+- repeticiones;
+- errores/autocorrecciones;
+- cifras/importes/porcentajes;
+- negaciones;
+- nombres/entidades;
 - sujeto/persona;
-- tiempo verbal/aspecto;
-- entidades/nombres relevantes;
-- conectores de causalidad/contraste;
-- relación intento → versión corregida;
-- word boundaries medidos;
-- `removed_text` debe coincidir exactamente con el span;
-- ocurrencia buena nunca dentro del span eliminado.
+- tiempo/aspecto;
+- fillers.
 
-Ante conflicto o incertidumbre: KEEP/REVIEW.
+Objetivos:
 
-No añadir API cloud obligatoria. Si más adelante se usa modelo semántico, debe ser bounded, local-first y posterior a guardas deterministas.
+1. medir falsos positivos/falsos negativos;
+2. tensionar las guardas actuales;
+3. inferir de forma segura el scope `intento incorrecto → corrección válida`;
+4. distinguir fillers eliminables de elementos necesarios para naturalidad/significado;
+5. añadir límites de frase/join safety antes de promotion;
+6. mantener `executable=false` hasta evidencia suficiente.
 
-## 10. Edit Plan / render
+Cualquier modelo semántico futuro debe estar bounded por candidates deterministas y guardas de seguridad; local-first y fail-safe.
 
-Edit Plan contiene ediciones efectivas, nunca candidates sin decision layer.
+## 11. Edit Plan / render
+
+Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates o semantic decisions no ejecutables.
 
 Renderer actual: merge overlaps, trim/atrim+concat, H.264/AAC, no overwrite, abort si elimina todo.
 
-Pendiente futuro: source hash, removedText de edit aprobado, join audit, edge fades, loudness y post-render verification.
+Pendiente: source hash, removedText definitivo del edit aprobado, join audit, edge fades, loudness y post-render verification.
 
-## 11. Technology harvest
+## 12. Technology harvest
 
-Video_Tunner NO es fork.
+Video_Tunner NO es fork. Referencias principales: Railly/vcut, Cadence-Lab, ai-video-editor y SYSTRAN/faster-whisper. Ver `UPSTREAM_SOURCES.md`.
 
-Principales referencias: Railly/vcut, Cadence-Lab, ai-video-editor, SYSTRAN/faster-whisper. Ver `UPSTREAM_SOURCES.md`.
+Antes de adoptar código: licencia + commit + motivo + validación propia.
 
-Antes de copiar: licencia + commit + razón. Preferir API pública o reimplementación propia.
+## 13. GitHub / CI / Release
 
-## 12. GitHub / cuota
+GitHub es source of truth.
 
-GitHub = source of truth.
-
-- heavy CI deliberada;
-- workflows pesados manual-only normalmente;
+- CI deliberada; no Actions como debugger;
 - no polling frecuente;
-- no modelos/vídeos/ZIPs como artifacts ordinarios;
-- evidence ligera en `Validation/`;
-- no Release sin autorización expresa.
+- no modelos, vídeos, ZIPs o artifacts pesados ordinarios;
+- Manual CI ligera = paquete base + NumPy + FFmpeg; no sustituye validaciones ML/portable;
+- workflows manual-only normalmente;
+- si el conector no puede `workflow_dispatch`, usar sólo el mecanismo one-shot documentado, restaurando inmediatamente `workflow_dispatch` y eliminando el marker;
+- no publicar GitHub Release sin autorización expresa de Guille.
 
-Manual CI ligero instala paquete base + NumPy para cubrir sync; no instala el stack ML completo.
+## 14. Repo / docs
 
-El conector no expone `workflow_dispatch`. Procedimiento excepcional one-shot:
+No versionar builds, modelos, vídeos, caches, outputs ni ZIPs.
 
-1. push temporal limitado a marker path;
-2. crear marker una vez;
-3. confirmar un run;
-4. restaurar manual-only inmediatamente;
-5. borrar marker;
-6. verificar que no aparece run extra.
-
-No usar como trigger normal.
-
-## 13. Repo / docs
-
-No versionar builds, binarios, modelos, vídeos, caches, outputs ni ZIPs.
-
-Cambios de arquitectura/dependencias/build/validación => README + AGENTS sincronizados.
-
-- `ROADMAP.md`: planificación;
-- `UPSTREAM_SOURCES.md`: provenance;
-- `Validation/`: evidencia;
-- `Archive/`: releases publicadas sustituidas.
-
-## 14. Orden inmediato
-
-1. crear `semantic_decisions.py` / contrato equivalente;
-2. implementar guardas deterministas de números/negaciones/sujeto/tiempo verbal;
-3. modelar intento → corrección;
-4. validar `removed_text` y boundaries;
-5. crear fixtures de riesgo semántico y habla real con retomas deliberadas;
-6. mantener `executable=false` y `auto_apply=false`;
-7. no promover a Edit Plan hasta superar estas guardas.
+Cambios relevantes => mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation cuando corresponda.
 
 ## 15. Changelog técnico
 
-### bootstrap
-CLI, tools, silence Cleaner, Edit Plan, render.
-
-### analysis layer
-Word timestamps, transcript artifacts, Silero VAD, candidates.
-
-### portable core/ML
-PyInstaller onedir, local tools/models, offline frozen inference Windows PASS.
-
-### sync foundation + hardening
-Dual ingest, multi-anchor offset/drift estimator, confidence/coverage policy, manual override, failure-safe review y master FLAC alineado.
-
-### master-audio analysis
-`analyze` resuelve/verifica master audio, preserva provenance y usa el mismo master para Whisper + VAD.
-
-### target-model Spanish validation
-`large-v3-turbo` validado en frozen Windows: WER 1.64%, timestamps PASS, RTF 0.4854, 0 automatic edits.
-
-### Semantic Candidates v1
-Detector determinista review-only de repetitions/retakes/explicit corrections integrado en `analysis.json`; 48-test Windows run PASS. Fase 2A completada sin auto-apply.
+- Bootstrap: CLI, tools, silence Cleaner, Edit Plan, render.
+- Portable core/ML: PyInstaller onedir, tools/modelos locales, frozen/offline PASS.
+- Sync: dual ingest, offset/drift, confidence/coverage, manual override, master FLAC alineado.
+- Master analysis: mismo master para Whisper + VAD, provenance.
+- Target Spanish: `large-v3-turbo`, WER 1.64%, RTF 0.4854.
+- Semantic Candidates v1: repetitions/retakes/explicit corrections review-only.
+- Semantic Decisions + Protection v1: schema v3, guardas deterministas, 55-test Windows lightweight PASS, ninguna decision ejecutable.

@@ -124,65 +124,112 @@ Ran 48 tests in 6.469s
 OK
 ```
 
-Incluye todos los E2E de sync y 7 tests nuevos de semantic candidates/integración. Artifacts `0`.
+Artifacts `0`. Ver `Validation/phase2-semantic-candidates.md`.
 
-Run previo `33659514611`: falló por una inconsistencia preexistente de Manual CI (NumPy no instalado para E2E de sync), mientras todos los tests semánticos pasaban. El workflow ligero queda corregido con NumPy 2.5.2, sin instalar el stack ML completo.
+### 2B — Semantic Decisions + Protection v1 — COMPLETADA
 
-Ver `Validation/phase2-semantic-candidates.md`.
+Arquitectura:
 
-### 2B — Semantic Decisions + Protection — SIGUIENTE
+```text
+candidate → semantic decision/protection → future approved edit
+```
 
-Antes de cualquier edit ejecutable, crear una capa explícita candidate → decision.
-
-Salida inicial:
+Salida:
 
 ```text
 KEEP
 REVIEW
-proposed TRIM
-proposed CUT
+PROPOSED_TRIM
+PROPOSED_CUT
 ```
 
-pero:
+Contrato:
 
 ```text
+candidate != semantic decision != edit
+PROPOSED_CUT != executable CUT
 executable = false
 auto_apply = false
 ```
 
-Protecciones mínimas:
+`analysis.json` actual usa schema v3 y separa `candidates[]` de `semantic_decisions[]`.
 
+Guardas implementadas:
+
+- span integrity: word indices/timestamps/`removed_text`;
 - números, importes, porcentajes y unidades;
 - negaciones;
 - sujeto/persona;
-- tiempo verbal/aspecto;
-- entidades/nombres relevantes cuando sean detectables;
-- relación intento → versión corregida;
-- conectores que cambien causalidad/contraste;
-- límites de word timing;
-- `removed_text` debe corresponder exactamente al span propuesto;
-- segunda lectura de retoma/repetición no debe quedar dentro del span eliminado.
+- tiempo verbal/aspecto y marcadores temporales;
+- causalidad/contraste;
+- señal heurística de entidades/nombres relevantes;
+- relación intento → corrección para `explicit_correction`.
 
-Validación requerida antes de avanzar:
+Política:
 
-- fixtures sintéticos con números y negaciones;
-- habla real con errores/retomas deliberados;
-- false-positive cases: énfasis, repetición intencional y frases legítimamente reutilizadas;
-- Conservador debe caer a KEEP/REVIEW ante cualquier conflicto.
+- repetición exacta adyacente puede ser `PROPOSED_CUT`, nunca ejecutable;
+- retake con material real/conflicto protegido → `REVIEW`;
+- `explicit_correction` permanece `REVIEW` hasta inferir de forma segura el scope de la toma incorrecta;
+- candidate inconsistente → `KEEP` fail-safe;
+- `automatic_edits = 0`.
 
-### 2C — Promotion to Edit Plan — FUTURA
+Run previo `33661062365`: 54/55 PASS; único fallo = test heredado esperaba schema v2.
 
-Sólo después de 2B:
+Run final `33741195594` — SUCCESS:
+
+```text
+Ran 55 tests in 6.671s
+OK
+```
+
+`doctor` PASS, E2E sync/FFmpeg PASS, artifacts `0`.
+
+Ver `Validation/phase2-semantic-protection.md`.
+
+### 2C — Validación semántica real — SIGUIENTE
+
+Crear fixtures/corpus explícitos de habla real con:
+
+- retomas;
+- reinicios;
+- repeticiones;
+- errores/autocorrecciones;
+- cifras/importes/porcentajes;
+- negaciones;
+- nombres/entidades;
+- cambios de sujeto;
+- cambios temporales;
+- fillers.
+
+Objetivos:
+
+- medir falsos positivos/falsos negativos;
+- validar qué guardas funcionan y cuáles faltan;
+- probar especialmente correcciones tipo `200 → perdón → 250 mil euros`;
+- confirmar que Conservador cae a KEEP/REVIEW ante conflicto;
+- no introducir modelos semánticos sin un caso de uso medible y bounded por candidates/guardas deterministas.
+
+### 2D — Scope de correcciones + fillers contextuales — FUTURA
+
+- inferir de forma segura qué parte anterior es la toma incorrecta y qué parte posterior es la corrección válida;
+- distinguir muletillas realmente eliminables de palabras/sonidos necesarios para naturalidad/significado;
+- límites de frase y join safety;
+- ampliar protección semántica sólo con evidencia real.
+
+### 2E — Promotion to Edit Plan — FUTURA
+
+Sólo después de 2C/2D:
 
 - decidir qué clases pueden ser auto-aplicables;
 - thresholds por modo;
-- convertir decisiones aprobadas en Edit Plan;
+- convertir únicamente decisiones inequívocamente seguras en Edit Plan;
 - verificar joins/removedText;
-- mantener límite global de eliminación y fail-safe.
+- mantener límite global de eliminación y fail-safe;
+- el resto permanece `REVIEW / KEEP`.
 
 ## Fase 3 — Calidad audiovisual / auditoría
 
-Normalización, joins, denoise controlado, removedText, join audit, post-render verification, informe y rendimiento.
+Normalización, joins, denoise controlado, removedText definitivo, join audit, post-render verification, informe y rendimiento.
 
 ## Fase 4 — UX mínima
 
@@ -198,9 +245,10 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones después 
 
 ## Orden inmediato
 
-1. implementar semantic decision/protection layer review-only;
-2. proteger números/negaciones/sujeto/tiempo verbal/entidades;
-3. modelar corrección intento → versión corregida;
-4. crear fixtures específicos de riesgo semántico;
-5. validar con habla real que contenga errores/retomas deliberados;
-6. no promover nada a Edit Plan hasta superar estas guardas.
+1. crear corpus/fixtures de validación semántica real;
+2. medir falsos positivos/falsos negativos de candidates + decisions;
+3. tensionar cifras/unidades/negaciones/sujeto/tiempo/entidades;
+4. resolver scope seguro de correcciones explícitas;
+5. validar fillers contextuales;
+6. mantener `executable=false` hasta disponer de evidencia suficiente;
+7. no promover nada a Edit Plan antes de superar estas validaciones.

@@ -28,7 +28,9 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 1A — Portable Foundation: ✅
 - Fase 1B — Ingesta dual + sync/drift: ✅
 - Fase 1C — Transcripción/VAD sobre master audio + `large-v3-turbo` español real: ✅
-- Fase 2 — Cleaner semántico: 🟡 **Semantic Candidates v1 completado; decision/protection layer pendiente**
+- Fase 2A — Semantic Candidates v1: ✅
+- Fase 2B — Semantic Decisions + Protection v1: ✅
+- Fase 2C — Validación semántica real / scope de correcciones: 🟡 siguiente
 - Release pública: ninguna
 
 Video_Tunner sigue siendo producto/repo propio, no un fork.
@@ -113,8 +115,8 @@ Reglas:
 - un master pre-resuelto exige su `ingest.json`;
 - se verifica SHA-256 del vídeo fuente antes de reutilizarlo;
 - si ingest devuelve `review_required`, Whisper/VAD no arrancan;
-- `analysis.json` schema v2 registra provenance de master e ingest;
-- candidates siguen `undecided` y `auto_apply=false`.
+- Fase 1C introdujo `analysis.json` schema v2 para provenance; el schema actual es v3 desde Fase 2B;
+- candidates nunca son edits.
 
 ### Integración portable — run `33640872486`
 
@@ -144,9 +146,9 @@ Reglas:
 
 Con esta evidencia se cerró Fase 1C. Ver `Validation/master-audio-analysis-spike.md` y `Validation/spanish-large-v3-turbo-plan.md`.
 
-## Fase 2 — Semantic Candidates v1
+## Fase 2A — Semantic Candidates v1 — COMPLETADA
 
-`analyze` añade ahora una primera capa semántica **determinista y review-only** sobre los word timestamps.
+`analyze` añade una primera capa semántica **determinista y review-only** sobre los word timestamps.
 
 Clases iniciales:
 
@@ -170,36 +172,107 @@ la facturación fue de 200 perdón de 250 mil euros
                           marcador detectado
 ```
 
-En una corrección explícita, Video_Tunner **no adivina todavía** que todo lo anterior al marcador deba borrarse. El candidato del marcador conserva contexto antes/después para que la futura capa semántica pueda distinguir, por ejemplo, `200` de `250` sin alterar significado.
+Cada candidato semántico registra `removed_text`, contexto, word indices/timestamps, evidence y confidence, y permanece:
 
-Cada candidato semántico registra:
-
-- `removed_text` exacto del span candidato;
-- contexto anterior/posterior;
-- word indices/timestamps;
-- evidencia de clase;
-- confidence;
-- `suggested_decision=REVIEW`;
-- `decision=undecided`;
-- `auto_apply=false`;
-- `span_safe_for_auto_apply=false`.
+```text
+suggested_decision = REVIEW
+decision = undecided
+auto_apply = false
+span_safe_for_auto_apply = false
+```
 
 Referencia conceptual revisada: `Railly/vcut@2142cc54dc01a0d2272f1d99717b89cd1c7c9262`; la implementación Python es propia.
 
-### Validación — run `33659725847`
-
-**SUCCESS**:
+Run `33659725847` — **SUCCESS**:
 
 ```text
 Ran 48 tests in 6.469s
 OK
 ```
 
-Incluye todos los E2E de sync y los 7 tests nuevos de Semantic Candidates v1. `video-tunner doctor` PASS y artifacts `0`.
+Artifacts `0`. Ver `Validation/phase2-semantic-candidates.md`.
 
-El run anterior `33659514611` falló porque el workflow core no instalaba NumPy aunque ejecutaba E2E de auto-sync; todos los tests semánticos habían pasado. Manual CI queda corregida para instalar sólo `numpy==2.5.2` adicionalmente, sin añadir Whisper/CTranslate2/ONNX al workflow ligero.
+## Fase 2B — Semantic Decisions + Protection v1 — COMPLETADA
 
-Ver `Validation/phase2-semantic-candidates.md`.
+Se introduce una capa explícita y separada:
+
+```text
+candidate
+   ↓
+semantic decision + protection
+   ↓
+KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT
+```
+
+Contrato obligatorio:
+
+```text
+candidate != semantic decision != edit
+PROPOSED_CUT != executable CUT
+executable = false
+auto_apply = false
+```
+
+`analysis.json` actual usa **schema v3** y separa:
+
+```text
+candidates[]
+semantic_decisions[]
+```
+
+El report declara además:
+
+```text
+semantic_protection_enabled = true
+semantic_decisions_are_not_edits = true
+semantic_decisions_executable = false
+```
+
+Guardas v1 implementadas:
+
+- integridad del span: word indices, timestamps y `removed_text` deben coincidir;
+- cifras;
+- importes, porcentajes y unidades;
+- negaciones;
+- persona/sujeto;
+- tiempo/aspecto y marcadores temporales;
+- causalidad/contraste;
+- señal heurística de entidades/nombres propios.
+
+Comportamiento:
+
+- repetición adyacente exacta puede producir `PROPOSED_CUT`, siempre no ejecutable;
+- retoma con material real o cambios protegidos → `REVIEW`;
+- `explicit_correction` → siempre `REVIEW` en v1 porque detectar `perdón` no demuestra el límite exacto de la toma incorrecta;
+- candidate corrupto/inconsistente → `KEEP` fail-safe;
+- `automatic_edits` permanece `0`.
+
+Casos explícitos cubiertos:
+
+```text
+200 → perdón → 250 mil euros   => REVIEW
+10% → perdón → 15%             => REVIEW
+no funciona → perdón → funciona => REVIEW
+```
+
+### Validación final — run `33741195594`
+
+**SUCCESS**:
+
+```text
+Ran 55 tests in 6.671s
+OK
+```
+
+- semantic decisions/protection PASS;
+- pipeline schema v3 PASS;
+- E2E sync/FFmpeg PASS;
+- `video-tunner doctor` PASS;
+- artifacts `0`.
+
+El run previo `33661062365` hizo 54/55 PASS y falló únicamente porque un test heredado seguía esperando schema v2. Se actualizó ese test a la realidad v3 sin tocar código productivo.
+
+Ver `Validation/phase2-semantic-protection.md`.
 
 ## Pipeline
 
@@ -214,11 +287,9 @@ Whisper word-level + Silero VAD
   ↓
 acoustic + semantic candidates auditables
   ↓
-KEEP / TRIM / CUT / REVIEW
+semantic decisions + protection
   ↓
-protección semántica
-  ↓
-Edit Plan
+future approved Edit Plan
   ↓
 render + audit
 ```
@@ -238,16 +309,15 @@ Video_Tunner.exe model fetch large-v3-turbo
 
 En portable strict no existe fallback silencioso a caches globales.
 
-## Siguiente trabajo — Fase 2 semantic protection
+## Siguiente trabajo — Fase 2C
 
-1. crear `candidate → decision` sin convertir todavía decisiones en edits ejecutables;
-2. proteger cifras, importes, porcentajes y unidades;
-3. proteger negaciones y cambios de sujeto/persona;
-4. proteger tiempo verbal/aspecto y entidades relevantes;
-5. modelar corrección `intento → versión corregida`;
-6. verificar que `removed_text` coincide exactamente con el span propuesto;
-7. validar con habla que contenga errores/retomas deliberados;
-8. mantener `auto_apply=false` hasta disponer de evidencia suficiente.
+1. crear fixtures/corpus explícitos de habla real con retomas, reinicios, repeticiones, errores y autocorrecciones;
+2. medir falsos positivos y falsos negativos;
+3. validar especialmente cifras, porcentajes, negaciones, nombres, sujeto y tiempo;
+4. inferir de forma segura el scope `intento incorrecto → corrección válida`;
+5. distinguir fillers eliminables de elementos necesarios para naturalidad/significado;
+6. reforzar protección sólo con evidencia real;
+7. mantener todas las semantic decisions no ejecutables hasta demostrar qué clases pueden promoverse con seguridad.
 
 ## Principios
 

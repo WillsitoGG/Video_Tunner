@@ -9,6 +9,8 @@ from .edit_plan import MODE_SETTINGS
 from .ingest import ingest_video
 from .media import probe_media
 from .semantic_candidates import build_semantic_candidates
+from .semantic_decisions import build_semantic_decisions
+from .semantic_report import attach_semantic_decisions
 from .transcription import (
     transcribe_audio,
     write_srt,
@@ -108,12 +110,11 @@ def analyze_spoken_video(
     master_audio: str | Path | None = None,
     ingest_report_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Run ingest/master resolution, local transcription + VAD, then emit candidates.
+    """Resolve master audio, emit candidates, then attach non-executable decisions.
 
-    Whisper and Silero VAD always consume the same master audio. Because the
-    master is materialized on the video timeline, all transcript/VAD timestamps
-    remain video-timeline timestamps regardless of embedded/external origin.
-    Semantic candidates are evidence-only and never become edits in this stage.
+    Whisper and Silero VAD consume the same master audio. All timestamps remain
+    on the video timeline. Semantic decisions are deliberately separate from
+    candidates and never become executable edits in this phase.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
@@ -192,6 +193,7 @@ def analyze_spoken_video(
         candidates,
         build_semantic_candidates(transcript, mode=mode),
     )
+    semantic_decisions = build_semantic_decisions(transcript, candidates)
 
     stem = source_path.stem
     transcript_json = write_transcript_json(transcript, output_root / f"{stem}_transcript.json")
@@ -209,6 +211,7 @@ def analyze_spoken_video(
         ingest_report=ingest_report,
         ingest_report_path=ingest_path,
     )
+    attach_semantic_decisions(report, semantic_decisions)
     analysis_path = save_analysis_report(report, output_root / f"{stem}_analysis.json")
 
     return {
