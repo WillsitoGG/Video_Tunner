@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "description": "Phase 2D.1 labelled correction-scope benchmark. Scope evidence is never executable.",
+  "cases": [
+    {
+      "id": "scope-number-repeated-prefix-es",
+      "source_type": "constructed_scope_positive",
+      "text": "la facturación fue de 200 perdón de 250 mil euros",
+      "expect_correction_candidate": true,
+      "expected_status": "bounded",
+      "expected_strategy": "repeated_corrected_prefix_anchor",
+      "expected_attempt_text": "de 200"
+    },
+    {
+      "id": "scope-percentage-local-number-es",
+      "source_type": "constructed_scope_positive",
+      "text": "el margen era 10% perdón 15% este año",
+      "expect_correction_candidate": true,
+      "expected_status": "bounded",
+      "expected_strategy": "local_numeric_replacement",
+      "expected_attempt_text": "10%"
+    },
+    {
+      "id": "scope-number-word-es",
+      "source_type": "constructed_scope_positive",
+      "text": "son veinte quiero decir treinta unidades",
+      "expect_correction_candidate": true,
+      "expected_status": "bounded",
+      "expected_strategy": "local_numeric_replacement",
+      "expected_attempt_text": "veinte"
+    },
+    {
+      "id": "scope-negation-repeated-subject-es",
+      "source_type": "constructed_scope_positive",
+      "text": "esto no funciona perdón esto funciona correctamente",
+      "expect_correction_candidate": true,
+      "expected_status": "bounded",
+      "expected_strategy": "repeated_corrected_prefix_anchor",
+      "expected_attempt_text": "esto no funciona"
+    },
+    {
+      "id": "scope-entity-repeated-phrase-en",
+      "source_type": "constructed_scope_positive",
+      "text": "we chose Marta sorry we chose Maria for the demo",
+      "expect_correction_candidate": true,
+      "expected_status": "bounded",
+      "expected_strategy": "repeated_corrected_prefix_anchor",
+      "expected_attempt_text": "we chose Marta"
+    },
+    {
+      "id": "scope-corma-truncated-es",
+      "source_type": "human_transcript_reference",
+      "source_reference": "CORMA pseud.ATfar.01 / Zenodo 10.5281/zenodo.17455998",
+      "text": "pero la dee- perdón la de Marta ya está pasada",
+      "expect_correction_candidate": true,
+      "expected_status": "bounded",
+      "expected_strategy": "repeated_corrected_prefix_anchor",
+      "expected_attempt_text": "la dee-"
+    },
+    {
+      "id": "scope-ami-question-reframe-en",
+      "source_type": "human_transcript_reference",
+      "source_reference": "AMI ES2012d manual transcript",
+      "text": "i just wonder i mean how will people put these down i wonder",
+      "expect_correction_candidate": true,
+      "expected_status": "ambiguous",
+      "expected_strategy": "no_deterministic_left_boundary",
+      "expected_attempt_text": null
+    },
+    {
+      "id": "scope-person-change-ambiguous-es",
+      "source_type": "constructed_scope_negative",
+      "text": "Marta vendrá perdón Pedro vendrá mañana",
+      "expect_correction_candidate": true,
+      "expected_status": "ambiguous",
+      "expected_strategy": "no_deterministic_left_boundary",
+      "expected_attempt_text": null
+    },
+    {
+      "id": "scope-time-change-ambiguous-es",
+      "source_type": "constructed_scope_negative",
+      "text": "mañana iremos perdón hoy iremos juntos",
+      "expect_correction_candidate": true,
+      "expected_status": "ambiguous",
+      "expected_strategy": "no_deterministic_left_boundary",
+      "expected_attempt_text": null
+    },
+    {
+      "id": "scope-literal-quiero-decir-negative-es",
+      "source_type": "constructed_no_candidate",
+      "text": "quiero decir algo importante sobre el proyecto",
+      "expect_correction_candidate": false,
+      "expected_status": null,
+      "expected_strategy": null,
+      "expected_attempt_text": null
+    },
+    {
+      "id": "scope-discourse-i-mean-negative-en",
+      "source_type": "human_transcript_reference",
+      "source_reference": "AMI ES2012d discourse control",
+      "text": "we chose a fashion item i mean it is just a minor detailed point",
+      "expect_correction_candidate": false,
+      "expected_status": null,
+      "expected_strategy": null,
+      "expected_attempt_text": null
+    },
+    {
+      "id": "scope-apology-negative-es",
+      "source_type": "human_transcript_reference",
+      "source_reference": "CORMA pseud.VV_FA2_F_01 control",
+      "text": "ahora se me está bloqueando perdón eh que muchas gracias",
+      "expect_correction_candidate": false,
+      "expected_status": null,
+      "expected_strategy": null,
+      "expected_attempt_text": null
+    }
+  ]
+}
