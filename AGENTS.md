@@ -14,44 +14,37 @@ Obligatorio:
 4. Whisper, VAD y acoustic join validation usan exactamente el mismo master acreditado;
 5. auto-sync sólo con evidencia suficiente; override/manual fallback;
 6. original siempre intacto;
-7. `candidate != correction scope != filler assessment != join assessment != acoustic join assessment != semantic decision != edit`;
+7. `candidate != correction scope != filler assessment != join assessment != acoustic join assessment != semantic decision != eligibility assessment != edit`;
 8. `PROPOSED_CUT != executable CUT`;
 9. `bounded scope != safe cut`;
-10. `filler assessment != safe cut`;
-11. `join context != acoustically safe join`;
-12. `acoustic_context_only != semantic permission to cut`;
-13. ante duda: `KEEP / REVIEW`;
-14. conservador por defecto.
+10. `acoustic_context_only != semantic permission to cut`;
+11. `foundation_guards_pass != safe cut`;
+12. `future_promotion_candidate != approved edit`;
+13. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
+14. ante duda: `KEEP / REVIEW`;
+15. conservador por defecto.
 
 ```text
-sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → correction scopes + filler assessments → join assessments → acoustic join assessments → semantic decisions/protection → future combined eligibility → future Edit Plan → render → audit
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join assessments → acoustic join assessments → semantic decisions → eligibility assessments → future Edit Plan → render → audit
 ```
 
 ## 2. Estado
 
 Versión `0.1.0-dev`.
 
-Completado:
+Completado hasta:
 
-- Fase 0 — Bootstrap;
-- Fase 0.5 — Technology Harvest;
-- Fase 1A — Portable Foundation;
-- Fase 1B — ingest + sync/drift;
-- Fase 1C — Whisper/VAD sobre master + `large-v3-turbo` español real;
-- Fase 2A — Semantic Candidates v1;
-- Fase 2B — Semantic Decisions + Protection v1;
-- Fase 2C.1 — benchmark foundation;
-- Fase 2C.2 — evidencia humana bilingüe;
-- Fase 2C.3 — audio humano real → `large-v3-turbo` → semantic gate;
-- Fase 2D.1 — correction scope foundation v1 + schema v4;
-- Fase 2D.2 — contextual fillers foundation v1 + schema v5;
-- Fase 2D.3.1 — sentence/join context foundation v1 + schema v6;
-- Fase 2D.3.2 — acoustic join validation foundation v1 + schema v7;
-- Fase 2D.3.3 — human-audio acoustic evidence v1.
+- Fase 2C.3 — audio humano real → semantic gate;
+- Fase 2D.1 — correction scope/schema v4;
+- Fase 2D.2 — fillers/schema v5;
+- Fase 2D.3.1 — join context/schema v6;
+- Fase 2D.3.2 — acoustic join/schema v7;
+- Fase 2D.3.3 — human-audio acoustic evidence;
+- Fase 2D.4 — combined eligibility/schema v8.
 
-Siguiente: **Fase 2D.4 — Combined Eligibility / Promotion Policy Foundation**.
+Siguiente: **Fase 2D.5 — Human Combined Eligibility Evidence**.
 
-No existe promoción semántica/acústica al Edit Plan.
+No existe todavía promoción al Edit Plan.
 
 ## 3. Evidencia principal
 
@@ -67,6 +60,7 @@ No existe promoción semántica/acústica al Edit Plan.
 33773287106  117/117 — join context/schema v6
 33781903986  131/131 — acoustic join/schema v7
 33782959293  134/134 — human acoustic evidence PASS
+33790792753  138/138 — combined eligibility/schema v8 PASS
 ```
 
 No generalizar métricas de corpus fuera de su muestra.
@@ -84,19 +78,9 @@ PyInstaller 6.22.2
 
 VAD: faster-whisper + `silero_vad_v6.onnx`. Modelo objetivo: `large-v3-turbo`.
 
-## 5. Portable / ingest
+## 5. Analysis / schema
 
-Frozen => portable strict. Sin fallback silencioso a PATH/caches globales.
-
-```text
-video_time = offset_seconds + time_scale * external_time
-```
-
-Evidencia insuficiente => `review_required`, sin master. Nunca mezclar implícitamente audio de cámara en huecos del externo.
-
-## 6. Analysis / schema
-
-Schema actual `analysis.json`: **v7**.
+Schema actual: **v8**.
 
 ```text
 candidates[]
@@ -105,64 +89,43 @@ filler_assessments[]
 join_assessments[]
 acoustic_join_assessments[]
 semantic_decisions[]
+eligibility_assessments[]
 ```
 
 Siempre:
 
 ```text
-semantic_decisions_executable = false
-correction_scopes_safe_for_cut = false
-filler_assessments_safe_for_cut = false
-join_assessments_safe_for_cut = false
-acoustic_join_assessments_are_not_edits = true
-acoustic_join_assessments_executable = false
-acoustic_join_assessments_safe_for_cut = false
-join_acoustic_validation_enabled = true
-join_acoustic_validation_is_not_cut_authorization = true
+eligibility_assessments_are_not_edits = true
+eligibility_assessments_executable = false
+eligibility_assessments_safe_for_cut = false
+future_promotion_candidates_are_not_approved_edits = true
+combined_eligibility_enabled = true
+combined_eligibility_is_not_edit_plan_promotion = true
+safe_for_cut = false
+executable = false
+auto_apply = false
 automatic_edits = 0
 ```
 
-## 7. Semántica / correction scope / fillers
+## 6. Semantic / scope / filler guards
 
-Candidates: `possible_repetition`, `possible_retake`, `explicit_correction`.
-
-Semantic decisions: `KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT`; todas no ejecutables.
+Semantic decisions: `KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT`; siempre no ejecutables.
 
 Correction scope: `bounded / ambiguous / invalid`; `bounded` no implica cut seguro.
 
-Fillers contextuales: `isolated_hesitation / hesitation_cluster / protected_repair_context / boundary_hesitation / uncertain_asr / invalid`; ningún estado es permiso de corte.
+Fillers: sólo `isolated_hesitation` puede atravesar la policy foundation; cualquier cluster, repair, boundary, uncertain ASR o invalid queda bloqueado.
 
 Whisper puede omitir fillers, vacilaciones o truncamientos; no inventar evidencia ausente.
 
-## 8. Join Context Safety — 2D.3.1
+## 7. Join + acoustic guards
 
-Estados:
+Join v1 pass para eligibility: sólo `join_context_only`.
 
-```text
-join_context_only
-sentence_boundary_risk
-segment_boundary_risk
-critical_lexical_context_risk
-repair_or_protected_context_risk
-transcript_edge
-invalid_or_unbounded_target
-```
+Acoustic v1 pass para eligibility: sólo `acoustic_context_only` o `low_energy_boundary_context`, y siempre con `measurement_available=true`.
 
-`join_context_only` sólo significa que ninguna guarda timeline/léxica v1 se activó.
+Esto no significa seguridad perceptual ni permiso de corte.
 
-Detalle: `Validation/phase2d-join-safety.md`.
-
-## 9. Acoustic Join Validation — 2D.3.2
-
-```text
-master acreditado
-→ decode temporal PCM16 mono 16 kHz
-→ NumPy memmap
-→ 80 ms antes + 80 ms después
-→ RMS / edge RMS / peak / sample jump / jump ratio
-```
-
-Thresholds v1:
+Thresholds acústicos v1 permanecen:
 
 ```text
 SILENCE_DBFS                 = -42.0
@@ -171,82 +134,80 @@ MAX_BOUNDARY_SAMPLE_JUMP     = 0.35
 MAX_BOUNDARY_JUMP_RATIO      = 1.25
 ```
 
+## 8. Combined Eligibility — 2D.4
+
 Estados:
 
 ```text
-blocked_by_context
-insufficient_audio_context
-low_energy_boundary_context
-level_discontinuity_risk
-waveform_discontinuity_risk
-combined_discontinuity_risk
-acoustic_context_only
+foundation_guards_pass
+blocked_acoustic_context
+blocked_filler_context
+blocked_semantic_decision
+blocked_join_context
+blocked_correction_scope
+invalid_removed_text
+missing_required_evidence
 ```
 
-Reglas: no medir joins ya bloqueados; no cargar horas completas en RAM; `acoustic_context_only` y low-energy siguen no ejecutables; renderer hard-concat no cambia.
+Precedencia fail-safe:
 
-Detalle: `Validation/phase2d-acoustic-join.md`.
+1. validar target/`removedText`;
+2. exigir scope bounded para correction;
+3. exigir filler isolated para filler;
+4. exigir semantic decision si el kind es semántico;
+5. exigir semantic `PROPOSED_CUT/PROPOSED_TRIM` + `guard_status=pass`;
+6. exigir `join_context_only`;
+7. exigir acoustic assessment presente;
+8. exigir acoustic status permitido y medición real;
+9. sólo entonces `foundation_guards_pass`.
 
-## 10. Human-audio Acoustic Evidence — 2D.3.3
+Para spans textuales, `removedText` exige índices válidos + transcript normalizado coincidente + timestamps dentro de `0.03 s`. Para pausas, exige gap temporal vacío y start/end coincidentes. Corrections bounded pueden usar el target definitivo `attempt + marker`.
 
-Run `33782959293` reutiliza timestamps reales de `large-v3-turbo` de `33755013415` y mide el WAV AMI original validado por tamaño/SHA-256.
+`foundation_guards_pass` produce únicamente:
 
 ```text
-134/134 tests PASS en 6.803 s
-cases 3
-measured 1
-blocked 2
-failures 0
-HUMAN_ACOUSTIC_GATE=PASS
-artifacts 0
+future_promotion_candidate = true
+safe_for_cut = false
+executable = false
+auto_apply = false
 ```
 
-Control medido:
+Benchmark: 12 casos, 4 rutas pass y 8 bloqueos deliberados cubriendo cada capa.
 
-```text
-acoustic_status       acoustic_context_only
-RMS delta             4.9369 dB
-boundary jump         0.030243
-boundary jump ratio   0.340433
-safe_for_cut          false
-```
+Run `33790792753`: 138/138 PASS en 7.035 s; artifacts 0.
 
-Retake humano y correction ambigua permanecen `blocked_by_context`. La acústica nunca rescata un join ya bloqueado.
+Detalle: `Validation/phase2d-combined-eligibility.md`.
 
-No mover thresholds v1 por este run. Una sola medición humana no prueba seguridad universal ni calidad perceptual.
+## 9. Siguiente — 2D.5 Human Combined Eligibility Evidence
 
-Detalle: `Validation/phase2d-human-acoustic-evidence.md`.
+Objetivo: aplicar la policy v1 a endpoints humanos trazables sin relajar guardas.
 
-## 11. Siguiente — 2D.4 Combined Eligibility / Promotion Policy Foundation
+Reglas:
 
-Objetivo: combinar todas las guardas sin promover todavía edits.
+1. reutilizar evidencia AMI ya fijada cuando sea suficiente;
+2. no volver a descargar/ejecutar el modelo si los endpoints congelados bastan;
+3. retakes, corrections ambiguas y contextos protegidos deben seguir bloqueados;
+4. validar `removedText` con timings reales;
+5. si no existe un positivo humano legítimo, registrar esa ausencia: no fabricar uno relajando policy;
+6. todo resultado sigue `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
+7. sólo después decidir si 2D puede cerrarse y pasar a 2E.
 
-Reglas iniciales:
+## 10. Edit Plan / render
 
-1. la elegibilidad debe ser una capa separada del Edit Plan;
-2. todos los requisitos previos deben cumplirse acumulativamente;
-3. cualquier riesgo, scope ambiguo, contexto protegido o inconsistencia => REVIEW/bloqueo;
-4. `removedText` debe verificarse contra índices, transcript y timestamps;
-5. benchmark debe incluir fallos deliberados de cada capa;
-6. durante la foundation: `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
-7. no permitir que una señal acústica limpia anule una guarda semántica/contextual.
+Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, scopes, assessments o future-promotion candidates no aprobados.
 
-## 12. Edit Plan / render
+Pendiente: evidencia humana de combined eligibility, eventual promotion policy explícita, join treatment/audit, fades/loudness y post-render verification.
 
-Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, scopes o assessments no ejecutables.
-
-Pendiente: combined eligibility, `removedText` definitivo, promoción explícita futura, join treatment/audit, fades/loudness y post-render verification.
-
-## 13. GitHub / CI / Release
+## 11. GitHub / CI / Release
 
 GitHub es source of truth.
 
-- CI deliberada; no usar Actions como debugger;
+- CI deliberada;
 - no modelos, vídeos, ZIPs o artifacts pesados ordinarios;
 - workflows manual-only normalmente;
 - trigger one-shot sólo cuando sea necesario y restaurar inmediatamente;
 - no publicar GitHub Release sin autorización expresa de Guille.
 
-## 14. Docs
+## 12. Docs
 
 Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.
