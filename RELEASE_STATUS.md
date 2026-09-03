@@ -9,222 +9,149 @@
 - Windows 10/11 x64 validado manualmente por Guille: **no**
 - Fase 0: COMPLETADA
 - Fase 0.5: COMPLETADA
-- Fase 1A: **COMPLETADA — Portable Foundation Windows core + ML PASS**
-- Fase 1B: **COMPLETADA — dual ingest + sync/drift + hardening Windows PASS**
-- Fase 1C: **COMPLETADA — master audio → Whisper/VAD + `large-v3-turbo` español real PASS**
-- Fase 2A: **COMPLETADA — Semantic Candidates v1**
-- Fase 2B: **COMPLETADA — Semantic Decisions + Protection v1**
-- Fase 2C: **EN CURSO — benchmark foundation v1 + primer retake humano positivo PASS; ampliar positivos humanos pendiente**
+- Fase 1A: COMPLETADA — Portable Foundation core + ML PASS
+- Fase 1B: COMPLETADA — dual ingest + sync/drift PASS
+- Fase 1C: COMPLETADA — master → Whisper/VAD + target Spanish PASS
+- Fase 2A: COMPLETADA — Semantic Candidates v1
+- Fase 2B: COMPLETADA — Semantic Decisions + Protection v1
+- Fase 2C: **EN CURSO — benchmark foundation + retake humano + correcciones humanas bilingües PASS**
 
-## Evidencia portable / ML
-
-### Core — `33600174568`
-
-SUCCESS.
-
-- PyInstaller 6.22.2 `onedir`;
-- bundled FFmpeg/ffprobe;
-- PATH sin Python/FFmpeg externos;
-- `doctor`, `probe`, `clean`, render y ffprobe PASS;
-- ZIP temporal `122677058` bytes;
-- SHA-256 `5F3CFE09F017DE0421B906CE529822F830C8FFDE0731161AAFA42120464F4E97`;
-- artifacts 0.
-
-### ML — `33621357438`
-
-SUCCESS.
-
-- faster-whisper 1.2.1;
-- CTranslate2 4.8.1;
-- ONNX Runtime 1.29.0;
-- tokenizers 0.23.1;
-- NumPy 2.5.2;
-- PyAV 18.1.0;
-- Silero VAD V6 ONNX frozen;
-- frozen/offline Whisper + VAD PASS;
-- artifacts 0.
-
-## Fase 1B — sync
-
-Foundation `33634775313` — SUCCESS.
-
-Hardening `33639009841` — SUCCESS: 37 tests, offset negativo, drift +1000 ppm, low-signal review, manual override y partial coverage. Artifacts 0.
-
-## Fase 1C — master audio + modelo objetivo
-
-Run `33640872486` — SUCCESS: 41 tests PASS, frozen analysis PASS, embedded/external master PASS, automatic edits 0, artifacts 0.
-
-Run target Spanish `33656235038` — SUCCESS:
+## Evidencia principal
 
 ```text
-fixture duration           46.58025 s
-reference words           61
-hypothesis words          62
-word errors               1
-WER                       1.64%
-median word duration      0.36 s
-analyze                   22.609 s
-real-time factor          0.4854
-peak working set          1818.7 MiB
-model staged              1546.5 MiB
-candidates                16
-automatic edits           0
-artifacts                 0
+Portable core                    33600174568  PASS
+Portable ML                      33621357438  PASS
+Sync hardening                   33639009841  PASS
+Master analysis                  33640872486  PASS
+Target Spanish                   33656235038  PASS — WER 1.64%, RTF 0.4854
+Semantic Candidates              33659725847  PASS — 48 tests
+Semantic Decisions/Protection    33741195594  PASS — 55 tests
 ```
 
-## Fase 2A — Semantic Candidates v1
+Todas mantienen `automatic_edits = 0` donde aplica y artifacts pesados = 0.
 
-Clases:
+## Fase 2C
+
+### Foundation baseline — `33742519997`
 
 ```text
-possible_repetition
-possible_retake
-explicit_correction
+60 tests PASS
+FP 2 / FN 0
+precision 84.62%
+recall 100%
+F1 91.67%
+unsafe proposals 0
 ```
 
-Todo candidate sigue review-only:
+### Foundation ajustada — `33743029443`
 
 ```text
-decision = undecided
-suggested_decision = REVIEW
-auto_apply = false
-span_safe_for_auto_apply = false
+64 tests PASS
+21 casos / 11 eventos
+FP 0 / FN 0
+precision = recall = F1 = 100% en ese corpus
+unsafe proposals 0
+executable 0
+auto_apply 0
+artifacts 0
 ```
 
-Run final `33659725847` — SUCCESS: 48 tests, doctor PASS, sync E2E PASS, artifacts 0.
+### Primer retake humano — `33743638690`
 
-## Fase 2B — Semantic Decisions + Protection v1
+```text
+65 tests PASS
+22 casos / 12 eventos
+possible_retake → REVIEW
+FP 0 / FN 0
+unsafe proposals 0
+artifacts 0
+```
 
-Contrato:
+### Correcciones humanas bilingües — baseline `33750475437`
+
+Se añadieron:
+
+- AMI EN: `I mean` correction positivo y `I mean` discourse negativo;
+- CORMA ES: `Perdón` correction positivo y `perdón eh` apology negativo.
+
+Baseline:
+
+```text
+69 tests PASS en 6.718 s
+26 casos / 14 eventos
+14 TP / 2 FP / 0 FN
+precision 87.50%
+recall 100%
+F1 93.33%
+unsafe proposals 0
+executable 0
+auto_apply 0
+```
+
+El gate falló únicamente por precision; los 2 FP eran los dos usos humanos ambiguos de marcador.
+
+### Tuneo Conservador
+
+- `I mean / quiero decir`: exige frontera explícita de reparación o sustitución numérica;
+- `perdón / perdona / sorry`: rechaza patrón de disculpa/hesitación sin intento interrumpido;
+- fragmento truncado + marcador sigue siendo `explicit_correction → REVIEW`;
+- modo Agresivo mantiene detección más amplia.
+
+### Final — `33750836791`
+
+```text
+74 tests PASS en 6.729 s
+26 casos
+14 eventos esperados / 14 candidates
+FP 0
+FN 0
+precision 100%
+recall 100%
+F1 100%
+decision mismatches 0
+unsafe proposals 0
+missing safe proposals 0
+executable decisions 0
+auto_apply decisions 0
+artifacts 0
+```
+
+Además:
+
+- `video-tunner doctor` PASS;
+- E2E FFmpeg/sync PASS;
+- workflow restaurado a manual-only;
+- trigger marker eliminado.
+
+**El 100% acredita únicamente el corpus etiquetado actual.** El harness usa timings deterministas y no prueba todavía que el transcript de Whisper preserve las mismas señales manuales de reparación.
+
+## Safety actual
 
 ```text
 candidate != semantic decision != edit
 PROPOSED_CUT != executable CUT
-```
-
-Todas las decisiones permanecen:
-
-```text
+semantic_decisions_executable = false
 executable = false
 auto_apply = false
+automatic_edits = 0
 ```
 
-`analysis.json` usa schema v3 y separa `candidates[]` de `semantic_decisions[]`.
+`explicit_correction` sigue siendo marker-only: todavía no se infiere qué span anterior debe eliminarse.
 
-Run final `33741195594` — **SUCCESS**:
+## Pendiente antes de Release
 
-```text
-Ran 55 tests in 6.671s
-OK
-```
-
-- Semantic Decisions/Protection PASS;
-- E2E FFmpeg/sync PASS;
-- `video-tunner doctor` PASS;
-- artifacts 0;
-- `automatic_edits = 0`.
-
-## Fase 2C — Semantic Validation Foundation v1
-
-Benchmark etiquetado para separar calidad de detección y seguridad de decisiones.
-
-### Baseline
-
-Run `33742519997` — SUCCESS:
-
-```text
-Ran 60 tests in 6.603s
-FP                       2
-FN                       0
-precision           84.62%
-recall             100.00%
-F1                  91.67%
-unsafe proposals         0
-executable decisions     0
-auto_apply decisions     0
-```
-
-Los FP observados fueron reutilización legítima cercana del opener y `quiero decir` literal. Ambos eran review-only.
-
-### Tuneo
-
-Sólo se endureció el detector Conservador:
-
-- continuidad normal sin reparación => no retake;
-- evidencia de vacilación/reparación sigue permitiendo retake;
-- `quiero decir` / `I mean` se consideran ambiguos en contextos literales y siguen disponibles tras un intento previo.
-
-### Corpus ajustado
-
-Run `33743029443` — **SUCCESS**:
-
-```text
-Ran 64 tests in 6.588s
-cases                    21
-expected events          11
-actual candidates        11
-FP                        0
-FN                        0
-precision           100.00%
-recall              100.00%
-F1                  100.00%
-decision mismatches       0
-unsafe proposals          0
-missing safe proposals    0
-executable decisions      0
-auto_apply decisions      0
-artifacts                  0
-```
-
-### Primer positivo humano real
-
-Se incorpora un retake espontáneo del AMI Meeting Corpus ES2012d como `human_speech_positive`.
-
-Run `33743638690` — **SUCCESS**:
-
-```text
-Ran 65 tests in 6.789s
-cases                    22
-expected events          12
-actual candidates        12
-FP                        0
-FN                        0
-precision           100.00%
-recall              100.00%
-F1                  100.00%
-decision mismatches       0
-unsafe proposals          0
-missing safe proposals    0
-executable decisions      0
-auto_apply decisions      0
-artifacts                  0
-```
-
-- retake humano AMI: `possible_retake → REVIEW`;
-- `guard_status=review`;
-- `video-tunner doctor` PASS;
-- E2E FFmpeg/sync PASS;
-- workflow restaurado a manual-only;
-- marker one-shot eliminado.
-
-**Limitación:** el 100% sólo acredita el corpus v1 actual. Existe todavía un único positivo humano espontáneo real en el benchmark; además el harness semántico usa timings deterministas y este run no valida audio AMI → Whisper → semántica.
-
-Ver `Validation/phase2c-semantic-validation.md`.
-
-## Pendiente antes de una Release
-
-- ampliar Fase 2C con más positivos humanos reales;
-- incorporar la autocorrección humana AMI con `I mean` ya localizada;
-- buscar positivos humanos en español con fuente/licencia adecuada;
-- resolver scope seguro `intento incorrecto → corrección válida`;
+- Fase 2C.3: pocos clips humanos reales → `large-v3-turbo` → semantic gate;
+- priorizar evidencia en español;
+- comprobar pérdida de truncamientos/puntuación por ASR;
+- correction scope seguro;
 - fillers contextuales;
 - límites de frase y join safety;
 - no promover semantic decisions al Edit Plan hasta evidencia suficiente;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;
-- decidir estrategia final de distribución/adquisición del modelo.
+- estrategia final de distribución/adquisición del modelo.
 
-No existe todavía paquete final para `SHA256SUMS.txt` ni versión sustituida para `Archive/`.
+No existe todavía paquete final para `SHA256SUMS.txt` ni versión para `Archive/`.
 
 **No publicar una GitHub Release sin autorización expresa de Guille.**

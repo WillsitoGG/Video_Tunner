@@ -4,217 +4,188 @@
 
 - Windows 10/11 x64 portable: ZIP → descomprimir → ejecutar.
 - Vídeo con audio embebido o vídeo + audio externo.
-- Resolver master audio y sincronización antes de transcripción/VAD/semántica.
-- Originales intactos y decisiones auditables.
+- Master audio y sincronización antes de transcripción/VAD/semántica.
+- Originales intactos y decisiones auditables/reversibles.
 - Ante baja confianza: REVIEW/manual, no adivinar.
 - CI pesada sólo cuando aporta evidencia nueva.
 
-## Fase 0 — Bootstrap — COMPLETADA
+## Fases completadas
 
+### Fase 0 — Bootstrap
 CLI, FFmpeg/ffprobe, probe, Cleaner de silencios, Edit Plan, render y tests.
 
-## Fase 0.5 — Technology Harvest — COMPLETADA
-
+### Fase 0.5 — Technology Harvest
 Repo propio, no fork. Upstreams sólo como referencias/integraciones trazables.
 
-## Fase 1A — Portable Foundation — COMPLETADA
+### Fase 1A — Portable Foundation
+- core `33600174568` PASS;
+- ML frozen `33621357438` PASS.
 
-Core Windows run `33600174568` PASS.
+### Fase 1B — Ingesta dual + sincronización A/V
+- master FLAC;
+- offset positivo/negativo;
+- drift;
+- confidence/residual/coverage;
+- manual override y `review_required`.
 
-ML frozen run `33621357438` PASS con faster-whisper/CTranslate2/ONNX Runtime/Silero VAD ONNX e inferencia offline desde modelo local.
+Hardening `33639009841` PASS.
 
-PyInstaller `onedir` queda como base provisional.
+### Fase 1C — Transcripción + VAD sobre master
+Whisper y Silero VAD reciben exactamente el mismo master.
 
-## Fase 1B — Ingesta dual + sincronización A/V — COMPLETADA
+Target Spanish `33656235038`: WER `1.64%`, word timestamps PASS, RTF `0.4854`, automatic edits 0.
 
-Contrato:
+### Fase 2A — Semantic Candidates v1
+`possible_repetition`, `possible_retake`, `explicit_correction`, todo review-only.
 
-```text
-A) video + embedded audio → master audio
-B) video + external audio → sync → external synchronized master audio
-```
+Run `33659725847`: 48 tests PASS.
 
-Convención única:
-
-```text
-video_time = offset_seconds + time_scale * external_time
-```
-
-Implementado: `ingest` CLI, master FLAC 48 kHz, SHA-256, auto-sync multi-anchor, offset +/- , drift, residual, confidence, coverage, manual override, `review_required`, sin mezcla implícita de cámara y master alineado a la timeline.
-
-Foundation `33634775313` — SUCCESS.
-
-Hardening `33639009841` — SUCCESS con 37 tests.
-
-## Fase 1C — Transcripción + VAD sobre master audio — COMPLETADA
-
-`analyze` trabaja siempre sobre master audio acreditado. Whisper y Silero VAD reciben exactamente el mismo master; todos los timestamps permanecen en timeline de vídeo.
-
-Run `33640872486` — SUCCESS: 41 tests, frozen analysis PASS, embedded/external master PASS, automatic edits `0`, artifacts `0`.
-
-Target Spanish `33656235038` — SUCCESS: WER `1.64%`, word timestamps PASS, RTF `0.4854`, automatic edits `0`, artifacts `0`.
-
-## Fase 2 — Cleaner inteligente — EN CURSO
-
-Objetivo: convertir transcript + VAD + candidates en propuestas semánticas auditables sin sacrificar significado.
-
-### 2A — Semantic Candidates v1 — COMPLETADA
-
-Implementado `possible_repetition`, `possible_retake`, `explicit_correction`, evidencia exacta, lectura posterior preservada y política review-only.
-
-Run `33659725847` — SUCCESS: 48 tests, artifacts `0`.
-
-### 2B — Semantic Decisions + Protection v1 — COMPLETADA
+### Fase 2B — Semantic Decisions + Protection v1
 
 ```text
 candidate → semantic decision/protection → future approved edit
 ```
 
-Salida:
-
 ```text
-KEEP
-REVIEW
-PROPOSED_TRIM
-PROPOSED_CUT
-```
-
-Contrato:
-
-```text
-candidate != semantic decision != edit
-PROPOSED_CUT != executable CUT
+KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT
 executable = false
 auto_apply = false
 ```
 
-`analysis.json` usa schema v3 y separa `candidates[]` de `semantic_decisions[]`.
+Run `33741195594`: 55 tests PASS, artifacts 0.
 
-Guardas: span integrity, números/importes/porcentajes/unidades, negaciones, sujeto/persona, tiempo/aspecto, causalidad/contraste, señal heurística de entidades y relación intento→corrección.
-
-Run final `33741195594` — SUCCESS: 55 tests, doctor PASS, artifacts `0`, automatic edits `0`.
+## Fase 2 — Cleaner inteligente — EN CURSO
 
 ### 2C — Validación semántica real — EN CURSO
 
 #### 2C.1 — Benchmark/Validation Foundation v1 — COMPLETADA
 
-Harness reproducible para medir TP/FP/FN, precision/recall/F1, decision mismatches, unsafe proposals, missing safe proposals, executable decisions y auto-apply decisions.
+Harness TP/FP/FN + precision/recall/F1 + safety.
 
-Baseline `33742519997` — SUCCESS:
+Baseline `33742519997`:
 
 ```text
 60 tests
-FP 2
-FN 0
+FP 2 / FN 0
 precision 84.62%
 recall 100%
-F1 91.67%
 unsafe proposals 0
 ```
 
-Tuneo Conservador guiado únicamente por los dos FP observados:
+Tuneo conservador basado sólo en FP observados.
 
-- reutilización legítima de opener tras continuación normal;
-- `quiero decir` / `I mean` en contexto literal.
-
-Validación ajustada `33743029443` — SUCCESS:
+`33743029443`:
 
 ```text
-64 tests en 6.588 s
-21 casos
-11 expected / 11 actual
-FP 0
-FN 0
-precision 100%
-recall 100%
-F1 100%
+64 tests
+21 casos / 11 eventos
+FP 0 / FN 0
+precision = recall = F1 = 100% en ese corpus
 unsafe proposals 0
-executable decisions 0
-auto_apply decisions 0
+executable 0
+auto_apply 0
+```
+
+#### 2C.2 — Positivos/negativos humanos — EN CURSO, BLOQUE BILINGÜE COMPLETADO
+
+Primer retake humano AMI:
+
+`33743638690` — 65 tests PASS, `possible_retake → REVIEW`, 0 FP/FN.
+
+Extensión bilingüe:
+
+- AMI EN: `I mean` reparación real + `I mean` discursivo negativo;
+- CORMA ES: `Perdón` tras fragmento abandonado + `perdón eh` disculpa negativa.
+
+Baseline `33750475437`:
+
+```text
+69 tests PASS
+26 casos / 14 eventos
+14 TP / 2 FP / 0 FN
+precision 87.50%
+recall 100%
+F1 93.33%
+unsafe proposals 0
+```
+
+Los dos FP fueron los dos usos humanos ambiguos de marcador; gate falló sólo por precision.
+
+Tuneo Conservador:
+
+- `I mean / quiero decir`: exigir frontera de reparación o sustitución numérica;
+- `perdón / perdona / sorry`: rechazar patrón de disculpa/hesitación sin intento interrumpido;
+- fragmento truncado + marcador sigue `REVIEW`;
+- Agresivo conserva detección más amplia.
+
+Final `33750836791`:
+
+```text
+74 tests PASS en 6.729 s
+26 casos / 14 eventos
+FP 0 / FN 0
+precision = recall = F1 = 100% en el corpus actual
+unsafe proposals 0
+decision mismatches 0
+missing safe proposals 0
+executable 0
+auto_apply 0
 artifacts 0
 ```
 
-**Este 100% sólo vale para el corpus etiquetado.**
+El corpus combinado incluye actualmente 3 positivos humanos y 2 negativos humanos explícitos, además de 4 controles SpanishPod.
 
-#### 2C.2 — Positivos humanos espontáneos — EN CURSO
+**El 100% sólo vale para el corpus etiquetado actual.**
 
-Primer positivo incorporado desde AMI Meeting Corpus ES2012d: retake humano espontáneo con opener repetido tras vacilación/interrupción.
+#### 2C.3 — Audio real → Whisper → semántica — SIGUIENTE
 
-Run `33743638690` — SUCCESS:
+Objetivo: comprobar qué señales manuales de reparación sobreviven al ASR real.
 
-```text
-65 tests en 6.789 s
-22 casos
-12 expected / 12 actual
-FP 0
-FN 0
-precision 100%
-recall 100%
-F1 100%
-unsafe proposals 0
-executable decisions 0
-auto_apply decisions 0
-artifacts 0
-```
+Orden:
 
-Resultado del positivo humano:
-
-```text
-possible_retake → REVIEW
-guard_status = review
-```
-
-Pendiente dentro de 2C.2:
-
-- ampliar retomas/reinicios humanos reales;
-- incorporar la autocorrección humana AMI con `I mean` ya localizada;
-- buscar positivos humanos equivalentes en español con fuente/licencia adecuada;
-- ejecutar audio → Whisper → semántica cuando aporte evidencia nueva;
-- mantener thresholds predefinidos y no relajarlos para ocultar fallos.
-
-Ver `Validation/phase2c-semantic-validation.md`.
+1. seleccionar pocos clips humanos con licencia/provenance clara, priorizando español;
+2. ejecutar `large-v3-turbo` sólo si aporta evidencia nueva;
+3. comparar transcript manual vs transcript Whisper para truncamientos, pausas y marcadores;
+4. alimentar el mismo semantic gate;
+5. registrar FP/FN sin mover thresholds;
+6. endurecer sólo problemas observados.
 
 ### 2D — Scope de correcciones + fillers contextuales — FUTURA
 
-- inferir de forma segura qué parte anterior es la toma incorrecta y cuál es la corrección válida;
-- distinguir fillers eliminables de elementos necesarios para naturalidad/significado;
-- límites de frase y join safety;
-- ampliar protección sólo con evidencia real.
+- inferir con seguridad el span `intento incorrecto → corrección válida`;
+- no confundir marker-only con scope de borrado;
+- distinguir fillers eliminables de elementos semánticos/naturales;
+- límites de frase y join safety.
 
 ### 2E — Promotion to Edit Plan — FUTURA
 
 Sólo después de 2C/2D:
 
-- decidir qué clases pueden ser auto-aplicables;
+- decidir clases auto-aplicables;
 - thresholds por modo;
-- convertir únicamente decisiones inequívocamente seguras en Edit Plan;
-- verificar joins/removedText;
-- mantener límite global de eliminación y fail-safe;
+- verificar joins y removedText;
+- límite global de eliminación y fail-safe;
 - resto en `REVIEW / KEEP`.
 
 ## Fase 3 — Calidad audiovisual / auditoría
-
-Normalización, joins, denoise controlado, removedText definitivo, join audit, post-render verification, informe y rendimiento.
+Normalización, joins, denoise controlado, join audit, post-render verification e informe.
 
 ## Fase 4 — UX mínima
-
-Seleccionar vídeo, audio externo opcional, confirmar sync, analizar, revisar, renderizar y abrir outputs. CLI se mantiene para tests/automation.
+Seleccionar vídeo, audio externo opcional, sync, analizar, revisar, renderizar y abrir outputs.
 
 ## Fase 5 — Portable Release Hardening
-
-Build Windows limpia, ZIP final, versiones/digests inmutables, optimización de bundle, estrategia final de modelos, SHA-256, manifest, notices/licencias y zero-install/offline.
+Build Windows limpia, ZIP final, digests, manifest, licencias/notices, estrategia final de modelos y zero-install/offline.
 
 ## Fase 6 — Extras
-
-Subtítulos visuales, reframe, zooms, shorts, B-roll y otras funciones después del Cleaner fiable.
+Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Cleaner fiable.
 
 ## Orden inmediato
 
-1. ampliar positivos humanos reales desde AMI/u otras fuentes licenciadas;
-2. incorporar la autocorrección humana real ya localizada;
-3. buscar positivos equivalentes en español;
-4. medir FP/FN y unsafe proposals sin mover thresholds;
-5. corregir sólo problemas observados;
-6. después resolver scope de correcciones, fillers y join safety;
+1. preparar 2C.3 con pocos clips humanos reales y trazables;
+2. priorizar español y casos donde truncamiento/puntuación puedan perderse en Whisper;
+3. medir transcript real + semantic gate;
+4. después resolver correction scope;
+5. fillers contextuales;
+6. sentence/join safety;
 7. mantener `executable=false`;
-8. no promover a Edit Plan hasta superar estas validaciones.
+8. no promover al Edit Plan hasta superar la evidencia.

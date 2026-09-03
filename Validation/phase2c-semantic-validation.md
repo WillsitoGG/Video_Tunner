@@ -1,4 +1,4 @@
-# Fase 2C — Semantic Validation Foundation
+# Fase 2C — Semantic Validation
 
 Fecha: 2026-09-03.
 
@@ -6,233 +6,230 @@ Estado: **BENCHMARK FOUNDATION COMPLETADA; FASE 2C SIGUE EN CURSO**.
 
 ## Objetivo
 
-Crear una validación semántica explícita que mida por separado:
+Validar por separado calidad de detección y seguridad:
 
-- detección de candidates: TP / FP / FN, precision, recall y F1;
-- seguridad de semantic decisions;
-- propuestas `PROPOSED_CUT` incorrectas;
-- decisiones que se volvieran ejecutables o auto-aplicables por accidente.
+- candidate TP / FP / FN;
+- precision / recall / F1;
+- decision mismatches;
+- `PROPOSED_CUT` incorrectos;
+- missing safe proposals;
+- decisiones ejecutables o auto-aplicables por accidente.
 
 Esta fase no promueve nada al Edit Plan.
 
 ```text
 candidate != semantic decision != edit
+PROPOSED_CUT != executable CUT
 executable = false
 auto_apply = false
+automatic_edits = 0
 ```
 
 ## Harness
 
-Nuevo módulo:
-
 ```text
 Source/video_tunner/semantic_validation.py
-```
-
-Fixture etiquetado:
-
-```text
 tests/fixtures/semantic_corpus_v1.json
-```
-
-Tests:
-
-```text
+tests/fixtures/semantic_human_corrections_v1.json
 tests/test_semantic_validation.py
+tests/test_semantic_human_corrections.py
 ```
 
-El evaluador genera word timings deterministas para aislar el comportamiento de la capa semántica respecto de la calidad ASR. Estos timings sintéticos **no son ground truth temporal**.
+El harness genera word timings deterministas para aislar la capa semántica de ASR. Esos timings **no son ground truth temporal** ni sustituyen una validación audio → Whisper → semántica.
 
-## Corpus v1
+## 2C.1 — Foundation v1
 
-Composición actual:
+### Baseline inicial
+
+Run `33742519997` — SUCCESS:
 
 ```text
-22 casos
-11 constructed_positive
-6 constructed_negative
-4 human_speech_reference
-1 human_speech_positive
-12 eventos semánticos esperados
+60 tests PASS
+16 casos
+11 eventos esperados
+FP 2
+FN 0
+precision 84.62%
+recall 100%
+F1 91.67%
+unsafe proposals 0
+executable 0
+auto_apply 0
 ```
 
-Positivos construidos:
+FP observados:
 
-- repetición exacta;
-- repetición exacta con negación;
-- repetición exacta con cifra/unidad;
-- corrección de cifra;
-- corrección de porcentaje;
-- corrección de negación;
-- corrección de persona/sujeto;
-- corrección temporal;
-- corrección de entidad;
-- retake con vacilación;
-- retake con contenido intermedio no trivial.
+1. reutilización legítima cercana de opener;
+2. `quiero decir` literal.
 
-Negativos construidos:
+Ambos eran `REVIEW`: ruido, no fallo de seguridad.
 
-- énfasis oral corto;
-- marcador discursivo legítimo;
-- filler aislado;
-- reutilización legítima de opener;
-- `quiero decir` literal al inicio;
-- `lo que quiero decir` literal.
+### Tuneo inicial
 
-### Controles de habla humana real
+En modo Conservador:
 
-Se reutilizan como controles negativos cuatro diálogos reales de SpanishPod que ya habían sido validados con audio + `large-v3-turbo` en el run `33656235038`:
+- reutilización de opener tras continuación normal y sin reparación => no retake;
+- se registra `repair_evidence`;
+- `quiero decir` / `I mean` se consideran ambiguos en frames literales.
+
+Run `33743029443` — SUCCESS:
 
 ```text
-SpanishPod_newbie_lesson_A0006_dialogue.ogg
-SpanishPod_newbie_lesson_A0007_dialogue.ogg
-SpanishPod_newbie_lesson_A0013_dialogue.ogg
-SpanishPod_newbie_lesson_A0116_dialogue.ogg
+64 tests PASS en 6.588 s
+21 casos / 11 eventos
+FP 0 / FN 0
+precision = recall = F1 = 100% en este corpus
+unsafe proposals 0
+executable 0
+auto_apply 0
+artifacts 0
 ```
 
-No se repite la CI ML pesada porque esa evidencia sigue vigente y el objetivo aquí es medir ruido semántico sobre el contenido humano ya acreditado.
+### Primer positivo humano
 
-### Primer positivo humano real — AMI
+Se añadió un retake espontáneo de AMI Meeting Corpus ES2012d.
 
-Se incorpora un retake de habla espontánea procedente de **AMI Meeting Corpus**, con transcript manual y licencia pública CC BY 4.0:
+Run `33743638690` — SUCCESS:
 
 ```text
-meeting: ES2012d
-source type: human_speech_positive
-expected kind: possible_retake
-expected decision: REVIEW
+65 tests PASS en 6.789 s
+22 casos / 12 eventos
+FP 0 / FN 0
+unsafe proposals 0
+executable 0
+auto_apply 0
+artifacts 0
 ```
 
-La fuente exacta queda registrada en `source_reference` dentro del fixture. El caso contiene un opener repetido tras una vacilación/interrupción real y el detector Conservador debe encontrarlo sin convertirlo en corte ejecutable.
-
-Este caso valida contenido humano real, pero en el harness se siguen generando timings deterministas: esta prueba no sustituye una futura validación audio → Whisper → semántica específica del mismo fragmento.
-
-## Baseline antes del tuneo
-
-Run `33742519997` — **SUCCESS**.
+Resultado:
 
 ```text
-Ran 60 tests in 6.603s
-OK
+possible_retake → REVIEW
+guard_status = review
 ```
 
-Benchmark inicial:
+## 2C.2 — Correcciones humanas y ambigüedad de marcadores
+
+Se añadió un bloque humano bilingüe con dos positivos y dos negativos deliberadamente pareados:
+
+### Positivos humanos
+
+1. **AMI ES2012d — inglés**
+   - intento interrumpido;
+   - `I mean`;
+   - reformulación;
+   - esperado: `explicit_correction → REVIEW`.
+
+2. **CORMA — español**
+   - fragmento abandonado `dee-`;
+   - `Perdón`;
+   - reformulación;
+   - esperado: `explicit_correction → REVIEW`.
+
+### Negativos humanos
+
+1. **AMI ES2012d**: `I mean` usado como marcador discursivo sin reparación.
+2. **CORMA**: `perdón eh` usado como disculpa/inciso, sin autocorrección del contenido posterior.
+
+Provenance/licencias: `Validation/phase2c-semantic-validation-sources.md`.
+
+### Baseline humano bilingüe
+
+Run `33750475437` — SUCCESS:
 
 ```text
-cases                 16
-expected events       11
-false positives        2
-false negatives        0
-precision         84.62%
-recall           100.00%
-F1                91.67%
-unsafe proposals       0
-decision mismatches    0
-executable decisions   0
-auto-apply decisions   0
+69 tests PASS en 6.718 s
+26 casos
+14 eventos esperados
+14 TP
+2 FP
+0 FN
+precision 87.50%
+recall 100%
+F1 93.33%
+unsafe proposals 0
+decision mismatches 0
+executable 0
+auto_apply 0
 ```
 
-Los dos falsos positivos medidos fueron:
+El gate `precision >= 0.95 / recall >= 0.95` falló **únicamente por precision**.
 
-1. reutilización cercana y legítima del opener `vamos a lanzar` tras una continuación normal;
-2. `quiero decir` usado literalmente al comienzo de una frase.
+Los dos FP fueron exactamente los controles humanos ambiguos:
 
-Ambos seguían siendo `REVIEW`, por lo que el baseline ya tenía **0 violaciones de seguridad**, pero generaba ruido innecesario.
+- `I mean` discursivo;
+- `perdón eh` como disculpa/inciso.
 
-## Tuneo basado en evidencia
+No hubo ninguna violación de seguridad.
 
-Se modificó únicamente el detector determinista de candidates en modo Conservador:
+### Tuneo guiado por el baseline
 
-### Retakes
+Sólo se endureció candidate generation en modo Conservador:
 
-- reconocer marcadores de continuación normales (`y`, `pero`, `porque`, `luego`, `ahora`, etc.; equivalentes EN);
-- si reaparece un opener tras una continuación normal y no existe evidencia de reparación/vacilación, no generar retake;
-- conservar retakes cuando sí existe evidencia como `eh`, `um`, `perdón`, etc.;
-- registrar `repair_evidence`.
+#### `I mean` / `quiero decir`
 
-### `quiero decir` / `I mean`
+Requiere evidencia local adicional:
 
-Se mantienen como marcadores ambiguos, no fuertes:
+- frontera explícita de reparación antes del marcador — guion/token truncado tipo `h-`, `dee-`, etc.; **o**
+- sustitución numérica detectable a ambos lados (`veinte → quiero decir → treinta`).
 
-- al inicio de la transcripción no se consideran autocorrección;
-- `lo que quiero decir` / `what I mean` se trata como construcción literal;
-- después de un intento previo siguen pudiendo generar `explicit_correction`, siempre `REVIEW`.
+Sin esa evidencia, un uso discursivo de `I mean / quiero decir` no se marca como autocorrección.
 
-No se introdujo ninguna dependencia ML nueva.
+#### `perdón` / `perdona` / `sorry`
 
-## Validaciones
+En Conservador:
 
-### Corpus ajustado sin positivo humano
+- se exige contexto léxico a izquierda y derecha;
+- patrón de disculpa seguido de vacilación (`perdón eh ...`) sin intento interrumpido => no correction candidate;
+- tras fragmento explícitamente truncado sí permanece `explicit_correction → REVIEW`.
 
-Run `33743029443` — **SUCCESS**.
+Modo Agresivo mantiene detección más amplia. No se añadió ML ni se modificó semantic decision execution.
 
-```text
-Ran 64 tests in 6.588s
-OK
-```
+### Validación final de 2C.2
 
-Corpus de ese run:
+Run `33750836791` — **SUCCESS**:
 
 ```text
-cases                       21
-source: constructed positive 11
-source: constructed negative  6
-source: human speech reference 4
-expected events             11
-actual candidates            11
-false positives               0
-false negatives               0
-precision               100.00%
-recall                  100.00%
-F1                      100.00%
-decision mismatches           0
-unsafe proposals              0
-missing safe proposals        0
-executable decisions          0
-auto-apply decisions          0
-```
-
-### Primer positivo humano AMI
-
-Run `33743638690` — **SUCCESS**.
-
-```text
-Ran 65 tests in 6.789s
-OK
+74 tests PASS en 6.729 s
+26 casos
+14 eventos esperados
+14 candidates
+FP 0
+FN 0
+precision 100%
+recall 100%
+F1 100%
+decision mismatches 0
+unsafe proposals 0
+missing safe proposals 0
+executable decisions 0
+auto_apply decisions 0
+artifacts 0
 ```
 
 También:
 
-- el caso `human-ami-es2012d-retake` se detecta como `possible_retake`;
-- la semantic decision resultante es `REVIEW`;
-- `guard_status=review`;
 - `video-tunner doctor` PASS;
 - E2E FFmpeg/sync PASS;
-- artifacts `0`.
+- workflow restaurado a `workflow_dispatch`;
+- marker one-shot eliminado.
 
-Benchmark actual:
+## Composición actual de evidencia
+
+Sobre el conjunto combinado de 26 casos:
 
 ```text
-cases                       22
-source: constructed positive 11
-source: constructed negative  6
-source: human speech reference 4
-source: human speech positive  1
-expected events             12
-actual candidates            12
-false positives               0
-false negatives               0
-precision               100.00%
-recall                  100.00%
-F1                      100.00%
-decision mismatches           0
-unsafe proposals              0
-missing safe proposals        0
-executable decisions          0
-auto-apply decisions          0
+11 constructed_positive
+ 6 constructed_negative
+ 4 human_speech_reference        # controles SpanishPod
+ 3 human_speech_positive         # AMI retake + AMI correction + CORMA correction
+ 2 human_speech_negative         # AMI discourse + CORMA apology
+14 eventos esperados
 ```
 
-El gate v1 queda fijado en:
+El **100% sólo vale para este corpus etiquetado**. No generalizar a habla arbitraria.
+
+## Gate v1
 
 ```text
 precision >= 0.95
@@ -244,35 +241,32 @@ executable decisions == 0
 auto_apply decisions == 0
 ```
 
-## Qué demuestra y qué NO demuestra
+No mover thresholds para acomodar fallos futuros: ampliar corpus y corregir causas.
 
-Demuestra:
+## Qué demuestra
 
-- existe una métrica reproducible para candidates + semantic decisions;
-- el tuneo fue guiado por falsos positivos observados, no por intuición;
-- el corpus v1 actual queda 0 FP / 0 FN;
-- cuatro controles humanos reales no introducen ruido semántico;
-- un primer retake humano espontáneo real se detecta correctamente y permanece `REVIEW`;
-- ninguna propuesta insegura aparece en este corpus;
-- nada se vuelve ejecutable ni auto-aplicable.
+- el benchmark separa ruido de candidate y fallos de seguridad;
+- los tuneos se derivan de FP medidos;
+- ya existe evidencia humana positiva y negativa en inglés **y español**;
+- `I mean` y `perdón` no se tratan ya como prueba suficiente de autocorrección;
+- las correcciones humanas positivas siguen siendo `REVIEW`;
+- ninguna semantic decision se vuelve ejecutable.
 
-NO demuestra todavía:
+## Qué NO demuestra
 
 - seguridad general sobre cualquier habla real;
-- precisión robusta sobre una muestra amplia de retomas/autocorrecciones humanas espontáneas;
-- precisión específica sobre positivos humanos en español;
-- comportamiento del mismo positivo AMI pasando de audio real por Whisper en este run;
+- precisión robusta sobre una muestra grande y diversa;
+- que Whisper conserve siempre guiones/truncamientos del transcript manual;
 - scope seguro de `intento incorrecto → corrección válida`;
-- seguridad de joins tras una futura promoción al Edit Plan;
-- que `PROPOSED_CUT` pueda ejecutarse automáticamente.
+- seguridad de joins;
+- que `PROPOSED_CUT` pueda auto-aplicarse.
 
-## Siguiente trabajo dentro de 2C
+## Siguiente trabajo dentro de Fase 2C
 
-1. ampliar positivos humanos reales con retomas, reinicios y autocorrecciones;
-2. incorporar como siguiente fixture la autocorrección humana AMI ya localizada con marcador `I mean`;
-3. buscar positivos equivalentes en español cuando exista fuente/licencia adecuada;
-4. evaluar transcript real producido por Whisper cuando aporte evidencia nueva;
-5. ampliar el corpus sin mover thresholds para acomodar fallos;
-6. usar los fallos observados para endurecer guardas;
-7. después abordar scope de correcciones, fillers contextuales y join safety;
-8. mantener `executable=false` hasta completar esta evidencia.
+1. ampliar positivos/negativos humanos, especialmente español y variaciones donde ASR pierda puntuación/truncamientos;
+2. seleccionar pocos clips humanos con licencia adecuada para una validación real audio → `large-v3-turbo` → semántica cuando aporte evidencia nueva;
+3. medir qué señales sobreviven realmente a Whisper;
+4. después resolver scope seguro de correcciones;
+5. validar fillers contextuales;
+6. añadir límites de frase y join safety;
+7. mantener `executable=false` hasta completar la evidencia.

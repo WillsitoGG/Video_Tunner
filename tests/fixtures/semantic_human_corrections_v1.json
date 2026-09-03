@@ -1,0 +1,42 @@
+[
+  {
+    "id": "human-ami-es2012d-i-mean-correction",
+    "description": "Autocorrección/restart humano real: un intento se interrumpe antes de I mean y se reformula la pregunta.",
+    "source_type": "human_speech_positive",
+    "source_reference": "AMI Meeting Corpus ES2012d manual transcript, around 02:50, CC BY 4.0: https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2012d/browsable/ES2012d.manualtranscript-j.html",
+    "language": "en",
+    "text": "I just wondered - I mean h- how will people put these down I wonder",
+    "expected_events": [
+      {"kind": "explicit_correction", "removed_text": "I mean", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "human-ami-es2012d-i-mean-discourse",
+    "description": "Uso humano real de I mean como marcador discursivo sin reparación semántica; debe ser negativo en Conservador.",
+    "source_type": "human_speech_negative",
+    "source_reference": "AMI Meeting Corpus ES2012d manual transcript, around 03:11, CC BY 4.0: https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2012d/browsable/ES2012d.manualtranscript-j.html",
+    "language": "en",
+    "text": "particularly if they're gonna have it as a fashion item I mean it's just a minor detailed point",
+    "expected_events": []
+  },
+  {
+    "id": "human-corma-atfar-perdon-correction",
+    "description": "Restart humano real en español: fragmento abandonado seguido de Perdón y reformulación.",
+    "source_type": "human_speech_positive",
+    "source_reference": "CORMA anonym.ATfar.01 / pseud.ATfar.01, around 00:09:11, CC BY 4.0 dataset DOI 10.5281/zenodo.17455998: https://www.corma.ugent.be/wp-content/uploads/corma/pdf-crono/pseud.ATfar.01_crono.pdf",
+    "language": "es",
+    "text": "Pero la dee- Perdón la de @nombre propio la tiene pasada ya",
+    "expected_events": [
+      {"kind": "explicit_correction", "removed_text": "Perdón", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "human-corma-ms-fa2-perdon-apology",
+    "description": "Uso humano real de perdón como disculpa/inciso, no como autocorrección del contenido posterior.",
+    "source_type": "human_speech_negative",
+    "source_reference": "CORMA anonym.MS_FA2_F_01 / pseud.VV_FA2_F_01, around 00:21:06, CC BY 4.0 dataset DOI 10.5281/zenodo.17455998: https://www.corma.ugent.be/wp-content/uploads/corma/pdf-crono/pseud.VV_FA2_F_01_crono.pdf",
+    "language": "es",
+    "text": "Por Dios que ahora se me está bloqueando perdón eh Que muchas gracias por escucharnos",
+    "expected_events": []
+  }
+]
