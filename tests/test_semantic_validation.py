@@ -19,7 +19,15 @@ class SemanticValidationTests(unittest.TestCase):
 
     def test_corpus_is_large_enough_to_exercise_risk_classes(self):
         summary = self.report["summary"]
-        self.assertEqual(summary["cases"], 17)
+        self.assertEqual(summary["cases"], 21)
+        self.assertEqual(
+            summary["source_types"],
+            {
+                "constructed_negative": 6,
+                "constructed_positive": 11,
+                "human_speech_reference": 4,
+            },
+        )
         self.assertEqual(summary["expected_events"], 11)
         self.assertEqual(summary["actual_candidates"], 11)
 
@@ -44,6 +52,14 @@ class SemanticValidationTests(unittest.TestCase):
         }
         self.assertEqual(len(controlled), 3)
         self.assertTrue(all(not item["actual_candidates"] for item in controlled.values()))
+
+    def test_reused_human_speech_controls_do_not_create_semantic_noise(self):
+        human_cases = [
+            item for item in self.report["cases"] if item["source_type"] == "human_speech_reference"
+        ]
+        self.assertEqual(len(human_cases), 4)
+        self.assertTrue(all(not item["actual_candidates"] for item in human_cases))
+        self.assertTrue(all(item["source_reference"] for item in human_cases))
 
     def test_decision_contract_has_zero_safety_violations(self):
         summary = self.report["summary"]
