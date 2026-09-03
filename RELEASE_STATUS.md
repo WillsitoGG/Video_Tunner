@@ -19,7 +19,8 @@
 - Fase 2C.3: COMPLETADA — audio humano real → `large-v3-turbo` → semantic gate PASS
 - Fase 2D.1: COMPLETADA — correction scope foundation v1 + schema v4
 - Fase 2D.2: COMPLETADA — contextual filler foundation v1 + schema v5
-- Fase 2D.3: **SIGUIENTE — sentence boundaries + join safety**
+- Fase 2D.3.1: COMPLETADA — join boundary/timeline/lexical foundation + schema v6
+- Fase 2D.3.2: **SIGUIENTE — acoustic join validation**
 
 ## Evidencia principal
 
@@ -32,125 +33,88 @@ Target Spanish                   33656235038  PASS — WER 1.64%, RTF 0.4854
 Semantic Candidates              33659725847  PASS — 48 tests
 Semantic Decisions/Protection    33741195594  PASS — 55 tests
 Human correction final           33750836791  PASS — 74 tests, corpus gate PASS
-Phase 2C.3 lightweight           33754755238  PASS — 76/76, FFmpeg/sync E2E
 Phase 2C.3 audio-backed final    33755013415  PASS — 3/3 cases, semantic gate PASS
-Phase 2D.1 final                 33758185755  PASS — 88/88, schema v4 integration
-Phase 2D.2 benchmark             33771489008  PASS — 101/101, filler context gate
-Phase 2D.2 final                 33771792867  PASS — 101/101, schema v5 integration
+Phase 2D.1 final                 33758185755  PASS — 88/88, schema v4
+Phase 2D.2 final                 33771792867  PASS — 101/101, schema v5
+Phase 2D.3.1 foundation          33772715214  PASS — 112/112
+Phase 2D.3.1 final               33773287106  PASS — 117/117, schema v6
 ```
 
-Todas mantienen `automatic_edits = 0` donde aplica y artifacts pesados = 0.
+Todas mantienen `automatic_edits = 0` donde aplica y artifacts = 0.
 
-## Fase 2D.2 — Contextual Fillers Foundation v1
+## Fase 2D.3.1 — Join boundary/timeline/lexical foundation
 
-Nueva separación:
-
-```text
-possible_filler candidate
-!= filler assessment
-!= semantic decision
-!= edit
-```
-
-`analysis.json` usa schema v5:
+`analysis.json` usa schema v6:
 
 ```text
 candidates[]
 correction_scopes[]
 filler_assessments[]
+join_assessments[]
 semantic_decisions[]
 ```
 
-Estados v1:
+Estados:
 
 ```text
-isolated_hesitation
-hesitation_cluster
-protected_repair_context
-boundary_hesitation
-uncertain_asr
-invalid
+join_context_only
+sentence_boundary_risk
+segment_boundary_risk
+critical_lexical_context_risk
+repair_or_protected_context_risk
+transcript_edge
+invalid_or_unbounded_target
 ```
 
-Reglas principales:
+El target del join se valida contra índices, `removed_text` y timestamps. Corrections `ambiguous` y spans inconsistentes fallan seguro sin target. Los joins próximos a repairs, cifras/unidades, negaciones, persona/tiempo/causalidad o boundaries quedan marcados como riesgo.
 
-- filler dentro/junto a retake o correction => `protected_repair_context`;
-- fillers adyacentes => `hesitation_cluster`;
-- transcript boundary o gap >= `0.60 s` => `boundary_hesitation`;
-- probabilidad ASR < `0.60` => `uncertain_asr`;
-- incluso `isolated_hesitation` permanece `safe_for_cut=false`.
+Benchmark etiquetado v1: 15 casos, incluyendo retake humano AMI.
 
-Benchmark etiquetado v1:
+Final `33773287106`:
 
 ```text
-15 casos ES/EN
-fillers aislados y clusters
-repair context
-boundaries
-baja confianza ASR
-retake humano AMI
-control humano SpanishPod
-```
-
-Gate:
-
-```text
-record_count_mismatches == 0
-status_mismatches == 0
-status_accuracy == 1.0
-repair_link_mismatches == 0
-repair_protection_recall == 1.0
-safety_violations == 0
-```
-
-Evidencia:
-
-```text
-33771489008
-101/101 tests PASS en 7.030 s
-filler context benchmark PASS
-human AMI repair filler protected
-E2E FFmpeg/sync PASS
-doctor PASS
-artifacts 0
-
-33771792867
-101/101 tests PASS en 5.031 s
-analysis schema v5 integration PASS
+117/117 tests PASS en 6.891 s
+join benchmark gate PASS
+schema v6 integration PASS
 E2E FFmpeg/sync PASS
 doctor PASS
 artifacts 0
 ```
 
-Limitación importante derivada del audio real de 2C.3: `large-v3-turbo` puede omitir una vacilación como `uh`. Por tanto, 2D.2 clasifica fillers que sobreviven al ASR; **no inventa fillers ausentes del transcript**. La protección del retake colapsado por ASR permanece en la capa semántica/timing.
+Limitación deliberada:
 
-Evidencia: `Validation/phase2d-contextual-fillers.md`.
+```text
+join_acoustic_validation_enabled = false
+```
+
+La foundation acredita resolución de target y contexto timeline/léxico/segmental. **No acredita continuidad acústica del hard concat**, ausencia de click/pop, energía, waveform o prosodia.
+
+Evidencia: `Validation/phase2d-join-safety.md`.
 
 ## Safety actual
 
 ```text
-candidate != correction scope != filler assessment != semantic decision != edit
+candidate != correction scope != filler assessment != join assessment != semantic decision != edit
 PROPOSED_CUT != executable CUT
 bounded scope != safe cut
 filler assessment != safe cut
+join assessment != safe cut
 semantic_decisions_executable = false
-correction_scopes_are_not_edits = true
-correction_scopes_executable = false
 correction_scopes_safe_for_cut = false
-filler_assessments_are_not_edits = true
-filler_assessments_executable = false
 filler_assessments_safe_for_cut = false
+join_assessments_are_not_edits = true
+join_assessments_executable = false
+join_assessments_safe_for_cut = false
+join_acoustic_validation_enabled = false
 executable = false
 auto_apply = false
 automatic_edits = 0
 ```
 
-Ni un correction scope `bounded` ni un `isolated_hesitation` autorizan borrado, render o promoción al Edit Plan.
-
 ## Pendiente antes de Release
 
-- Fase 2D.3: sentence boundaries + join safety;
-- no promover semantic decisions/scopes/filler assessments al Edit Plan hasta evidencia suficiente;
+- Fase 2D.3.2: acoustic join validation sobre master audio;
+- cerrar 2D antes de cualquier promoción al Edit Plan;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;
