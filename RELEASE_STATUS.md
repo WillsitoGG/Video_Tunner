@@ -14,7 +14,7 @@
 - Fase 1C: **COMPLETADA — master audio → Whisper/VAD + `large-v3-turbo` español real PASS**
 - Fase 2A: **COMPLETADA — Semantic Candidates v1**
 - Fase 2B: **COMPLETADA — Semantic Decisions + Protection v1**
-- Fase 2C: **EN CURSO — benchmark foundation v1 COMPLETADA; positivos humanos espontáneos pendientes**
+- Fase 2C: **EN CURSO — benchmark foundation v1 + primer retake humano positivo PASS; ampliar positivos humanos pendiente**
 
 ## Evidencia portable / ML
 
@@ -126,19 +126,7 @@ OK
 
 ## Fase 2C — Semantic Validation Foundation v1
 
-Se ha creado un benchmark etiquetado para separar calidad de detección y seguridad de decisiones.
-
-Corpus v1 final:
-
-```text
-21 casos
-11 constructed_positive
-6 constructed_negative
-4 human_speech_reference
-11 eventos esperados
-```
-
-Los 4 controles humanos derivan de diálogos SpanishPod ya validados con audio + `large-v3-turbo` en `33656235038`; no son positivos humanos de retoma/autocorrección.
+Benchmark etiquetado para separar calidad de detección y seguridad de decisiones.
 
 ### Baseline
 
@@ -166,7 +154,7 @@ Sólo se endureció el detector Conservador:
 - evidencia de vacilación/reparación sigue permitiendo retake;
 - `quiero decir` / `I mean` se consideran ambiguos en contextos literales y siguen disponibles tras un intento previo.
 
-### Final
+### Corpus ajustado
 
 Run `33743029443` — **SUCCESS**:
 
@@ -188,15 +176,46 @@ auto_apply decisions      0
 artifacts                  0
 ```
 
-`video-tunner doctor` y E2E FFmpeg/sync PASS.
+### Primer positivo humano real
 
-**Limitación:** este 100% sólo acredita el corpus v1. Fase 2C no se cierra completamente hasta añadir positivos humanos reales con retomas/reinicios/autocorrecciones y medirlos con el mismo harness.
+Se incorpora un retake espontáneo del AMI Meeting Corpus ES2012d como `human_speech_positive`.
+
+Run `33743638690` — **SUCCESS**:
+
+```text
+Ran 65 tests in 6.789s
+cases                    22
+expected events          12
+actual candidates        12
+FP                        0
+FN                        0
+precision           100.00%
+recall              100.00%
+F1                  100.00%
+decision mismatches       0
+unsafe proposals          0
+missing safe proposals    0
+executable decisions      0
+auto_apply decisions      0
+artifacts                  0
+```
+
+- retake humano AMI: `possible_retake → REVIEW`;
+- `guard_status=review`;
+- `video-tunner doctor` PASS;
+- E2E FFmpeg/sync PASS;
+- workflow restaurado a manual-only;
+- marker one-shot eliminado.
+
+**Limitación:** el 100% sólo acredita el corpus v1 actual. Existe todavía un único positivo humano espontáneo real en el benchmark; además el harness semántico usa timings deterministas y este run no valida audio AMI → Whisper → semántica.
 
 Ver `Validation/phase2c-semantic-validation.md`.
 
 ## Pendiente antes de una Release
 
-- completar Fase 2C con positivos humanos reales;
+- ampliar Fase 2C con más positivos humanos reales;
+- incorporar la autocorrección humana AMI con `I mean` ya localizada;
+- buscar positivos humanos en español con fuente/licencia adecuada;
 - resolver scope seguro `intento incorrecto → corrección válida`;
 - fillers contextuales;
 - límites de frase y join safety;
