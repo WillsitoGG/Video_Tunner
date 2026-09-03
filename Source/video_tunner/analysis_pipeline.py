@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from .candidates import build_analysis_report, build_candidates, save_analysis_report, sha256_file
+from .correction_scope import build_correction_scopes
+from .correction_scope_report import attach_correction_scopes
 from .edit_plan import MODE_SETTINGS
 from .ingest import ingest_video
 from .media import probe_media
@@ -110,11 +112,11 @@ def analyze_spoken_video(
     master_audio: str | Path | None = None,
     ingest_report_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Resolve master audio, emit candidates, then attach non-executable decisions.
+    """Resolve master audio and emit separate evidence/decision layers.
 
     Whisper and Silero VAD consume the same master audio. All timestamps remain
-    on the video timeline. Semantic decisions are deliberately separate from
-    candidates and never become executable edits in this phase.
+    on the video timeline. Candidates, correction scopes and semantic decisions
+    are deliberately separate and never become executable edits in this phase.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
@@ -193,6 +195,7 @@ def analyze_spoken_video(
         candidates,
         build_semantic_candidates(transcript, mode=mode),
     )
+    correction_scopes = build_correction_scopes(transcript, candidates)
     semantic_decisions = build_semantic_decisions(transcript, candidates)
 
     stem = source_path.stem
@@ -212,6 +215,7 @@ def analyze_spoken_video(
         ingest_report_path=ingest_path,
     )
     attach_semantic_decisions(report, semantic_decisions)
+    attach_correction_scopes(report, correction_scopes)
     analysis_path = save_analysis_report(report, output_root / f"{stem}_analysis.json")
 
     return {
