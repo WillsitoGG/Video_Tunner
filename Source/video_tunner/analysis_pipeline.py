@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .acoustic_join import build_acoustic_join_assessments
+from .acoustic_join_report import attach_acoustic_join_assessments
 from .candidates import build_analysis_report, build_candidates, save_analysis_report, sha256_file
 from .correction_scope import build_correction_scopes
 from .correction_scope_report import attach_correction_scopes
@@ -118,9 +120,10 @@ def analyze_spoken_video(
 ) -> dict[str, Any]:
     """Resolve master audio and emit separate non-executable evidence layers.
 
-    Whisper and Silero VAD consume the same master audio. All timestamps remain
-    on the video timeline. Candidates, correction scopes, filler assessments,
-    join assessments and semantic decisions are deliberately separate and never
+    Whisper, Silero VAD and acoustic join validation consume the same accredited
+    master audio. All timestamps remain on the video timeline. Candidates,
+    correction scopes, filler assessments, join assessments, acoustic join
+    assessments and semantic decisions are deliberately separate and never
     become executable edits in this phase.
     """
     if mode not in MODE_SETTINGS:
@@ -208,6 +211,10 @@ def analyze_spoken_video(
         correction_scopes=correction_scopes,
         filler_assessments=filler_assessments,
     )
+    acoustic_join_assessments = build_acoustic_join_assessments(
+        master_path,
+        join_assessments,
+    )
     semantic_decisions = build_semantic_decisions(transcript, candidates)
 
     stem = source_path.stem
@@ -230,6 +237,7 @@ def analyze_spoken_video(
     attach_correction_scopes(report, correction_scopes)
     attach_filler_assessments(report, filler_assessments)
     attach_join_assessments(report, join_assessments)
+    attach_acoustic_join_assessments(report, acoustic_join_assessments)
     analysis_path = save_analysis_report(report, output_root / f"{stem}_analysis.json")
 
     return {
