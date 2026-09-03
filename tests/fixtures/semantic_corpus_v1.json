@@ -1,0 +1,120 @@
+[
+  {
+    "id": "exact-repeat-launch",
+    "description": "Repetición adyacente exacta típica de segunda lectura.",
+    "text": "vamos a lanzar vamos a lanzar el producto mañana",
+    "expected_events": [
+      {"kind": "possible_repetition", "removed_text": "vamos a lanzar", "decision": "PROPOSED_CUT"}
+    ]
+  },
+  {
+    "id": "exact-repeat-negation",
+    "description": "La repetición exacta contiene una negación que debe conservarse en la segunda copia.",
+    "text": "no vamos a cancelar no vamos a cancelar la campaña",
+    "expected_events": [
+      {"kind": "possible_repetition", "removed_text": "no vamos a cancelar", "decision": "PROPOSED_CUT"}
+    ]
+  },
+  {
+    "id": "exact-repeat-number-unit",
+    "description": "Repetición exacta con cifra e importe; sólo es propuesta porque queda una copia idéntica.",
+    "text": "son 10 euros son 10 euros este mes",
+    "expected_events": [
+      {"kind": "possible_repetition", "removed_text": "son 10 euros", "decision": "PROPOSED_CUT"}
+    ]
+  },
+  {
+    "id": "correction-number",
+    "description": "Autocorrección explícita de cifra e importe.",
+    "text": "la facturación fue de 200 perdón de 250 mil euros",
+    "expected_events": [
+      {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "correction-percent",
+    "description": "Autocorrección explícita de porcentaje.",
+    "text": "el margen era 10% perdón 15% este año",
+    "expected_events": [
+      {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "correction-negation",
+    "description": "La autocorrección cambia la polaridad de la frase.",
+    "text": "esto no funciona perdón esto funciona correctamente",
+    "expected_events": [
+      {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "correction-person",
+    "description": "La autocorrección cambia la persona/sujeto explícito.",
+    "text": "yo presentaré perdón ella presentará mañana",
+    "expected_events": [
+      {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "correction-tense",
+    "description": "La autocorrección cambia referencia temporal.",
+    "text": "fue ayer perdón será mañana",
+    "expected_events": [
+      {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "correction-entity",
+    "description": "La autocorrección cambia un nombre propio.",
+    "text": "hablé con Marta perdón con María ayer",
+    "expected_events": [
+      {"kind": "explicit_correction", "removed_text": "perdón", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "retake-fumble",
+    "description": "Reinicio de frase tras una vacilación mínima.",
+    "text": "vamos a lanzar eh vamos a lanzar el producto",
+    "expected_events": [
+      {"kind": "possible_retake", "removed_text": "vamos a lanzar eh", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "retake-content",
+    "description": "Reinicio con contenido intermedio no trivial que nunca debe declararse descartable automáticamente.",
+    "text": "vamos a lanzar el producto vamos a lanzar la campaña mañana",
+    "expected_events": [
+      {"kind": "possible_retake", "removed_text": "vamos a lanzar el producto", "decision": "REVIEW"}
+    ]
+  },
+  {
+    "id": "intentional-emphasis",
+    "description": "Énfasis oral corto que no debe confundirse con retoma en modo Conservador.",
+    "text": "esto es muy muy importante para todos",
+    "expected_events": []
+  },
+  {
+    "id": "discourse-marker",
+    "description": "O sea es un marcador discursivo válido, no una autocorrección fuerte por defecto.",
+    "text": "o sea esto es importante para el cierre",
+    "expected_events": []
+  },
+  {
+    "id": "ordinary-filler",
+    "description": "Una muletilla aislada no pertenece todavía a la capa semántica de retomas/correcciones.",
+    "text": "eh bueno pues empezamos con el informe de hoy",
+    "expected_events": []
+  },
+  {
+    "id": "legitimate-reuse",
+    "description": "El mismo opener reaparece dentro de una frase pero con intención distinta; caso conocido de ruido del detector de retakes.",
+    "text": "vamos a lanzar el producto ahora y luego vamos a lanzar una campaña distinta",
+    "expected_events": []
+  },
+  {
+    "id": "literal-quiero-decir",
+    "description": "Quiero decir puede ser una construcción literal y no necesariamente una autocorrección.",
+    "text": "quiero decir algo importante sobre el proyecto",
+    "expected_events": []
+  }
+]
