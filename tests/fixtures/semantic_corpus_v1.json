@@ -107,14 +107,20 @@
   },
   {
     "id": "legitimate-reuse",
-    "description": "El mismo opener reaparece dentro de una frase pero con intención distinta; caso conocido de ruido del detector de retakes.",
+    "description": "El mismo opener reaparece tras una continuación normal; en Conservador no debe convertirse en retake.",
     "text": "vamos a lanzar el producto ahora y luego vamos a lanzar una campaña distinta",
     "expected_events": []
   },
   {
     "id": "literal-quiero-decir",
-    "description": "Quiero decir puede ser una construcción literal y no necesariamente una autocorrección.",
+    "description": "Quiero decir al inicio puede ser una construcción literal y no una autocorrección.",
     "text": "quiero decir algo importante sobre el proyecto",
+    "expected_events": []
+  },
+  {
+    "id": "literal-lo-que-quiero-decir",
+    "description": "Lo que quiero decir es una construcción literal interna, no un marcador de reparación.",
+    "text": "lo que quiero decir es que necesitamos tiempo",
     "expected_events": []
   }
 ]
