@@ -135,7 +135,7 @@ def run_fake_analysis(transcript: TranscriptResult) -> dict:
 
 
 class SemanticPipelineIntegrationTests(unittest.TestCase):
-    def test_analyze_emits_candidate_decision_join_and_acoustic_evidence_for_repetition(self):
+    def test_analyze_emits_candidate_decision_join_acoustic_and_eligibility_for_repetition(self):
         report = run_fake_analysis(
             timed_transcript("vamos a lanzar vamos a lanzar el producto mañana")
         )
@@ -161,7 +161,12 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
             for item in report["acoustic_join_assessments"]
             if item["join_assessment_id"] == join["id"]
         )
-        self.assertEqual(report["schema_version"], 7)
+        eligibility = next(
+            item
+            for item in report["eligibility_assessments"]
+            if item["candidate_id"] == repetition["id"]
+        )
+        self.assertEqual(report["schema_version"], 8)
         self.assertEqual(report["correction_scopes"], [])
         self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
         self.assertEqual(report["filler_assessments"], [])
@@ -169,21 +174,23 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(join["status"], "transcript_edge")
         self.assertEqual(acoustic["status"], "blocked_by_context")
         self.assertFalse(acoustic["measurement_available"])
-        self.assertFalse(acoustic["safe_for_cut"])
-        self.assertFalse(acoustic["executable"])
-        self.assertFalse(acoustic["auto_apply"])
         self.assertEqual(decision["decision"], "PROPOSED_CUT")
         self.assertEqual(decision["guard_status"], "pass")
-        self.assertFalse(decision["executable"])
-        self.assertFalse(decision["auto_apply"])
+        self.assertEqual(eligibility["status"], "blocked_join_context")
+        self.assertTrue(eligibility["removed_text_validation"]["valid"])
+        self.assertFalse(eligibility["future_promotion_candidate"])
+        self.assertFalse(eligibility["safe_for_cut"])
+        self.assertFalse(eligibility["executable"])
+        self.assertFalse(eligibility["auto_apply"])
         self.assertEqual(report["summary"]["automatic_edits"], 0)
         self.assertEqual(report["summary"]["semantic_decisions"]["executable"], 0)
         self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["acoustic_join_assessments"]["safe_for_cut"], 0)
-        self.assertTrue(report["safety"]["join_acoustic_validation_enabled"])
-        self.assertTrue(report["safety"]["join_acoustic_validation_is_not_cut_authorization"])
+        self.assertEqual(report["summary"]["eligibility_assessments"]["safe_for_cut"], 0)
+        self.assertTrue(report["safety"]["combined_eligibility_enabled"])
+        self.assertTrue(report["safety"]["combined_eligibility_is_not_edit_plan_promotion"])
 
-    def test_analyze_links_correction_scope_join_acoustic_evidence_and_review_decision(self):
+    def test_analyze_links_correction_scope_join_acoustic_eligibility_and_review_decision(self):
         report = run_fake_analysis(
             timed_transcript("la facturación fue de 200 perdón de 250 mil euros")
         )
@@ -204,8 +211,13 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         decision = next(
             item for item in report["semantic_decisions"] if item["candidate_id"] == correction["id"]
         )
+        eligibility = next(
+            item
+            for item in report["eligibility_assessments"]
+            if item["candidate_id"] == correction["id"]
+        )
 
-        self.assertEqual(report["schema_version"], 7)
+        self.assertEqual(report["schema_version"], 8)
         self.assertEqual(scope["status"], "bounded")
         self.assertEqual(scope["strategy"], "repeated_corrected_prefix_anchor")
         self.assertEqual(scope["attempt_span"]["text"], "de 200")
@@ -219,16 +231,20 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(join["target_span"]["text"], "de 200 perdón")
         self.assertEqual(acoustic["status"], "blocked_by_context")
         self.assertFalse(acoustic["measurement_available"])
-        self.assertFalse(join["safe_for_cut"])
-        self.assertFalse(acoustic["safe_for_cut"])
         self.assertEqual(decision["decision"], "REVIEW")
-        self.assertFalse(decision["executable"])
+        self.assertEqual(eligibility["status"], "blocked_semantic_decision")
+        self.assertEqual(eligibility["correction_scope_status"], "bounded")
+        self.assertEqual(eligibility["removed_text_validation"]["text"], "de 200 perdón")
+        self.assertTrue(eligibility["removed_text_validation"]["valid"])
+        self.assertFalse(eligibility["future_promotion_candidate"])
+        self.assertFalse(eligibility["safe_for_cut"])
+        self.assertFalse(eligibility["executable"])
+        self.assertFalse(eligibility["auto_apply"])
         self.assertEqual(report["summary"]["automatic_edits"], 0)
         self.assertEqual(report["summary"]["correction_scopes"]["safe_for_cut"], 0)
-        self.assertEqual(report["summary"]["correction_scopes"]["executable"], 0)
-        self.assertEqual(report["summary"]["correction_scopes"]["auto_apply"], 0)
         self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["acoustic_join_assessments"]["safe_for_cut"], 0)
+        self.assertEqual(report["summary"]["eligibility_assessments"]["safe_for_cut"], 0)
 
 
 if __name__ == "__main__":
