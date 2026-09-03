@@ -1,0 +1,131 @@
+[
+  {
+    "id": "isolated-es",
+    "description": "Vacilación española aislada entre contexto léxico estable.",
+    "source_type": "constructed_positive",
+    "language": "es",
+    "text": "vamos eh seguimos con el proyecto",
+    "expected_statuses": ["isolated_hesitation"]
+  },
+  {
+    "id": "isolated-en",
+    "description": "Vacilación inglesa aislada entre contexto léxico estable.",
+    "source_type": "constructed_positive",
+    "language": "en",
+    "text": "we um continue with the plan",
+    "expected_statuses": ["isolated_hesitation"]
+  },
+  {
+    "id": "cluster-es",
+    "description": "Dos vacilaciones adyacentes deben evaluarse como cluster, no como cortes independientes.",
+    "source_type": "constructed_positive",
+    "language": "es",
+    "text": "vamos eh em seguimos",
+    "expected_statuses": ["hesitation_cluster", "hesitation_cluster"]
+  },
+  {
+    "id": "cluster-en",
+    "description": "Cluster bilingüe de vacilaciones vocales.",
+    "source_type": "constructed_positive",
+    "language": "en",
+    "text": "we uh um continue",
+    "expected_statuses": ["hesitation_cluster", "hesitation_cluster"]
+  },
+  {
+    "id": "retake-filler-es",
+    "description": "El filler forma parte de una retoma y debe quedar protegido por el evento de reparación.",
+    "source_type": "constructed_positive",
+    "language": "es",
+    "text": "vamos a lanzar eh vamos a lanzar el producto",
+    "expected_statuses": ["protected_repair_context"],
+    "expect_repair_link": true
+  },
+  {
+    "id": "correction-near-filler-es",
+    "description": "Un filler inmediatamente anterior a una autocorrección explícita se protege como contexto de reparación.",
+    "source_type": "constructed_positive",
+    "language": "es",
+    "text": "la cifra es dos eh perdón tres",
+    "expected_statuses": ["protected_repair_context"],
+    "expect_repair_link": true
+  },
+  {
+    "id": "human-ami-retake-filler",
+    "description": "Vacilación humana real dentro del retake AMI ya trazado en 2C.",
+    "source_type": "human_speech_positive",
+    "source_reference": "AMI ES2012d manual transcript, CC BY 4.0: https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2012d/browsable/ES2012d.manualtranscript-j.html",
+    "language": "en",
+    "text": "have a look at the uh th- have a look at the prototypes",
+    "expected_statuses": ["protected_repair_context"],
+    "expect_repair_link": true
+  },
+  {
+    "id": "low-asr-es",
+    "description": "Token de filler con probabilidad ASR insuficiente debe quedar incierto.",
+    "source_type": "constructed_positive",
+    "language": "es",
+    "text": "vamos eh seguimos",
+    "probabilities": [0.99, 0.30, 0.99],
+    "expected_statuses": ["uncertain_asr"]
+  },
+  {
+    "id": "boundary-start-es",
+    "description": "Filler al inicio del transcript se conserva como boundary hesitation.",
+    "source_type": "constructed_positive",
+    "language": "es",
+    "text": "eh empezamos ahora",
+    "expected_statuses": ["boundary_hesitation"]
+  },
+  {
+    "id": "boundary-end-en",
+    "description": "Filler al final del transcript se conserva como boundary hesitation.",
+    "source_type": "constructed_positive",
+    "language": "en",
+    "text": "we continue uh",
+    "expected_statuses": ["boundary_hesitation"]
+  },
+  {
+    "id": "boundary-gap-before-es",
+    "description": "Una pausa amplia antes del filler impide tratarlo como hesitation aislada.",
+    "source_type": "constructed_positive",
+    "language": "es",
+    "text": "vamos eh seguimos",
+    "starts": [0.10, 1.20, 1.52],
+    "expected_statuses": ["boundary_hesitation"]
+  },
+  {
+    "id": "boundary-gap-after-es",
+    "description": "Una pausa amplia después del filler impide tratarlo como hesitation aislada.",
+    "source_type": "constructed_positive",
+    "language": "es",
+    "text": "vamos eh seguimos",
+    "starts": [0.10, 0.42, 1.60],
+    "expected_statuses": ["boundary_hesitation"]
+  },
+  {
+    "id": "semantic-negative-ordinary-filler",
+    "description": "El control semántico previo con filler inicial debe producir assessment contextual pero ningún edit.",
+    "source_type": "reused_constructed_control",
+    "source_reference": "tests/fixtures/semantic_corpus_v1.json#ordinary-filler",
+    "language": "es",
+    "text": "eh bueno pues empezamos con el informe de hoy",
+    "expected_statuses": ["boundary_hesitation"]
+  },
+  {
+    "id": "human-spanishpod-no-filler",
+    "description": "Control humano real sin fillers vocales: no debe aparecer ningún assessment.",
+    "source_type": "human_speech_reference",
+    "source_reference": "SpanishPod_newbie_lesson_A0007_dialogue.ogg; reused from run 33656235038",
+    "language": "es",
+    "text": "De dónde eres Soy de Perú Y tú Yo soy de Colombia Qué bien",
+    "expected_statuses": []
+  },
+  {
+    "id": "clean-no-filler",
+    "description": "Habla construida limpia sin vacilación vocal.",
+    "source_type": "constructed_negative",
+    "language": "es",
+    "text": "vamos a seguir con el proyecto mañana",
+    "expected_statuses": []
+  }
+]
