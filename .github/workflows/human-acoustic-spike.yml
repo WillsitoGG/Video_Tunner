@@ -1,0 +1,54 @@
+name: Human Acoustic Join Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-human-acoustic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-human-acoustic:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ensure FFmpeg is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --no-progress -y
+          }
+          ffmpeg -version | Select-Object -First 1
+
+      - name: Install lightweight analysis dependencies
+        run: python -m pip install -e . numpy==2.5.2
+
+      - name: Run regression suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Download licensed AMI fixture
+        shell: pwsh
+        run: .\.github\scripts\download_ami_semantic_fixture.ps1
+
+      - name: Validate real human acoustic join evidence
+        shell: pwsh
+        run: |
+          python -m video_tunner.human_acoustic_validation `
+            --fixture ".\tests\fixtures\human_acoustic_ami_v1.json" `
+            --master-audio "$env:AMI_SEMANTIC_FIXTURE_WAV"
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "This workflow reuses frozen large-v3-turbo word endpoints from run 33755013415 and measures the real AMI master audio."
+          Write-Host "It does not download or rerun the Whisper model."
+          Write-Host "AMI is CC BY 4.0, remains ephemeral in RUNNER_TEMP, and no audio/output artifact is uploaded."

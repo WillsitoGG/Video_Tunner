@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "source": {
+    "corpus": "AMI Meeting Corpus",
+    "meeting": "ES2012d",
+    "audio": "ES2012d.Mix-Headset.wav",
+    "license": "CC BY 4.0",
+    "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2012d/audio/ES2012d.Mix-Headset.wav",
+    "bytes": 30388952,
+    "sha256": "39FCDE566E2D1BC7EC40A31DEC19251CC253AAC54BE94713E68EEA3008AF4F8D"
+  },
+  "asr_reference": {
+    "workflow_run": 33755013415,
+    "model": "large-v3-turbo",
+    "device": "cpu",
+    "compute_type": "int8",
+    "note": "Word timestamps below are frozen from the successful Phase 2C.3 audio-backed run; the model is not rerun in this fixture."
+  },
+  "cases": [
+    {
+      "id": "ami-human-pause-control-0311",
+      "source_window_start": 189.0,
+      "source_type": "human_audio_control",
+      "purpose": "Measure a real human pause that has bilateral context and no Phase 2D.3.1 lexical/boundary guard in the local window.",
+      "words": [
+        {"text": "bigger.", "start": 14.70, "end": 14.98, "probability": 0.99},
+        {"text": "Yeah,", "start": 14.98, "end": 15.18, "probability": 0.99},
+        {"text": "we", "start": 15.24, "end": 15.36, "probability": 0.99},
+        {"text": "can", "start": 15.36, "end": 15.42, "probability": 0.99},
+        {"text": "just", "start": 15.42, "end": 15.56, "probability": 0.99},
+        {"text": "widen", "start": 15.56, "end": 15.82, "probability": 0.99},
+        {"text": "it", "start": 15.82, "end": 15.98, "probability": 0.99},
+        {"text": "out.", "start": 15.98, "end": 16.18, "probability": 0.99},
+        {"text": "Yeah,", "start": 16.54, "end": 16.76, "probability": 0.99},
+        {"text": "and", "start": 17.12, "end": 17.36, "probability": 0.99},
+        {"text": "it", "start": 17.36, "end": 17.64, "probability": 0.99},
+        {"text": "just", "start": 17.64, "end": 17.84, "probability": 0.99},
+        {"text": "needs...", "start": 17.84, "end": 17.98, "probability": 0.99}
+      ],
+      "candidate": {
+        "kind": "pause",
+        "start": 16.76,
+        "end": 17.12,
+        "reason": "Human-audio acoustic control from a real ASR word gap; not asserted to be an automatically removable product candidate."
+      },
+      "expected_join_status": "join_context_only",
+      "expected_acoustic_contract": "measured"
+    },
+    {
+      "id": "ami-human-retake-protected-0311",
+      "source_window_start": 189.0,
+      "source_type": "human_audio_positive",
+      "purpose": "Verify that real repair context blocks acoustic override even if the waveform could look favorable.",
+      "words": [
+        {"text": "item.", "start": 7.08, "end": 7.50, "probability": 0.99},
+        {"text": "Yeah,", "start": 7.82, "end": 8.16, "probability": 0.99},
+        {"text": "I", "start": 8.52, "end": 8.54, "probability": 0.99},
+        {"text": "mean,", "start": 8.54, "end": 8.60, "probability": 0.99},
+        {"text": "it's", "start": 8.80, "end": 8.86, "probability": 0.99},
+        {"text": "standing.", "start": 8.86, "end": 9.12, "probability": 0.99},
+        {"text": "I", "start": 9.94, "end": 10.30, "probability": 0.99},
+        {"text": "mean,", "start": 10.30, "end": 10.42, "probability": 0.99},
+        {"text": "it's", "start": 10.42, "end": 10.50, "probability": 0.99},
+        {"text": "just", "start": 10.50, "end": 10.66, "probability": 0.99}
+      ],
+      "candidate": {
+        "kind": "possible_retake",
+        "start": 8.52,
+        "end": 9.12,
+        "removed_text": "I mean, it's standing.",
+        "word_start_index": 2,
+        "word_end_index_exclusive": 6
+      },
+      "expected_join_status": "repair_or_protected_context_risk",
+      "expected_acoustic_status": "blocked_by_context"
+    },
+    {
+      "id": "ami-human-correction-ambiguous-0250",
+      "source_window_start": 168.0,
+      "source_type": "human_audio_positive",
+      "purpose": "Verify that a real I mean correction with no deterministic left scope remains unbounded and cannot reach waveform override.",
+      "words": [
+        {"text": "point", "start": 5.82, "end": 6.20, "probability": 0.99},
+        {"text": "i", "start": 6.20, "end": 6.34, "probability": 0.99},
+        {"text": "just", "start": 6.34, "end": 6.48, "probability": 0.99},
+        {"text": "wonder", "start": 6.48, "end": 6.64, "probability": 0.99},
+        {"text": "i", "start": 6.64, "end": 6.90, "probability": 0.99},
+        {"text": "mean", "start": 6.90, "end": 6.98, "probability": 0.99},
+        {"text": "how", "start": 6.98, "end": 7.32, "probability": 0.99},
+        {"text": "will", "start": 7.32, "end": 7.46, "probability": 0.99},
+        {"text": "people", "start": 7.46, "end": 7.66, "probability": 0.99},
+        {"text": "put", "start": 7.66, "end": 8.00, "probability": 0.99},
+        {"text": "these", "start": 8.00, "end": 8.22, "probability": 0.99},
+        {"text": "down", "start": 8.22, "end": 8.64, "probability": 0.99}
+      ],
+      "candidate": {
+        "kind": "explicit_correction",
+        "start": 6.64,
+        "end": 6.98,
+        "removed_text": "i mean",
+        "word_start_index": 4,
+        "word_end_index_exclusive": 6
+      },
+      "expected_scope_status": "ambiguous",
+      "expected_join_status": "invalid_or_unbounded_target",
+      "expected_acoustic_status": "blocked_by_context"
+    }
+  ]
+}

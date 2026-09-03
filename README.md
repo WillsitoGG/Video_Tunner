@@ -37,7 +37,8 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 2D.2 — Fillers contextuales foundation v1: ✅
 - Fase 2D.3.1 — Sentence/join context foundation v1: ✅
 - Fase 2D.3.2 — Acoustic join validation foundation v1: ✅
-- Fase 2D.3.3 — Audio humano real para join acoustics: 🟡 **siguiente**
+- Fase 2D.3.3 — Human-audio acoustic evidence v1: ✅
+- Fase 2D.4 — Combined Eligibility / Promotion Policy Foundation: 🟡 **siguiente**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -62,6 +63,8 @@ join assessments (timeline/lexical/boundary evidence)
 acoustic join assessments (master-audio waveform evidence)
   ↓
 semantic decisions + protection
+  ↓
+future combined eligibility policy
   ↓
 future approved Edit Plan
   ↓
@@ -92,30 +95,7 @@ automatic_edits = 0
 
 Modelo objetivo: **`large-v3-turbo`**. `tiny` se reserva para fixtures baratos.
 
-## Ingesta / sincronización
-
-```powershell
-video-tunner ingest "video.mp4" --output-dir Output
-video-tunner ingest "video.mp4" --audio "grabador.wav" --output-dir Output
-video-tunner ingest "video.mp4" --audio "grabador.wav" --offset 1.25 --output-dir Output
-video-tunner ingest "video.mp4" --audio "grabador.wav" --offset -2.0 --drift-ppm 120 --output-dir Output
-```
-
-Convención temporal:
-
-```text
-video_time = offset_seconds + time_scale * external_time
-```
-
-Auto-sync: log-RMS → ZNCC coarse → anchors → offset/drift → residual/confidence/coverage. Evidencia insuficiente => `review_required`, sin master.
-
 ## Análisis
-
-```powershell
-video-tunner analyze "video.mp4" --model large-v3-turbo --language es --output-dir Output
-video-tunner analyze "video.mp4" --audio "micro.wav" --model large-v3-turbo --language es --output-dir Output
-video-tunner analyze "video.mp4" --master-audio "video_master_audio.flac" --ingest-report "video_ingest.json" --model large-v3-turbo --language es --output-dir Output
-```
 
 `analysis.json` actual usa **schema v7** y separa:
 
@@ -142,77 +122,35 @@ join_acoustic_validation_enabled = true
 join_acoustic_validation_is_not_cut_authorization = true
 ```
 
-## Fase 2A — Semantic Candidates v1
+## Evidencia de Fase 2
 
-Clases: `possible_repetition`, `possible_retake`, `explicit_correction`. Todo candidate sigue review-only.
+```text
+33659725847  Semantic Candidates PASS
+33741195594  Semantic Decisions/Protection PASS
+33750836791  Human correction corpus PASS
+33755013415  3 casos AMI audio-backed semantic gate PASS
+33758185755  88/88 — correction scope, schema v4
+33771792867  101/101 — contextual fillers, schema v5
+33773287106  117/117 — join context, schema v6
+33781903986  131/131 — acoustic join, schema v7
+33782959293  134/134 — human acoustic gate PASS
+```
 
-Run `33659725847`: 48 tests PASS, artifacts 0.
-
-## Fase 2B — Semantic Decisions + Protection v1
-
-Decisiones: `KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT`. Todas son no ejecutables.
-
-Run `33741195594`: 55 tests PASS, doctor PASS, artifacts 0.
-
-## Fase 2C — Semantic Validation
-
-- 2C.1 `33743029443`: benchmark foundation PASS.
-- 2C.2 `33750836791`: 74 tests PASS; corpus humano bilingüe etiquetado.
-- 2C.3 `33755013415`: 3 casos de audio humano real → `large-v3-turbo` → semantic gate PASS; artifacts 0.
-
-No generalizar métricas de corpus a habla arbitraria.
-
-## Fase 2D.1 — Correction Scope Foundation v1
-
-`bounded` describe un boundary local determinista; **no** significa cut seguro.
-
-Final `33758185755`: 88/88 PASS; schema v4; E2E FFmpeg/sync + doctor PASS; artifacts 0.
-
-Evidencia: `Validation/phase2d-correction-scope.md`.
-
-## Fase 2D.2 — Fillers Contextuales Foundation v1
-
-Separa `possible_filler` de su evaluación contextual. Incluso `isolated_hesitation` permanece `safe_for_cut=false`.
-
-Final `33771792867`: 101/101 PASS; schema v5; artifacts 0.
-
-Evidencia: `Validation/phase2d-contextual-fillers.md`.
-
-## Fase 2D.3.1 — Sentence/Join Context Foundation v1
-
-`join_assessments[]` valida target, contexto bilateral, boundaries, reparaciones y tokens críticos antes de cualquier consideración acústica.
-
-Final `33773287106`: 117/117 PASS; schema v6; artifacts 0.
-
-Evidencia: `Validation/phase2d-join-safety.md`.
+Todas las capas siguen sin producir edits automáticos.
 
 ## Fase 2D.3.2 — Acoustic Join Validation Foundation v1
 
 La capa acústica usa el **mismo master audio acreditado** que Whisper/VAD.
-
-Implementación:
 
 ```text
 master audio
 → un único decode FFmpeg a PCM16 mono / 16 kHz temporal
 → NumPy memmap
 → ventanas locales de 80 ms por lado
-→ métricas acústicas auditables
+→ RMS / edge RMS / peak / sample jump / jump ratio
 ```
 
 Sólo se mide `join_context_only`; un join ya bloqueado por contexto permanece `blocked_by_context`.
-
-Estados:
-
-```text
-blocked_by_context
-insufficient_audio_context
-low_energy_boundary_context
-level_discontinuity_risk
-waveform_discontinuity_risk
-combined_discontinuity_risk
-acoustic_context_only
-```
 
 Thresholds v1:
 
@@ -223,30 +161,48 @@ max boundary sample jump   0.35
 max boundary jump ratio    1.25
 ```
 
-Benchmark: 11 casos reproducibles. Además hay tests que pasan por decode real FFmpeg/PCM.
+Detalle: `Validation/phase2d-acoustic-join.md`.
 
-Runs:
+## Fase 2D.3.3 — Human-audio Acoustic Evidence v1
+
+Run `33782959293` reutiliza endpoints reales de `large-v3-turbo` del run `33755013415` y mide el WAV AMI original CC BY 4.0, sin volver a ejecutar el modelo.
 
 ```text
-33781430382  131/131 PASS en 6.998 s — acoustic foundation
-33781903986  131/131 PASS en 7.401 s — schema v7 + pipeline integration
+134/134 tests PASS en 6.803 s
+3 casos humanos
+1 medición acústica real
+2 bloqueos contextuales preservados
+HUMAN_ACOUSTIC_GATE=PASS
+artifacts 0
 ```
 
-Ambos: benchmark gate PASS; FFmpeg/sync + doctor PASS; artifacts 0.
+Control humano medido:
 
-La foundation **no** demuestra todavía calidad perceptual universal, continuidad espectral/prosódica, zero-cross optimization, crossfades ni ausencia universal de click/pop.
+```text
+status               acoustic_context_only
+RMS delta            4.9369 dB
+boundary sample jump 0.030243
+boundary jump ratio  0.340433
+safe_for_cut          false
+```
 
-Evidencia: `Validation/phase2d-acoustic-join.md`.
+Los casos de retake y correction ambigua permanecieron `blocked_by_context`, por lo que la acústica no puede rescatar un join previamente bloqueado.
 
-## Siguiente trabajo — Fase 2D.3.3
+No se modificaron thresholds v1. Una medición humana limpia no demuestra seguridad universal, calidad perceptual, continuidad prosódica ni ausencia general de click/pop.
 
-Antes de cerrar 2D y plantear promoción:
+Detalle: `Validation/phase2d-human-acoustic-evidence.md`.
 
-1. ejecutar `acoustic_join_assessments` sobre joins derivados de audio humano real trazable;
-2. medir cómo se comportan los thresholds v1 fuera de señales construidas;
-3. ajustar sólo si aparece evidencia real de FP/FN;
-4. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
-5. después definir la política combinada de promoción y `removedText` definitivo.
+## Siguiente trabajo — Fase 2D.4
+
+Diseñar una **Combined Eligibility / Promotion Policy Foundation** todavía no ejecutable:
+
+1. combinar guardas semánticas, correction scope, fillers, join context y acoustics;
+2. exigir paso acumulativo de todas las capas;
+3. cualquier ambigüedad/riesgo => REVIEW/bloqueo;
+4. validar `removedText` definitivo contra span/transcript/timestamps;
+5. crear benchmark con positivos/negativos y fallos deliberados;
+6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
+7. no promover nada al Edit Plan hasta cerrar 2D.
 
 ## Principios
 
