@@ -2,11 +2,6 @@ name: Manual CI
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2d-combined-eligibility
-    paths:
-      - ".github/ci-triggers/phase2d4-eligibility.txt"
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
