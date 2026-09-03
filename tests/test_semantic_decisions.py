@@ -52,6 +52,27 @@ class SemanticDecisionTests(unittest.TestCase):
         self.assertFalse(decision["auto_apply"])
         self.assertEqual(decision["proposed_span"]["removed_text"], "vamos a lanzar")
         self.assertTrue(decision["span_validation"]["valid"])
+        self.assertFalse(decision["protections"]["repeat_timing"]["compressed"])
+
+    def test_asr_compressed_exact_repetition_fails_safe_to_review(self):
+        value = transcript(
+            "have a look at the have a look at the prototypes",
+            step=0.12,
+        )
+        candidates = semantic_candidates(value)
+        repeat = next(item for item in candidates if item["kind"] == "possible_repetition")
+        decision = next(
+            item
+            for item in build_semantic_decisions(value, candidates)
+            if item["candidate_id"] == repeat["id"]
+        )
+
+        self.assertLess(repeat["evidence"]["first_seconds_per_token"], 0.12)
+        self.assertEqual(decision["decision"], "REVIEW")
+        self.assertEqual(decision["guard_status"], "review")
+        self.assertTrue(decision["protections"]["repeat_timing"]["compressed"])
+        self.assertFalse(decision["executable"])
+        self.assertFalse(decision["auto_apply"])
 
     def test_number_correction_200_to_250_is_flagged_and_kept_for_review(self):
         value = transcript("la facturación fue de 200 perdón de 250 mil euros")
