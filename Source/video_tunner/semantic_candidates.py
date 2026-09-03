@@ -13,6 +13,7 @@ SEMANTIC_SETTINGS = {
         "min_retake_prefix_tokens": 3,
         "max_retake_gap_seconds": 8.0,
         "max_intervening_tokens": 7,
+        "reject_continuation_markers": True,
     },
     "aggressive": {
         "min_repeat_tokens": 2,
@@ -20,6 +21,7 @@ SEMANTIC_SETTINGS = {
         "min_retake_prefix_tokens": 2,
         "max_retake_gap_seconds": 8.0,
         "max_intervening_tokens": 9,
+        "reject_continuation_markers": False,
     },
 }
 
@@ -34,6 +36,12 @@ CORRECTION_MARKERS: tuple[tuple[tuple[str, ...], float], ...] = (
     (("i", "mean"), 0.78),
 )
 
+# "quiero decir" / "I mean" can be literal constructions. Conservative
+# candidate generation therefore requires left context and rejects the most
+# common literal frames; the marker remains available when it follows an
+# already-spoken attempt.
+AMBIGUOUS_CORRECTION_MARKERS = {("quiero", "decir"), ("i", "mean")}
+
 # A compact bilingual stopword list is enough for the guardrail here: the goal
 # is only to reject repetitions made entirely of connective tissue.
 STOPWORDS = {
@@ -42,6 +50,18 @@ STOPWORDS = {
     "mi", "no", "o", "para", "pero", "por", "que", "se", "si", "sin", "su", "te", "tu",
     "un", "una", "uno", "y", "ya", "yo", "the", "a", "an", "and", "or", "but", "to",
     "of", "in", "on", "for", "with", "is", "it", "this", "that", "i", "you", "we",
+}
+
+# In conservative mode, a repeated opener separated by an ordinary continuation
+# ("ahora y luego", "pero", "because"...) is more likely legitimate reuse than
+# a retake. A nearby hesitation/repair marker overrides this rejection.
+CONTINUATION_MARKERS = {
+    "y", "pero", "porque", "luego", "despues", "ahora", "entonces", "mientras", "ademas",
+    "and", "but", "because", "then", "later", "now", "while", "also", "however",
+}
+RETAKE_REPAIR_MARKERS = {
+    "eh", "em", "erm", "er", "um", "umm", "uh", "uhh", "mmm", "mm", "hmm",
+    "perdon", "perdona", "sorry",
 }
 
 MAX_REPEAT_TOKENS = 7
@@ -117,12 +137,27 @@ def _candidate(
     }
 
 
+def _ambiguous_marker_is_literal(tokens: list[str], index: int, marker: tuple[str, ...]) -> bool:
+    if marker not in AMBIGUOUS_CORRECTION_MARKERS:
+        return False
+    if index == 0:
+        return True
+    left = tuple(token for token in tokens[max(0, index - 2):index] if token)
+    if left[-2:] == ("lo", "que"):
+        return True
+    if left and left[-1] == "what":
+        return True
+    return False
+
+
 def _find_correction_markers(words: list[WordTiming], tokens: list[str]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for index in range(len(words)):
         for marker, confidence in CORRECTION_MARKERS:
             end = index + len(marker)
             if end > len(words) or tuple(tokens[index:end]) != marker:
+                continue
+            if _ambiguous_marker_is_literal(tokens, index, marker):
                 continue
             marker_text = _text(words[index:end])
             result.append(
@@ -214,6 +249,7 @@ def _find_retake_openers(
     min_content = int(settings["min_repeat_content_words"])
     max_intervening = int(settings["max_intervening_tokens"])
     max_gap = float(settings["max_retake_gap_seconds"])
+    reject_continuations = bool(settings.get("reject_continuation_markers"))
     seen_pairs: set[tuple[int, int]] = set()
 
     for first in range(len(words)):
@@ -237,12 +273,20 @@ def _find_retake_openers(
             pair = (first, second)
             if pair in seen_pairs:
                 continue
-            seen_pairs.add(pair)
 
+            between_tokens = [token for token in tokens[first_prefix_end:second] if token]
+            repair_evidence = any(token in RETAKE_REPAIR_MARKERS for token in between_tokens)
+            if (
+                reject_continuations
+                and not repair_evidence
+                and any(token in CONTINUATION_MARKERS for token in between_tokens)
+            ):
+                continue
+
+            seen_pairs.add(pair)
             repeated_text = _text(words[first:first + prefix])
             between_text = _text(words[first_prefix_end:second])
-            marker_boost = any(_normalise(word.text) in {"perdon", "perdona", "sorry"} for word in words[first_prefix_end:second])
-            confidence = 0.62 + min(0.20, prefix * 0.035) + (0.10 if marker_boost else 0.0)
+            confidence = 0.62 + min(0.20, prefix * 0.035) + (0.10 if repair_evidence else 0.0)
             result.append(
                 _candidate(
                     words,
@@ -260,6 +304,7 @@ def _find_retake_openers(
                         "second_occurrence_text": _text(words[second:second + prefix]),
                         "prefix_token_count": prefix,
                         "intervening_token_count": intervening,
+                        "repair_evidence": repair_evidence,
                         "keep_occurrence": "later",
                     },
                 )
