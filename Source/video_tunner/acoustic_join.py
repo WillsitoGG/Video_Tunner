@@ -181,20 +181,45 @@ def classify_join_acoustics(metrics: dict[str, Any]) -> tuple[str, list[str]]:
     ]
 
 
-def _blocked_record(join: dict[str, Any], *, reason: str) -> dict[str, Any]:
+def _base_assessment(join: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": "",
         "join_assessment_id": join.get("id"),
         "candidate_id": join.get("candidate_id"),
         "candidate_kind": join.get("candidate_kind"),
-        "status": "blocked_by_context",
         "target_span": join.get("target_span"),
-        "metrics": None,
-        "rationale": [reason],
-        "measurement_available": False,
         "safe_for_cut": False,
         "executable": False,
         "auto_apply": False,
+    }
+
+
+def assess_join_edge_samples(
+    join: dict[str, Any],
+    left_samples: Any,
+    right_samples: Any,
+    *,
+    sample_rate: int = SAMPLE_RATE,
+) -> dict[str, Any]:
+    """Build the production acoustic assessment from already materialised edge samples."""
+    metrics = measure_join_edges(left_samples, right_samples, sample_rate=sample_rate)
+    status, rationale = classify_join_acoustics(metrics)
+    return {
+        **_base_assessment(join),
+        "status": status,
+        "metrics": metrics,
+        "rationale": rationale,
+        "measurement_available": bool(metrics.get("measurement_available")),
+    }
+
+
+def _blocked_record(join: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    return {
+        **_base_assessment(join),
+        "status": "blocked_by_context",
+        "metrics": None,
+        "rationale": [reason],
+        "measurement_available": False,
     }
 
 
@@ -205,18 +230,12 @@ def _insufficient_record(
     reason: str,
 ) -> dict[str, Any]:
     return {
-        "id": "",
-        "join_assessment_id": join.get("id"),
-        "candidate_id": join.get("candidate_id"),
-        "candidate_kind": join.get("candidate_kind"),
+        **_base_assessment(join),
         "status": "insufficient_audio_context",
         "target_span": target_span,
         "metrics": {"measurement_available": False, "reason": reason},
         "rationale": ["No existe contexto acústico bilateral suficiente; fail-safe."],
         "measurement_available": False,
-        "safe_for_cut": False,
-        "executable": False,
-        "auto_apply": False,
     }
 
 
@@ -301,24 +320,7 @@ def build_acoustic_join_assessments(
 
             left = np.asarray(pcm[left_start:left_end], dtype=np.float32) / 32768.0
             right = np.asarray(pcm[right_start:right_end], dtype=np.float32) / 32768.0
-            metrics = measure_join_edges(left, right, sample_rate=sample_rate)
-            status, rationale = classify_join_acoustics(metrics)
-            results.append(
-                {
-                    "id": "",
-                    "join_assessment_id": join.get("id"),
-                    "candidate_id": join.get("candidate_id"),
-                    "candidate_kind": join.get("candidate_kind"),
-                    "status": status,
-                    "target_span": target,
-                    "metrics": metrics,
-                    "rationale": rationale,
-                    "measurement_available": bool(metrics.get("measurement_available")),
-                    "safe_for_cut": False,
-                    "executable": False,
-                    "auto_apply": False,
-                }
-            )
+            results.append(assess_join_edge_samples(join, left, right, sample_rate=sample_rate))
 
         del pcm
 
