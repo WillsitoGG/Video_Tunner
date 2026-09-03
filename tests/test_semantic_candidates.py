@@ -99,11 +99,44 @@ class SemanticCandidateTests(unittest.TestCase):
                 candidates = build_semantic_candidates(transcript, mode="conservative")
                 self.assertFalse(any(item["kind"] == "explicit_correction" for item in candidates))
 
-    def test_ambiguous_correction_marker_still_works_after_an_attempt(self):
+    def test_ambiguous_correction_marker_still_works_for_numeric_replacement(self):
         transcript = transcript_from_words(timed("son veinte quiero decir treinta unidades"))
         candidates = build_semantic_candidates(transcript, mode="conservative")
         correction = next(item for item in candidates if item["kind"] == "explicit_correction")
         self.assertEqual(correction["evidence"]["removed_text"], "quiero decir")
+        self.assertTrue(correction["evidence"]["numeric_replacement_cue"])
+
+    def test_i_mean_discourse_without_repair_evidence_is_rejected_conservatively(self):
+        transcript = transcript_from_words(
+            timed("we chose a fashion item i mean it is just a minor detailed point")
+        )
+        candidates = build_semantic_candidates(transcript, mode="conservative")
+        self.assertFalse(any(item["kind"] == "explicit_correction" for item in candidates))
+
+    def test_i_mean_after_explicit_dash_is_review_candidate(self):
+        transcript = transcript_from_words(
+            timed("i just wondered - i mean h- how will people put these down")
+        )
+        candidates = build_semantic_candidates(transcript, mode="conservative")
+        correction = next(item for item in candidates if item["kind"] == "explicit_correction")
+        self.assertEqual(correction["evidence"]["removed_text"], "i mean")
+        self.assertTrue(correction["evidence"]["repair_boundary_before"])
+        self.assertFalse(correction["auto_apply"])
+
+    def test_perdon_followed_by_hesitation_without_boundary_is_rejected_conservatively(self):
+        transcript = transcript_from_words(
+            timed("ahora se me está bloqueando perdón eh que muchas gracias")
+        )
+        candidates = build_semantic_candidates(transcript, mode="conservative")
+        self.assertFalse(any(item["kind"] == "explicit_correction" for item in candidates))
+
+    def test_perdon_after_fragment_is_review_candidate(self):
+        transcript = transcript_from_words(timed("pero la dee- perdón la de Marta ya está pasada"))
+        candidates = build_semantic_candidates(transcript, mode="conservative")
+        correction = next(item for item in candidates if item["kind"] == "explicit_correction")
+        self.assertEqual(correction["evidence"]["removed_text"], "perdón")
+        self.assertTrue(correction["evidence"]["repair_boundary_before"])
+        self.assertFalse(correction["auto_apply"])
 
     def test_conservative_mode_does_not_flag_two_word_emphasis(self):
         transcript = transcript_from_words(timed("muy bien muy bien seguimos"))
