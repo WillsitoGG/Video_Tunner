@@ -30,7 +30,10 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 1C — Transcripción/VAD sobre master + `large-v3-turbo` español real: ✅
 - Fase 2A — Semantic Candidates v1: ✅
 - Fase 2B — Semantic Decisions + Protection v1: ✅
-- Fase 2C — Validación semántica real: 🟡 **benchmark + retake humano + correcciones humanas bilingües validadas; ampliar evidencia/audio real pendiente**
+- Fase 2C.1 — Benchmark semántico: ✅
+- Fase 2C.2 — Positivos/negativos humanos bilingües: ✅
+- Fase 2C.3 — Audio humano real → `large-v3-turbo` → semantic gate: ✅
+- Fase 2D — Correction scope + fillers contextuales + join safety: 🟡 **siguiente bloque**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -151,11 +154,11 @@ Guardas: span integrity, cifras/importes/porcentajes/unidades, negaciones, perso
 
 Run `33741195594`: 55 tests PASS, doctor PASS, artifacts 0.
 
-## Fase 2C — Semantic Validation — EN CURSO
+## Fase 2C — Semantic Validation
 
 El harness de `Source/video_tunner/semantic_validation.py` mide TP/FP/FN, precision/recall/F1 y seguridad de decisiones sin promover edits.
 
-### Foundation
+### 2C.1 — Foundation
 
 Baseline `33742519997`:
 
@@ -181,93 +184,84 @@ auto_apply 0
 artifacts 0
 ```
 
-### Primer retake humano
+### 2C.2 — Evidencia humana bilingüe
 
-AMI Meeting Corpus ES2012d añadido como positivo humano.
+AMI y CORMA aportan positivos/negativos humanos para retakes, autocorrecciones y usos ambiguos de `I mean` / `perdón`.
 
-Run `33743638690`:
-
-```text
-65 tests PASS
-22 casos / 12 eventos
-FP 0 / FN 0
-possible_retake → REVIEW
-unsafe proposals 0
-artifacts 0
-```
-
-### Correcciones humanas bilingües
-
-Se añadió `tests/fixtures/semantic_human_corrections_v1.json` con un par positivo/negativo en cada idioma:
-
-- AMI, inglés: `I mean` como reparación real vs. `I mean` discursivo;
-- CORMA, español: `Perdón` tras fragmento abandonado vs. `perdón eh` como disculpa/inciso.
-
-Baseline `33750475437`:
-
-```text
-69 tests PASS en 6.718 s
-26 casos / 14 eventos
-14 TP / 2 FP / 0 FN
-precision 87.50%
-recall 100%
-F1 93.33%
-unsafe proposals 0
-executable 0
-auto_apply 0
-```
-
-El gate falló sólo por precision. Los dos FP eran exactamente los usos humanos ambiguos de marcador.
-
-Tuneo Conservador basado en esa evidencia:
-
-- `I mean / quiero decir` requiere frontera explícita de reparación o sustitución numérica;
-- `perdón / perdona / sorry` no se trata como correction candidate en patrones de disculpa/hesitación sin intento interrumpido;
-- tras fragmento truncado sí permanece `explicit_correction → REVIEW`;
-- modo Agresivo conserva detección más amplia.
-
-Run final `33750836791` — **SUCCESS**:
+Run final `33750836791`:
 
 ```text
 74 tests PASS en 6.729 s
-26 casos
-14 eventos esperados / 14 candidates
-FP 0
-FN 0
-precision 100%
-recall 100%
-F1 100%
-decision mismatches 0
+26 casos / 14 eventos
+FP 0 / FN 0
+precision = recall = F1 = 100% en el corpus etiquetado actual
 unsafe proposals 0
+decision mismatches 0
 missing safe proposals 0
-executable decisions 0
-auto_apply decisions 0
+executable 0
+auto_apply 0
 artifacts 0
 ```
 
-`video-tunner doctor` y E2E FFmpeg/sync PASS.
+El **100% sólo acredita ese corpus etiquetado**; no debe generalizarse a habla arbitraria.
 
-Composición humana actual:
+### 2C.3 — Audio humano real → `large-v3-turbo` → semántica
+
+Se validó audio real de AMI ES2012d mediante el **portable frozen**, modelo fijado `large-v3-turbo`, word timestamps reales, candidate generation y semantic decisions.
+
+Validación ligera previa `33754755238`:
 
 ```text
-4 human_speech_reference  # SpanishPod negativos ya acreditados con audio/Whisper
-3 human_speech_positive   # AMI retake + AMI correction + CORMA correction
-2 human_speech_negative   # AMI discourse + CORMA apology
+76/76 tests PASS en 5.561 s
+E2E FFmpeg/sync PASS
+doctor PASS
+artifacts 0
 ```
 
-**El 100% sólo corresponde al corpus etiquetado actual.** El harness semántico usa timings deterministas; aún no demuestra que Whisper preserve siempre las señales de truncamiento/puntuación de transcripts manuales.
+Baseline audio real válido detectó dos efectos ASR que no aparecen en transcripts manuales:
 
-Provenance: `Validation/phase2c-semantic-validation-sources.md`.
+1. Whisper puede omitir una vacilación y convertir un retake en una repetición textual exacta.
+2. Whisper puede eliminar el guion/truncamiento alrededor de `I mean`, conservando sólo una reformulación contextual.
 
-## Siguiente trabajo
+Hardening guiado por esa evidencia:
 
-1. ampliar humanos positivos/negativos, especialmente español;
-2. validar cómo sobreviven las señales de reparación a audio real → `large-v3-turbo`;
-3. resolver scope seguro `intento incorrecto → corrección válida`;
-4. validar fillers contextuales;
-5. añadir límites de frase y join safety;
-6. mantener `executable=false` hasta evidencia suficiente;
-7. sólo después considerar promotion al Edit Plan.
+- repetición exacta con timing anómalamente comprimido => fail-safe `REVIEW`;
+- `I mean / quiero decir` puede usar `question_reframe_cue` como evidencia conservadora cuando la señal de truncamiento desaparece;
+- un `I mean` discursivo sigue sin convertirse en `explicit_correction`.
+
+Run final pesado `33755013415` — **SUCCESS**:
+
+```text
+3 casos de audio humano real
+0 failures
+53.810 s de análisis total
+automatic_edits 0
+executable decisions 0
+auto_apply decisions 0
+artifacts 0
+SEMANTIC_AUDIO_GATE=PASS
+```
+
+Resultados:
+
+```text
+retake real      → possible_repetition → REVIEW
+I mean correction → explicit_correction → REVIEW
+I mean discourse  → 0 explicit_correction
+```
+
+En el retake real, la primera repetición quedó en `0.112 s/token`, por debajo del umbral conservador `0.120 s/token`, por lo que no llega a `PROPOSED_CUT`.
+
+AMI se descarga sólo a `RUNNER_TEMP`; audio/modelo/outputs no se suben como artifacts. Evidencia detallada: `Validation/phase2c-audio-backed-validation.md`.
+
+## Siguiente trabajo — Fase 2D
+
+1. definir y medir **correction scope**: qué span anterior corresponde realmente al intento incorrecto;
+2. mantener marker-only si el scope no puede demostrarse con seguridad;
+3. distinguir fillers contextuales eliminables de discurso natural/semántico;
+4. añadir límites de frase y join safety;
+5. mantener `executable=false` y `auto_apply=false` durante 2D;
+6. sólo después considerar promoción al Edit Plan.
 
 ## Principios
 
