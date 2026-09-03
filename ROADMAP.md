@@ -60,13 +60,9 @@ Run `33741195594`: 55 tests PASS, artifacts 0.
 
 #### 2C.1 — Benchmark/Validation Foundation v1 — COMPLETADA
 
-Harness TP/FP/FN + precision/recall/F1 + safety.
-
 `33743029443`: 21 casos / 11 eventos, 0 FP/FN, unsafe 0.
 
 #### 2C.2 — Positivos/negativos humanos bilingües — COMPLETADA
-
-AMI EN + CORMA ES + controles SpanishPod.
 
 Final `33750836791`:
 
@@ -82,17 +78,6 @@ artifacts 0
 ```
 
 #### 2C.3 — Audio real → Whisper → semántica — COMPLETADA
-
-Audio real AMI ES2012d procesado con portable frozen y modelo fijado `large-v3-turbo`.
-
-Ligera `33754755238`:
-
-```text
-76/76 tests PASS en 5.561 s
-FFmpeg/sync E2E PASS
-doctor PASS
-artifacts 0
-```
 
 Final pesada `33755013415`:
 
@@ -110,33 +95,102 @@ artifacts 0
 Evidencia nueva:
 
 - Whisper puede borrar una vacilación y fabricar una repetición textual perfecta;
-- repetición con timing anómalamente comprimido => `REVIEW`;
+- timing anómalamente comprimido => `REVIEW`;
 - Whisper puede eliminar guiones/truncamientos de una autocorrección;
-- `question_reframe_cue` recupera el caso real `I mean how...` de forma conservadora;
+- `question_reframe_cue` recupera `I mean how...` conservadoramente;
 - `I mean` discursivo sigue sin ser `explicit_correction`.
 
-**El 100% de 2C.2 sólo vale para ese corpus; 2C.3 demuestra comportamiento de tres casos audio-backed, no seguridad universal.**
+**El 100% de 2C.2 sólo vale para ese corpus; 2C.3 demuestra tres casos audio-backed, no seguridad universal.**
 
 ### 2D — Scope de correcciones + fillers contextuales + join safety — EN CURSO
 
-#### 2D.1 — Correction scope — SIGUIENTE
+#### 2D.1 — Correction Scope Foundation v1 — COMPLETADA
 
-Objetivo: inferir y medir el span `intento incorrecto → marcador/corrección` sin confundir marker detection con boundary de borrado.
+Nueva arquitectura:
+
+```text
+candidate
+→ correction scope evidence
+→ semantic decision/protection
+→ future approved edit
+```
+
+`analysis.json` pasa a schema v4:
+
+```text
+candidates[]
+correction_scopes[]
+semantic_decisions[]
+```
+
+Estados de scope:
+
+```text
+bounded
+ambiguous
+invalid
+```
+
+Estrategias v1:
+
+```text
+repeated_corrected_prefix_anchor
+local_numeric_replacement
+no_deterministic_left_boundary
+```
+
+Todo scope conserva:
+
+```text
+safe_for_cut=false
+executable=false
+auto_apply=false
+```
+
+Benchmark v1:
+
+```text
+12 casos
+6 bounded esperados
+3 ambiguous esperados
+3 no-candidate controls
+```
+
+Gate:
+
+```text
+candidate contract clean
+bounded_exactness == 1.0
+status/strategy/attempt mismatches == 0
+unsafe_bounded == 0
+safety_violations == 0
+```
+
+Evidencia:
+
+```text
+33757158460  83 tests PASS en 6.767 s — foundation
+33757481376  87 tests PASS en 6.595 s — benchmark
+33758185755  88/88 tests PASS en 6.711 s — schema v4 + pipeline integration
+```
+
+Run `33757887930` falló sólo por una expectativa legada de schema v3; no falló scope/safety.
+
+Detalle: `Validation/phase2d-correction-scope.md`.
+
+#### 2D.2 — Fillers contextuales — SIGUIENTE
+
+Objetivo: distinguir una vacilación vocal potencialmente eliminable de un elemento discursivo que aporta naturalidad, intención o estructura.
 
 Orden:
 
-1. definir representación explícita de `attempt_span` / `correction_marker_span` / `corrected_span` como evidencia, sin edit executable;
-2. construir corpus etiquetado de scopes positivos/negativos;
-3. medir exactitud de boundary/span separada de candidate detection;
-4. proteger números, unidades, negaciones, sujeto/persona, tiempo/aspecto, entidades y causalidad;
-5. si boundary es ambiguo => `REVIEW`, sin propuesta de corte automática;
-6. validar primero con tests deterministas y después con pocos audios reales si aporta evidencia nueva.
-
-#### 2D.2 — Fillers contextuales — FUTURA
-
-- distinguir muletilla eliminable de marcador discursivo necesario;
-- Conservador debe priorizar naturalidad e integridad semántica;
-- no usar listas de palabras como prueba suficiente.
+1. auditar `possible_filler` actual (`eh`, `um`, etc.);
+2. separar token detection de filler decision;
+3. definir evidencia contextual léxica/temporal y relación con retakes/corrections;
+4. construir corpus positivo/negativo, incluyendo habla humana cuando sea útil;
+5. medir FP/FN y fallos de seguridad;
+6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
+7. no usar una lista de tokens como prueba suficiente.
 
 #### 2D.3 — Sentence boundaries + join safety — FUTURA
 
@@ -169,10 +223,9 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. cerrar/mergear evidencia 2C.3;
-2. arrancar 2D.1 correction scope;
-3. medir scope exactness sin habilitar edits;
-4. fillers contextuales;
-5. sentence/join safety;
-6. mantener `executable=false` y `auto_apply=false`;
-7. no promover al Edit Plan hasta superar 2D.
+1. mergear 2D.1 correction scope foundation;
+2. arrancar 2D.2 fillers contextuales;
+3. construir benchmark contextual antes de promover nada;
+4. sentence/join safety;
+5. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
+6. no promover al Edit Plan hasta superar 2D.

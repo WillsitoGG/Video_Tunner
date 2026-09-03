@@ -98,14 +98,19 @@ class AnalysisPipelineTests(unittest.TestCase):
             for key in ("analysis", "transcript_json", "transcript_txt", "subtitles_srt"):
                 self.assertTrue(Path(result[key]).is_file(), key)
             report = json.loads(Path(result["analysis"]).read_text(encoding="utf-8"))
-            self.assertEqual(report["schema_version"], 3)
+            self.assertEqual(report["schema_version"], 4)
             self.assertEqual(report["input"]["master_audio"]["file"], master.name)
             self.assertEqual(report["input"]["ingest"]["status"], "ready")
             self.assertTrue(report["safety"]["master_audio_is_timeline_source"])
             self.assertTrue(report["safety"]["semantic_protection_enabled"])
             self.assertTrue(report["safety"]["semantic_decisions_are_not_edits"])
             self.assertFalse(report["safety"]["semantic_decisions_executable"])
+            self.assertTrue(report["safety"]["correction_scopes_are_not_edits"])
+            self.assertFalse(report["safety"]["correction_scopes_executable"])
+            self.assertFalse(report["safety"]["correction_scopes_safe_for_cut"])
             self.assertEqual(report["semantic_decisions"], [])
+            self.assertEqual(report["correction_scopes"], [])
+            self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
             self.assertEqual(report["summary"]["automatic_edits"], 0)
 
     def test_review_required_stops_before_whisper_or_vad(self):

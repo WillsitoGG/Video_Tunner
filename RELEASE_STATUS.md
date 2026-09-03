@@ -17,7 +17,9 @@
 - Fase 2C.1: COMPLETADA — benchmark semántico
 - Fase 2C.2: COMPLETADA — evidencia humana bilingüe
 - Fase 2C.3: COMPLETADA — audio humano real → `large-v3-turbo` → semantic gate PASS
-- Fase 2D: **SIGUIENTE — correction scope + fillers contextuales + join safety**
+- Fase 2D.1: COMPLETADA — correction scope foundation v1 + schema v4
+- Fase 2D.2: **SIGUIENTE — fillers contextuales**
+- Fase 2D.3: FUTURA — sentence boundaries + join safety
 
 ## Evidencia principal
 
@@ -32,64 +34,102 @@ Semantic Decisions/Protection    33741195594  PASS — 55 tests
 Human correction final           33750836791  PASS — 74 tests, corpus gate PASS
 Phase 2C.3 lightweight           33754755238  PASS — 76/76, FFmpeg/sync E2E
 Phase 2C.3 audio-backed final    33755013415  PASS — 3/3 cases, semantic gate PASS
+Phase 2D.1 foundation            33757158460  PASS — 83 tests
+Phase 2D.1 benchmark             33757481376  PASS — 87 tests, scope gate PASS
+Phase 2D.1 final                 33758185755  PASS — 88/88, schema v4 integration
 ```
 
 Todas mantienen `automatic_edits = 0` donde aplica y artifacts pesados = 0.
 
-## Fase 2C.3 — Audio-backed semantic validation
+## Fase 2D.1 — Correction Scope Foundation v1
 
-Audio real AMI ES2012d se procesó con el portable frozen y el snapshot fijado de `large-v3-turbo`.
-
-Resultado final `33755013415`:
+Nueva separación:
 
 ```text
-3 casos
-0 failures
-53.810 s de análisis total
-SEMANTIC_AUDIO_GATE=PASS
-automatic_edits=0
-executable decisions=0
-auto_apply decisions=0
-artifacts=0
+candidate
+!= correction scope evidence
+!= semantic decision
+!= edit
 ```
 
-Casos:
+`analysis.json` usa schema v4:
 
 ```text
-retake real        → possible_repetition → REVIEW
-I mean correction  → explicit_correction → REVIEW
-I mean discourse   → 0 explicit_correction
+candidates[]
+correction_scopes[]
+semantic_decisions[]
 ```
 
-Hallazgos:
+Estados de scope:
 
-- Whisper puede borrar vacilaciones y transformar un retake en repetición textual exacta;
-- timing anómalamente comprimido degrada una repetición exacta a `REVIEW`;
-- Whisper puede borrar guiones/truncamientos alrededor de una autocorrección;
-- `question_reframe_cue` recupera el caso real `I mean how...` sin hacer el marker auto-aplicable;
-- `I mean` discursivo permanece fuera de `explicit_correction`.
+```text
+bounded
+ambiguous
+invalid
+```
 
-AMI/audio/modelo/outputs permanecen fuera de artifacts y del repositorio. Evidencia: `Validation/phase2c-audio-backed-validation.md`.
+Estrategias v1:
+
+```text
+repeated_corrected_prefix_anchor
+local_numeric_replacement
+no_deterministic_left_boundary
+```
+
+Benchmark etiquetado:
+
+```text
+12 casos
+6 bounded esperados
+3 ambiguous esperados
+3 no-candidate controls
+```
+
+Gate:
+
+```text
+candidate contract clean
+bounded_exactness == 1.0
+status/strategy/attempt mismatches == 0
+unsafe_bounded == 0
+safety_violations == 0
+```
+
+Final `33758185755`:
+
+```text
+88/88 tests PASS en 6.711 s
+E2E FFmpeg/sync PASS
+doctor PASS
+artifacts 0
+```
+
+El run `33757887930` falló únicamente porque un test legado aún esperaba `schema_version == 3`; 87/88 tests pasaron y no hubo fallo de correction scope o safety. La expectativa se actualizó a v4 y el run final quedó verde.
+
+Evidencia: `Validation/phase2d-correction-scope.md`.
 
 ## Safety actual
 
 ```text
-candidate != semantic decision != edit
+candidate != correction scope != semantic decision != edit
 PROPOSED_CUT != executable CUT
+bounded scope != safe cut
 semantic_decisions_executable = false
+correction_scopes_are_not_edits = true
+correction_scopes_executable = false
+correction_scopes_safe_for_cut = false
 executable = false
 auto_apply = false
 automatic_edits = 0
 ```
 
-`explicit_correction` sigue siendo marker-only: aún no se ha demostrado el span anterior que debe eliminarse.
+Un scope `bounded` sólo describe una frontera candidata respaldada localmente. No autoriza borrado, render ni promoción al Edit Plan.
 
 ## Pendiente antes de Release
 
-- Fase 2D.1: correction scope seguro y medido;
 - Fase 2D.2: fillers contextuales;
 - Fase 2D.3: sentence boundaries + join safety;
-- no promover semantic decisions al Edit Plan hasta evidencia suficiente;
+- no promover semantic decisions/scopes al Edit Plan hasta evidencia suficiente;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;

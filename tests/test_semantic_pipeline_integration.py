@@ -10,8 +10,8 @@ from video_tunner.transcription import TranscriptResult, TranscriptSegment, Word
 from video_tunner.vad import SpeechInterval
 
 
-def repeated_transcript() -> TranscriptResult:
-    tokens = "vamos a lanzar vamos a lanzar el producto mañana".split()
+def timed_transcript(text: str) -> TranscriptResult:
+    tokens = text.split()
     words = []
     cursor = 0.2
     for token in tokens:
@@ -34,91 +34,131 @@ def repeated_transcript() -> TranscriptResult:
     )
 
 
-class SemanticPipelineIntegrationTests(unittest.TestCase):
-    def test_analyze_emits_candidate_and_separate_non_executable_decision(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            source = root / "video.mp4"
-            source.write_bytes(b"fake-video")
-            master = root / "video_master_audio.flac"
-            master.write_bytes(b"fake-master")
-            ingest_report = root / "video_ingest.json"
-            ingest_report.write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "status": "ready",
-                        "input_mode": "embedded_audio",
-                        "video": {
-                            "file": source.name,
-                            "duration_seconds": 3.0,
-                            "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-                        },
-                        "timeline_convention": "video_time = offset_seconds + time_scale * external_time",
-                        "sync": {"method": "embedded", "required": False},
-                        "master_audio": {"file": master.name, "source": "embedded_audio"},
-                    }
-                ),
-                encoding="utf-8",
-            )
-
-            def fake_probe(path):
-                if Path(path) == source:
-                    return {"duration_seconds": 3.0, "audio_streams": 1, "video_streams": 1}
-                if Path(path) == master:
-                    return {"duration_seconds": 3.0, "audio_streams": 1, "video_streams": 0}
-                raise AssertionError(path)
-
-            with (
-                patch("video_tunner.analysis_pipeline.probe_media", side_effect=fake_probe),
-                patch(
-                    "video_tunner.analysis_pipeline.ingest_video",
-                    return_value={
-                        "status": "ready",
-                        "master_audio": str(master),
-                        "ingest_report": str(ingest_report),
+def run_fake_analysis(transcript: TranscriptResult) -> dict:
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        source = root / "video.mp4"
+        source.write_bytes(b"fake-video")
+        master = root / "video_master_audio.flac"
+        master.write_bytes(b"fake-master")
+        ingest_report = root / "video_ingest.json"
+        ingest_report.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "status": "ready",
+                    "input_mode": "embedded_audio",
+                    "video": {
+                        "file": source.name,
+                        "duration_seconds": 3.0,
+                        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                     },
-                ),
-                patch(
-                    "video_tunner.analysis_pipeline.transcribe_audio",
-                    return_value=repeated_transcript(),
-                ),
-                patch(
-                    "video_tunner.analysis_pipeline.detect_speech",
-                    return_value=[SpeechInterval(0.0, 3.0)],
-                ),
-            ):
-                result = analyze_spoken_video(
-                    source,
-                    root / "Output",
-                    mode="conservative",
-                    language="es",
-                )
+                    "timeline_convention": "video_time = offset_seconds + time_scale * external_time",
+                    "sync": {"method": "embedded", "required": False},
+                    "master_audio": {"file": master.name, "source": "embedded_audio"},
+                }
+            ),
+            encoding="utf-8",
+        )
 
-            report = json.loads(Path(result["analysis"]).read_text(encoding="utf-8"))
-            repetition = next(
-                item for item in report["candidates"] if item["kind"] == "possible_repetition"
-            )
-            self.assertEqual(repetition["id"], "possible_repetition-0001")
-            self.assertEqual(repetition["evidence"]["removed_text"], "vamos a lanzar")
-            self.assertEqual(repetition["evidence"]["keep_occurrence"], "later")
-            self.assertEqual(repetition["suggested_decision"], "REVIEW")
-            self.assertFalse(repetition["auto_apply"])
+        def fake_probe(path):
+            if Path(path) == source:
+                return {"duration_seconds": 3.0, "audio_streams": 1, "video_streams": 1}
+            if Path(path) == master:
+                return {"duration_seconds": 3.0, "audio_streams": 1, "video_streams": 0}
+            raise AssertionError(path)
 
-            decision = next(
-                item
-                for item in report["semantic_decisions"]
-                if item["candidate_id"] == repetition["id"]
+        with (
+            patch("video_tunner.analysis_pipeline.probe_media", side_effect=fake_probe),
+            patch(
+                "video_tunner.analysis_pipeline.ingest_video",
+                return_value={
+                    "status": "ready",
+                    "master_audio": str(master),
+                    "ingest_report": str(ingest_report),
+                },
+            ),
+            patch(
+                "video_tunner.analysis_pipeline.transcribe_audio",
+                return_value=transcript,
+            ),
+            patch(
+                "video_tunner.analysis_pipeline.detect_speech",
+                return_value=[SpeechInterval(0.0, 3.0)],
+            ),
+        ):
+            result = analyze_spoken_video(
+                source,
+                root / "Output",
+                mode="conservative",
+                language="es",
             )
-            self.assertEqual(report["schema_version"], 3)
-            self.assertEqual(decision["decision"], "PROPOSED_CUT")
-            self.assertEqual(decision["guard_status"], "pass")
-            self.assertFalse(decision["executable"])
-            self.assertFalse(decision["auto_apply"])
-            self.assertEqual(report["summary"]["automatic_edits"], 0)
-            self.assertEqual(report["summary"]["semantic_decisions"]["executable"], 0)
-            self.assertTrue(report["safety"]["semantic_protection_enabled"])
-            self.assertTrue(report["safety"]["semantic_decisions_are_not_edits"])
+
+        return json.loads(Path(result["analysis"]).read_text(encoding="utf-8"))
+
+
+class SemanticPipelineIntegrationTests(unittest.TestCase):
+    def test_analyze_emits_candidate_decision_and_empty_scope_layer_for_repetition(self):
+        report = run_fake_analysis(
+            timed_transcript("vamos a lanzar vamos a lanzar el producto mañana")
+        )
+        repetition = next(
+            item for item in report["candidates"] if item["kind"] == "possible_repetition"
+        )
+        self.assertEqual(repetition["id"], "possible_repetition-0001")
+        self.assertEqual(repetition["evidence"]["removed_text"], "vamos a lanzar")
+        self.assertEqual(repetition["evidence"]["keep_occurrence"], "later")
+        self.assertEqual(repetition["suggested_decision"], "REVIEW")
+        self.assertFalse(repetition["auto_apply"])
+
+        decision = next(
+            item
+            for item in report["semantic_decisions"]
+            if item["candidate_id"] == repetition["id"]
+        )
+        self.assertEqual(report["schema_version"], 4)
+        self.assertEqual(report["correction_scopes"], [])
+        self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
+        self.assertEqual(decision["decision"], "PROPOSED_CUT")
+        self.assertEqual(decision["guard_status"], "pass")
+        self.assertFalse(decision["executable"])
+        self.assertFalse(decision["auto_apply"])
+        self.assertEqual(report["summary"]["automatic_edits"], 0)
+        self.assertEqual(report["summary"]["semantic_decisions"]["executable"], 0)
+        self.assertTrue(report["safety"]["semantic_protection_enabled"])
+        self.assertTrue(report["safety"]["semantic_decisions_are_not_edits"])
+        self.assertTrue(report["safety"]["correction_scopes_are_not_edits"])
+        self.assertFalse(report["safety"]["correction_scopes_executable"])
+        self.assertFalse(report["safety"]["correction_scopes_safe_for_cut"])
+
+    def test_analyze_links_explicit_correction_candidate_scope_and_review_decision(self):
+        report = run_fake_analysis(
+            timed_transcript("la facturación fue de 200 perdón de 250 mil euros")
+        )
+        correction = next(
+            item for item in report["candidates"] if item["kind"] == "explicit_correction"
+        )
+        scope = next(
+            item for item in report["correction_scopes"] if item["candidate_id"] == correction["id"]
+        )
+        decision = next(
+            item for item in report["semantic_decisions"] if item["candidate_id"] == correction["id"]
+        )
+
+        self.assertEqual(report["schema_version"], 4)
+        self.assertEqual(scope["status"], "bounded")
+        self.assertEqual(scope["strategy"], "repeated_corrected_prefix_anchor")
+        self.assertEqual(scope["attempt_span"]["text"], "de 200")
+        self.assertEqual(scope["marker_span"]["text"], "perdón")
+        self.assertFalse(scope["safe_for_cut"])
+        self.assertFalse(scope["executable"])
+        self.assertFalse(scope["auto_apply"])
+        self.assertEqual(decision["decision"], "REVIEW")
+        self.assertFalse(decision["executable"])
+        self.assertEqual(report["summary"]["automatic_edits"], 0)
+        self.assertEqual(report["summary"]["correction_scopes"]["safe_for_cut"], 0)
+        self.assertEqual(report["summary"]["correction_scopes"]["executable"], 0)
+        self.assertEqual(report["summary"]["correction_scopes"]["auto_apply"], 0)
 
 
 if __name__ == "__main__":
