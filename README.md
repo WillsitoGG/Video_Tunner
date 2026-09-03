@@ -30,16 +30,15 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 1C — Transcripción/VAD sobre master + `large-v3-turbo` español real: ✅
 - Fase 2A — Semantic Candidates v1: ✅
 - Fase 2B — Semantic Decisions + Protection v1: ✅
-- Fase 2C.1 — Benchmark semántico: ✅
-- Fase 2C.2 — Positivos/negativos humanos bilingües: ✅
-- Fase 2C.3 — Audio humano real → `large-v3-turbo` → semantic gate: ✅
+- Fase 2C — Validación semántica real v1: ✅
 - Fase 2D.1 — Correction scope foundation v1: ✅
 - Fase 2D.2 — Fillers contextuales foundation v1: ✅
 - Fase 2D.3.1 — Sentence/join context foundation v1: ✅
 - Fase 2D.3.2 — Acoustic join validation foundation v1: ✅
 - Fase 2D.3.3 — Human-audio acoustic evidence v1: ✅
 - Fase 2D.4 — Combined Eligibility / Promotion Policy Foundation: ✅
-- Fase 2D.5 — Human Combined Eligibility Evidence: 🟡 **siguiente**
+- Fase 2D.5 — Human Combined Eligibility Evidence: ✅
+- Fase 2D.6 — Human Positive Eligibility Expansion / Close-out Gate: 🟡 **siguiente**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -130,13 +129,14 @@ combined_eligibility_is_not_edit_plan_promotion = true
 33781903986  131/131 — acoustic join/schema v7
 33782959293  134/134 — human acoustic gate PASS
 33790792753  138/138 — combined eligibility/schema v8 PASS
+33791950505  142/142 — human combined eligibility PASS
 ```
 
 Todas mantienen automatic edits 0 y artifacts 0.
 
 ## Fase 2D.4 — Combined Eligibility Foundation v1
 
-La policy combina todas las guardas de forma **acumulativa**. Una señal posterior favorable nunca rescata una anterior.
+La policy combina guardas de forma acumulativa. Una señal posterior favorable nunca rescata una anterior.
 
 Estados v1:
 
@@ -151,7 +151,7 @@ invalid_removed_text
 missing_required_evidence
 ```
 
-`foundation_guards_pass` sólo significa que las guardas implementadas han pasado. El record sigue:
+`foundation_guards_pass` sólo significa que las guardas implementadas han pasado:
 
 ```text
 future_promotion_candidate = true
@@ -160,34 +160,64 @@ executable = false
 auto_apply = false
 ```
 
-La capa vuelve a validar `removedText`/target contra índices de palabra, transcript y timestamps. Para corrections con scope `bounded`, el target definitivo puede ser `attempt + marker`.
+La capa vuelve a validar `removedText`/target contra índices, transcript y timestamps. Corrections con scope `bounded` pueden usar el target definitivo `attempt + marker`.
 
-Benchmark v1: **12 casos**, con 4 rutas foundation positivas y 8 bloqueos deliberados que cubren cada capa.
-
-Run `33790792753`:
-
-```text
-138/138 tests PASS en 7.035 s
-eligibility gate PASS
-schema v8 integration PASS
-removedText validation PASS
-FFmpeg/sync PASS
-doctor PASS
-artifacts 0
-```
+Run `33790792753`: 138/138 PASS; schema v8 + eligibility gate + removedText contract PASS; artifacts 0.
 
 Detalle: `Validation/phase2d-combined-eligibility.md`.
 
-## Siguiente trabajo — Fase 2D.5
+## Fase 2D.5 — Human Combined Eligibility Evidence
 
-Validar la policy combinada sobre evidencia humana real antes de plantear cualquier 2E:
+La policy v8 se ha aplicado a endpoints reales congelados de `large-v3-turbo` y al WAV AMI original, sin volver a ejecutar el modelo.
 
-1. reconstruir eligibility sobre endpoints humanos trazables ya existentes;
-2. comprobar que retakes/corrections protegidos siguen bloqueados;
-3. comprobar integridad de `removedText` con timings reales;
-4. buscar al menos un control humano que atraviese guardas foundation si la evidencia lo permite;
-5. no relajar policy para fabricar un positivo;
-6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false` y `automatic_edits=0`.
+Baseline `33791636767`:
+
+```text
+141/141 regresiones PASS
+human gate FAIL sólo por diagnóstico
+```
+
+La correction humana `I mean` tenía scope `ambiguous` y, correctamente, ningún target de join. La policy la etiquetó primero como `invalid_removed_text`; la seguridad permaneció intacta, pero la causa principal más informativa era `blocked_correction_scope`.
+
+Se cambió únicamente la precedencia diagnóstica para corrections no acotadas. No se añadió ninguna ruta positiva ni se relajó ningún gate.
+
+Final `33791950505`:
+
+```text
+142/142 tests PASS en 7.087 s
+cases                   3
+failures                0
+foundation_guards_pass  1
+blocked                  2
+safe_for_cut             0
+executable               0
+auto_apply               0
+automatic_edits          0
+HUMAN_ELIGIBILITY_GATE   PASS
+artifacts                0
+```
+
+Resultados humanos:
+
+- pausa control → `foundation_guards_pass`, pero sigue `safe_for_cut=false`;
+- retake real → `blocked_semantic_decision`;
+- correction real con scope ambiguo → `blocked_correction_scope`, conservando `removed_text_reason=missing_target_span`.
+
+La pausa es **control de plumbing/policy**, no una etiqueta que justifique borrarla automáticamente.
+
+Detalle: `Validation/phase2d-human-combined-eligibility.md`.
+
+## Siguiente trabajo — Fase 2D.6
+
+Antes de 2E necesitamos positivos humanos etiquetados como **realmente descartables**, no sólo controles técnicos.
+
+1. buscar/seleccionar varios positivos humanos trazables: pausas limpias, fillers aislados y repeticiones/retakes claramente descartables;
+2. acompañarlos de negativos cercanos;
+3. comprobar si atraviesan la policy actual sin relajarla;
+4. validar `removedText`, timings y join real;
+5. no fabricar positivos modificando thresholds;
+6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`, `automatic_edits=0` durante toda 2D.6;
+7. usar ese gate para decidir si 2D puede cerrarse o necesita más hardening.
 
 ## Principios
 
