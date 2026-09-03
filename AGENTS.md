@@ -40,9 +40,10 @@ Completado hasta:
 - Fase 2D.3.1 — join context/schema v6;
 - Fase 2D.3.2 — acoustic join/schema v7;
 - Fase 2D.3.3 — human-audio acoustic evidence;
-- Fase 2D.4 — combined eligibility/schema v8.
+- Fase 2D.4 — combined eligibility/schema v8;
+- Fase 2D.5 — human combined eligibility evidence.
 
-Siguiente: **Fase 2D.5 — Human Combined Eligibility Evidence**.
+Siguiente: **Fase 2D.6 — Human Positive Eligibility Expansion / Close-out Gate**.
 
 No existe todavía promoción al Edit Plan.
 
@@ -61,6 +62,7 @@ No existe todavía promoción al Edit Plan.
 33781903986  131/131 — acoustic join/schema v7
 33782959293  134/134 — human acoustic evidence PASS
 33790792753  138/138 — combined eligibility/schema v8 PASS
+33791950505  142/142 — human combined eligibility PASS
 ```
 
 No generalizar métricas de corpus fuera de su muestra.
@@ -113,7 +115,7 @@ Semantic decisions: `KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT`; siempre no e
 
 Correction scope: `bounded / ambiguous / invalid`; `bounded` no implica cut seguro.
 
-Fillers: sólo `isolated_hesitation` puede atravesar la policy foundation; cualquier cluster, repair, boundary, uncertain ASR o invalid queda bloqueado.
+Fillers: sólo `isolated_hesitation` puede atravesar la policy foundation; cluster, repair, boundary, uncertain ASR o invalid quedan bloqueados.
 
 Whisper puede omitir fillers, vacilaciones o truncamientos; no inventar evidencia ausente.
 
@@ -121,11 +123,11 @@ Whisper puede omitir fillers, vacilaciones o truncamientos; no inventar evidenci
 
 Join v1 pass para eligibility: sólo `join_context_only`.
 
-Acoustic v1 pass para eligibility: sólo `acoustic_context_only` o `low_energy_boundary_context`, y siempre con `measurement_available=true`.
+Acoustic v1 pass para eligibility: sólo `acoustic_context_only` o `low_energy_boundary_context`, siempre con `measurement_available=true`.
 
 Esto no significa seguridad perceptual ni permiso de corte.
 
-Thresholds acústicos v1 permanecen:
+Thresholds acústicos v1:
 
 ```text
 SILENCE_DBFS                 = -42.0
@@ -134,7 +136,7 @@ MAX_BOUNDARY_SAMPLE_JUMP     = 0.35
 MAX_BOUNDARY_JUMP_RATIO      = 1.25
 ```
 
-## 8. Combined Eligibility — 2D.4
+## 8. Combined Eligibility — 2D.4/2D.5
 
 Estados:
 
@@ -149,10 +151,10 @@ invalid_removed_text
 missing_required_evidence
 ```
 
-Precedencia fail-safe:
+Precedencia fail-safe actual:
 
-1. validar target/`removedText`;
-2. exigir scope bounded para correction;
+1. para `explicit_correction`, exigir scope `bounded` antes de interpretar la ausencia esperada de target como corrupción;
+2. validar target/`removedText` cuando existe un target elegible;
 3. exigir filler isolated para filler;
 4. exigir semantic decision si el kind es semántico;
 5. exigir semantic `PROPOSED_CUT/PROPOSED_TRIM` + `guard_status=pass`;
@@ -161,7 +163,7 @@ Precedencia fail-safe:
 8. exigir acoustic status permitido y medición real;
 9. sólo entonces `foundation_guards_pass`.
 
-Para spans textuales, `removedText` exige índices válidos + transcript normalizado coincidente + timestamps dentro de `0.03 s`. Para pausas, exige gap temporal vacío y start/end coincidentes. Corrections bounded pueden usar el target definitivo `attempt + marker`.
+Para spans textuales, `removedText` exige índices válidos + transcript normalizado coincidente + timestamps dentro de `0.03 s`. Para pausas exige gap temporal vacío y start/end coincidentes. Corrections bounded pueden usar `attempt + marker`.
 
 `foundation_guards_pass` produce únicamente:
 
@@ -172,31 +174,62 @@ executable = false
 auto_apply = false
 ```
 
-Benchmark: 12 casos, 4 rutas pass y 8 bloqueos deliberados cubriendo cada capa.
+### 2D.4 foundation
 
-Run `33790792753`: 138/138 PASS en 7.035 s; artifacts 0.
+Run `33790792753`: 138/138 PASS; 12 casos, 4 rutas pass y 8 blockers; artifacts 0.
 
-Detalle: `Validation/phase2d-combined-eligibility.md`.
+### 2D.5 evidencia humana
 
-## 9. Siguiente — 2D.5 Human Combined Eligibility Evidence
+Baseline `33791636767`:
 
-Objetivo: aplicar la policy v1 a endpoints humanos trazables sin relajar guardas.
+- 141/141 regresiones PASS;
+- gate humano falló sólo por diagnóstico `invalid_removed_text` frente a `blocked_correction_scope` en correction ambigua;
+- seguridad permaneció a cero.
+
+Se cambió sólo la precedencia diagnóstica; la evidencia secundaria `removed_text_reason=missing_target_span` se conserva.
+
+Final `33791950505`:
+
+```text
+142/142 tests PASS en 7.087 s
+cases 3
+foundation_guards_pass 1
+blocked 2
+safe_for_cut/executable/auto_apply/automatic_edits 0
+HUMAN_ELIGIBILITY_GATE=PASS
+artifacts 0
+```
+
+Casos:
+
+- pausa humana control → `foundation_guards_pass`, no cut;
+- retake humano → `blocked_semantic_decision`;
+- correction humana ambigua → `blocked_correction_scope`.
+
+La pausa es un control técnico; no cuenta como evidencia de que el producto deba borrarla automáticamente.
+
+Detalle: `Validation/phase2d-human-combined-eligibility.md`.
+
+## 9. Siguiente — 2D.6 Human Positive Eligibility Expansion / Close-out Gate
+
+Objetivo: conseguir evidencia humana etiquetada como **realmente descartable** antes de decidir cierre de 2D.
 
 Reglas:
 
-1. reutilizar evidencia AMI ya fijada cuando sea suficiente;
-2. no volver a descargar/ejecutar el modelo si los endpoints congelados bastan;
-3. retakes, corrections ambiguas y contextos protegidos deben seguir bloqueados;
-4. validar `removedText` con timings reales;
-5. si no existe un positivo humano legítimo, registrar esa ausencia: no fabricar uno relajando policy;
-6. todo resultado sigue `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
-7. sólo después decidir si 2D puede cerrarse y pasar a 2E.
+1. buscar fuentes humanas trazables/licenciadas;
+2. priorizar pausas limpias, fillers aislados y repeticiones/retakes claramente descartables;
+3. incluir negativos cercanos;
+4. aplicar la policy actual sin relajarla para fabricar positivos;
+5. validar `removedText`, word timings, join y acústica real;
+6. si no aparecen suficientes positivos elegibles, registrar el fallo y endurecer/tunear sólo con evidencia;
+7. mantener todo `safe_for_cut=false`, `executable=false`, `auto_apply=false`, `automatic_edits=0`;
+8. sólo el close-out gate de 2D puede justificar diseñar 2E.
 
 ## 10. Edit Plan / render
 
 Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, scopes, assessments o future-promotion candidates no aprobados.
 
-Pendiente: evidencia humana de combined eligibility, eventual promotion policy explícita, join treatment/audit, fades/loudness y post-render verification.
+Pendiente: 2D.6, eventual promotion policy explícita, join treatment/audit, fades/loudness y post-render verification.
 
 ## 11. GitHub / CI / Release
 
