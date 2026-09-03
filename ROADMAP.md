@@ -50,7 +50,7 @@ Schema v4; `bounded / ambiguous / invalid`; todo scope no ejecutable. Final `337
 #### 2D.2 — Fillers Contextuales Foundation v1 — COMPLETADA
 Schema v5; contextual filler assessments. Final `33771792867`: 101/101 PASS.
 
-#### 2D.3 — Sentence boundaries + join safety — EN CURSO
+#### 2D.3 — Sentence boundaries + join safety — COMPLETADA COMO BLOQUE DE EVIDENCIA v1
 
 ##### 2D.3.1 — Boundary/timeline/lexical foundation v1 — COMPLETADA
 
@@ -60,16 +60,7 @@ Final `33773287106`: 117/117 PASS; benchmark + schema v6; artifacts 0.
 
 ##### 2D.3.2 — Acoustic join validation foundation v1 — COMPLETADA
 
-Schema v7:
-
-```text
-candidates[]
-correction_scopes[]
-filler_assessments[]
-join_assessments[]
-acoustic_join_assessments[]
-semantic_decisions[]
-```
+Schema v7 añade `acoustic_join_assessments[]`.
 
 Flujo acústico:
 
@@ -104,8 +95,6 @@ max boundary sample jump   0.35
 max boundary jump ratio    1.25
 ```
 
-Benchmark 11 casos reproducibles + tests de decode real FFmpeg/PCM.
-
 Evidencia:
 
 ```text
@@ -115,27 +104,63 @@ Evidencia:
 
 E2E FFmpeg/sync + doctor PASS; artifacts 0.
 
-`acoustic_context_only` y `low_energy_boundary_context` siguen `safe_for_cut=false`.
-
 Detalle: `Validation/phase2d-acoustic-join.md`.
 
-##### 2D.3.3 — Human-audio acoustic evidence — SIGUIENTE
+##### 2D.3.3 — Human-audio acoustic evidence v1 — COMPLETADA
 
-Objetivo: comprobar thresholds v1 sobre endpoints derivados de habla humana real trazable antes de cerrar 2D.
+Reutiliza endpoints de `large-v3-turbo` del run real `33755013415` sobre el WAV AMI original CC BY 4.0, sin volver a descargar ni ejecutar el modelo.
+
+Run `33782959293`:
+
+```text
+134/134 tests PASS en 6.803 s
+3 casos humanos
+1 medición acústica real
+2 joins bloqueados por contexto
+failures 0
+automatic_edits 0
+executable 0
+auto_apply 0
+HUMAN_ACOUSTIC_GATE=PASS
+artifacts 0
+```
+
+Control humano medido:
+
+```text
+status               acoustic_context_only
+RMS delta            4.9369 dB
+boundary jump        0.030243
+boundary jump ratio  0.340433
+safe_for_cut          false
+```
+
+Retake humano → `repair_or_protected_context_risk` → `blocked_by_context`.
+
+Correction humana con scope ambiguo → `invalid_or_unbounded_target` → `blocked_by_context`.
+
+No se modifican thresholds v1. Una única medición humana limpia no prueba seguridad general ni calidad perceptual.
+
+Detalle: `Validation/phase2d-human-acoustic-evidence.md`.
+
+#### 2D.4 — Combined Eligibility / Promotion Policy Foundation — SIGUIENTE
+
+Objetivo: definir una política acumulativa y auditable que combine semántica, scope, fillers, join context y acoustics **sin ejecutar todavía ningún corte**.
 
 Orden:
 
-1. reutilizar audio humano real ya trazable cuando sirva;
-2. construir casos con joins realmente derivados de transcript/candidates;
-3. medir status acústico y cualquier FP/FN relevante;
-4. no mover thresholds sin evidencia;
-5. conservar `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
-6. después diseñar política combinada semántica + scope + filler + join + acoustics y `removedText` definitivo.
+1. definir estados de elegibilidad independientes del Edit Plan;
+2. exigir que todas las guardas previas pasen antes de considerar una propuesta elegible;
+3. tratar cualquier ambigüedad/riesgo como `REVIEW`/bloqueo;
+4. validar `removedText` definitivo contra transcript/span/timestamps;
+5. crear benchmark con positivos/negativos y fallos deliberados de cada capa;
+6. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false` durante la foundation;
+7. sólo después decidir si alguna clase puede pasar a 2E.
 
 ### 2E — Promotion to Edit Plan — FUTURA
 
 Sólo después de cerrar 2D con evidencia suficiente:
-- decidir clases auto-aplicables;
+- decidir clases realmente auto-aplicables;
 - thresholds por modo;
 - verificar joins y `removedText`;
 - límites globales y fail-safe;
@@ -155,8 +180,8 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. mergear 2D.3.2 acoustic join foundation;
-2. arrancar 2D.3.3 con evidencia de audio humano real;
-3. cerrar 2D sólo si no aparecen riesgos no resueltos;
+1. mergear 2D.3.3 human-audio acoustic evidence;
+2. arrancar 2D.4 Combined Eligibility / Promotion Policy Foundation;
+3. validar `removedText` definitivo y guardas acumulativas sin ejecutar cuts;
 4. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`;
 5. no promover al Edit Plan antes de cerrar 2D.
