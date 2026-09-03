@@ -14,13 +14,14 @@ Obligatorio:
 4. Whisper y VAD usan exactamente el mismo master;
 5. auto-sync sólo con evidencia suficiente; override/manual fallback;
 6. original siempre intacto;
-7. `candidate != semantic decision != edit`;
+7. `candidate != correction scope != semantic decision != edit`;
 8. `PROPOSED_CUT != executable CUT`;
-9. ante duda: `KEEP / REVIEW`;
-10. Conservador por defecto.
+9. `bounded scope != safe cut`;
+10. ante duda: `KEEP / REVIEW`;
+11. Conservador por defecto.
 
 ```text
-sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → semantic decisions/protection → future Edit Plan → render → audit
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → correction scopes → semantic decisions/protection → future Edit Plan → render → audit
 ```
 
 ## 2. Estado
@@ -37,10 +38,11 @@ Completado:
 - Fase 2A — Semantic Candidates v1;
 - Fase 2B — Semantic Decisions + Protection v1;
 - Fase 2C.1 — benchmark foundation;
-- Fase 2C.2 — retake humano + bloque de correcciones humanas bilingüe;
-- Fase 2C.3 — audio humano real → portable frozen → `large-v3-turbo` → semantic gate.
+- Fase 2C.2 — retake humano + correcciones humanas bilingües;
+- Fase 2C.3 — audio humano real → portable frozen → `large-v3-turbo` → semantic gate;
+- Fase 2D.1 — correction scope foundation v1 + schema v4.
 
-Siguiente: **Fase 2D — correction scope + fillers contextuales + sentence/join safety**.
+Siguiente: **Fase 2D.2 — fillers contextuales**. Después: sentence/join safety.
 
 No existe promoción semántica al Edit Plan.
 
@@ -53,13 +55,14 @@ No existe promoción semántica al Edit Plan.
 - Target Spanish `33656235038`: PASS — WER 1.64%, RTF 0.4854, automatic edits 0.
 - Semantic Candidates `33659725847`: PASS — 48 tests.
 - Semantic Decisions/Protection `33741195594`: PASS — 55 tests.
-- Semantic validation baseline `33742519997`: 2 FP / 0 FN, precision 84.62%, unsafe 0.
-- Semantic validation ajustada `33743029443`: 21 casos, 0 FP/FN, unsafe 0.
-- Primer retake humano `33743638690`: 65 tests, AMI `possible_retake → REVIEW`.
-- Human correction baseline `33750475437`: 69 tests; 26 casos / 14 eventos; 14 TP / 2 FP / 0 FN; precision 87.5%, recall 100%; unsafe 0.
-- Human correction final `33750836791`: **74 tests en 6.729 s; 26 casos / 14 eventos; 0 FP / 0 FN; precision/recall/F1 100% en corpus etiquetado; unsafe 0; executable 0; auto_apply 0; artifacts 0.**
-- Phase 2C.3 lightweight `33754755238`: **76/76 tests PASS en 5.561 s; E2E FFmpeg/sync PASS; doctor PASS; artifacts 0.**
-- Phase 2C.3 audio-backed final `33755013415`: **3 casos AMI reales; 0 failures; 53.810 s; semantic gate PASS; automatic_edits 0; executable 0; auto_apply 0; artifacts 0.**
+- Human correction final `33750836791`: 74 tests; corpus gate PASS; unsafe 0; executable 0; auto_apply 0; artifacts 0.
+- Phase 2C.3 lightweight `33754755238`: 76/76 PASS; E2E FFmpeg/sync; doctor; artifacts 0.
+- Phase 2C.3 audio-backed `33755013415`: 3 AMI audio cases; 0 failures; semantic gate PASS; automatic_edits/executable/auto_apply 0; artifacts 0.
+- Phase 2D.1 foundation `33757158460`: 83 tests PASS en 6.767 s; artifacts 0.
+- Phase 2D.1 benchmark `33757481376`: 87 tests PASS en 6.595 s; scope gate PASS; artifacts 0.
+- Phase 2D.1 final `33758185755`: **88/88 tests PASS en 6.711 s; schema v4/pipeline integration PASS; E2E FFmpeg/sync PASS; doctor PASS; artifacts 0.**
+
+Run `33757887930` fue rojo sólo por un test legado que esperaba schema v3 tras introducir deliberadamente schema v4; 87/88 tests pasaron y no falló lógica de scope/safety.
 
 No generalizar métricas de corpus fuera de su muestra.
 
@@ -92,10 +95,11 @@ Evidencia insuficiente => `review_required`, sin master. Nunca mezclar implícit
 
 `analyze` siempre usa master acreditado. Master pre-resuelto exige `ingest.json` y SHA-256 coincidente.
 
-Schema actual `analysis.json`: **v3**.
+Schema actual `analysis.json`: **v4**.
 
 ```text
 candidates[]
+correction_scopes[]
 semantic_decisions[]
 ```
 
@@ -103,6 +107,9 @@ semantic_decisions[]
 semantic_protection_enabled = true
 semantic_decisions_are_not_edits = true
 semantic_decisions_executable = false
+correction_scopes_are_not_edits = true
+correction_scopes_executable = false
+correction_scopes_safe_for_cut = false
 automatic_edits = 0
 ```
 
@@ -145,8 +152,6 @@ Guardas: span/timestamps/removed_text, cifras/unidades/importes/%, negación, su
 
 ## 8. Correcciones y retakes — reglas derivadas de evidencia humana
 
-`explicit_correction` sigue siendo **marker-only**. Detectar un marcador no identifica todavía el span incorrecto anterior.
-
 ### Marcadores ambiguos
 
 En Conservador, `I mean / quiero decir` requiere evidencia local adicional:
@@ -158,14 +163,12 @@ En Conservador, `I mean / quiero decir` requiere evidencia local adicional:
 `perdón / perdona / sorry`:
 
 - exige contexto léxico a izquierda/derecha;
-- patrón de disculpa + vacilación (`perdón eh ...`) sin intento interrumpido => no correction candidate;
+- disculpa + vacilación (`perdón eh ...`) sin intento interrumpido => no correction candidate;
 - después de fragmento truncado sí => `explicit_correction → REVIEW`.
 
 ### Repeticiones exactas tras ASR
 
-Audio real demostró que Whisper puede eliminar una vacilación y fabricar una repetición textual adyacente perfecta.
-
-Por ello, una `possible_repetition` con timing anómalamente comprimido se degrada a `REVIEW` aunque el texto coincida exactamente.
+Whisper puede eliminar una vacilación y fabricar una repetición textual adyacente perfecta.
 
 Regla conservadora actual:
 
@@ -173,17 +176,63 @@ Regla conservadora actual:
 min_seconds_per_token_for_repeat_proposal = 0.120
 ```
 
-Caso AMI real:
+Timing anómalamente comprimido => `REVIEW`, aunque el texto sea idéntico.
+
+## 9. Correction Scope — Phase 2D.1
+
+Detección de correction y scope son capas distintas.
+
+Estados:
 
 ```text
-first_seconds_per_token = 0.112
-→ timing compressed
-→ REVIEW
+bounded
+ambiguous
+invalid
 ```
 
-No usar este threshold como verdad universal; es una guarda conservadora derivada de evidencia real y debe seguir validándose con corpus adicional.
+Estrategias v1:
 
-## 9. Semantic Validation gate
+```text
+repeated_corrected_prefix_anchor
+local_numeric_replacement
+no_deterministic_left_boundary
+```
+
+Reglas:
+
+1. `bounded` = boundary local determinista encontrado; **no** = cut seguro;
+2. `ambiguous` conserva correction detection pero deja `attempt_span=null`;
+3. cada scope se enlaza a `candidate_id`;
+4. todo scope mantiene:
+   ```text
+   safe_for_cut=false
+   executable=false
+   auto_apply=false
+   ```
+5. un `bounded` incorrecto donde debía ser `ambiguous` es fallo de seguridad.
+
+Benchmark v1:
+
+```text
+12 casos
+6 bounded
+3 ambiguous
+3 no-candidate controls
+```
+
+Gate:
+
+```text
+candidate contract clean
+bounded_exactness == 1.0
+status/strategy/attempt mismatches == 0
+unsafe_bounded == 0
+safety_violations == 0
+```
+
+Detalle: `Validation/phase2d-correction-scope.md`.
+
+## 10. Semantic Validation gate
 
 Medir siempre:
 
@@ -205,20 +254,9 @@ executable decisions == 0
 auto_apply decisions == 0
 ```
 
-Una FP review-only es ruido. Un `PROPOSED_CUT` incorrecto es fallo de seguridad. No mezclar.
+Una FP review-only es ruido. Un `PROPOSED_CUT` incorrecto es fallo de seguridad. No mover thresholds para esconder nuevos fallos.
 
-No mover thresholds para esconder nuevos fallos.
-
-## 10. Phase 2C.3 — audio-backed evidence
-
-Workflow permanente: `.github/workflows/semantic-audio-spike.yml`, normalmente manual-only.
-
-Scripts:
-
-```text
-.github/scripts/download_ami_semantic_fixture.ps1
-.github/scripts/run_semantic_audio_validation.ps1
-```
+## 11. Phase 2C.3 — audio-backed evidence
 
 AMI ES2012d Mix-Headset se descarga sólo a `RUNNER_TEMP`, se verifica por SHA-256 y no se sube como artifact.
 
@@ -234,52 +272,41 @@ auto_apply=0
 artifacts=0
 ```
 
-Resultados:
-
-```text
-retake real       → possible_repetition → REVIEW
-I mean correction → explicit_correction → REVIEW
-I mean discourse  → 0 explicit_correction
-```
-
 Detalle: `Validation/phase2c-audio-backed-validation.md`.
 
-## 11. Siguiente — Fase 2D
+## 12. Siguiente — Fase 2D.2 Fillers contextuales
 
-### 2D.1 Correction scope
+La detección acústica actual sólo marca tokens de vacilación obvios (`eh`, `um`, etc.) como `possible_filler`, siempre review-only.
 
-Objetivo: determinar de forma auditable qué span anterior corresponde al intento incorrecto en una corrección.
+Objetivo 2D.2:
 
-Reglas:
-
-1. no convertir `marker-only` en un corte por intuición;
-2. candidate scope y semantic decision scope deben seguir separados;
-3. si el boundary anterior no se puede demostrar, mantener `REVIEW`;
-4. proteger cifras, unidades, negaciones, persona/sujeto, tiempo/aspecto, entidades y causalidad;
-5. no crear edits ejecutables durante 2D.1;
-6. medir scope exactness por separado de marker detection.
-
-Después: fillers contextuales y sentence/join safety.
+1. no asumir que el token aislado es eliminable;
+2. evaluar contexto léxico, temporal y relación con retakes/corrections;
+3. distinguir vacilación local de elemento discursivo natural;
+4. crear positivos/negativos etiquetados y medir FP/FN;
+5. no habilitar `safe_for_cut`, execution ni auto-apply;
+6. después abordar sentence boundaries + join safety.
 
 Hasta superar 2D:
 
 ```text
+safe_for_cut=false
 executable=false
 auto_apply=false
 automatic_edits=0
 ```
 
-## 12. Edit Plan / render
+## 13. Edit Plan / render
 
-Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates o semantic decisions no ejecutables.
+Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, correction scopes o semantic decisions no ejecutables.
 
-Pendiente: correction scope real, removedText definitivo, join audit, fades/loudness y post-render verification.
+Pendiente: fillers contextuales, sentence/join safety, removedText definitivo, join audit, fades/loudness y post-render verification.
 
-## 13. Technology harvest
+## 14. Technology harvest
 
 Video_Tunner NO es fork. Referencias: Railly/vcut, Cadence-Lab, ai-video-editor, SYSTRAN/faster-whisper. Antes de adoptar código: licencia + commit + motivo + validación propia.
 
-## 14. GitHub / CI / Release
+## 15. GitHub / CI / Release
 
 GitHub es source of truth.
 
@@ -290,6 +317,6 @@ GitHub es source of truth.
 - si no hay `workflow_dispatch` en conector, trigger one-shot y restauración inmediata;
 - no publicar GitHub Release sin autorización expresa de Guille.
 
-## 15. Docs
+## 16. Docs
 
 Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.
