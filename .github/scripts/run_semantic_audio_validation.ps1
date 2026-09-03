@@ -66,28 +66,34 @@ $cases = @(
         id = "ami-retake-0036"
         source_start = 34.0
         duration = 18.0
-        expected_kind = "possible_retake"
+        expected_kinds = @("possible_retake", "possible_repetition")
         expected_marker = $null
         expected_positive = $true
+        expected_decision = "REVIEW"
         manual_reference = "we'll have a look at the uh th- have a look at the prototypes"
+        note = "ASR may collapse the manual retake into an adjacent exact repetition; safety decision must remain REVIEW if timing is suspicious."
     },
     [ordered]@{
         id = "ami-i-mean-correction-0250"
         source_start = 168.0
         duration = 12.0
-        expected_kind = "explicit_correction"
+        expected_kinds = @("explicit_correction")
         expected_marker = "i mean"
         expected_positive = $true
+        expected_decision = "REVIEW"
         manual_reference = "I just wondered - I mean h- how will people put these down I wonder"
+        note = "large-v3-turbo may remove manual dashes/truncations; interrogative reframe evidence must survive."
     },
     [ordered]@{
         id = "ami-i-mean-discourse-0311"
         source_start = 189.0
         duration = 18.0
-        expected_kind = "explicit_correction"
+        expected_kinds = @("explicit_correction")
         expected_marker = "i mean"
         expected_positive = $false
+        expected_decision = $null
         manual_reference = "particularly if they're gonna have it as a fashion item ... I mean ..."
+        note = "Discourse I mean must not become an explicit_correction candidate. Other review-only semantic noise is logged separately."
     }
 )
 
@@ -145,11 +151,18 @@ foreach ($case in $cases) {
     $transcript = Get-Content $transcriptPath -Raw | ConvertFrom-Json
     $analysis = Get-Content $analysisPath -Raw | ConvertFrom-Json
     $wordTexts = [System.Collections.Generic.List[string]]::new()
+    $wordTimingRows = [System.Collections.Generic.List[object]]::new()
     $wordCount = 0
     foreach ($segment in @($transcript.segments)) {
         foreach ($word in @($segment.words)) {
             $text = ([string]$word.text).Trim()
             if ($text) { $wordTexts.Add($text) }
+            $wordTimingRows.Add([ordered]@{
+                text = $text
+                start = [Math]::Round([double]$word.start, 3)
+                end = [Math]::Round([double]$word.end, 3)
+                duration = [Math]::Round(([double]$word.end - [double]$word.start), 3)
+            })
             $wordCount += 1
             if ([double]$word.end -lt [double]$word.start) {
                 Add-Failure "$caseId has negative word timestamp duration"
@@ -160,7 +173,7 @@ foreach ($case in $cases) {
     $candidates = @($analysis.candidates)
     $decisions = @($analysis.semantic_decisions)
     $matching = @($candidates | Where-Object {
-        $_.kind -eq [string]$case.expected_kind -and (
+        $case.expected_kinds -contains [string]$_.kind -and (
             -not $case.expected_marker -or $_.evidence.marker_normalized -eq [string]$case.expected_marker
         )
     })
@@ -168,8 +181,10 @@ foreach ($case in $cases) {
     Write-Host "SEMANTIC_AUDIO_CASE=$caseId"
     Write-Host "SEMANTIC_AUDIO_SOURCE_WINDOW=$($case.source_start)+$($case.duration)"
     Write-Host "SEMANTIC_AUDIO_MANUAL_REFERENCE=$($case.manual_reference)"
+    Write-Host "SEMANTIC_AUDIO_NOTE=$($case.note)"
     Write-Host "SEMANTIC_AUDIO_TRANSCRIPT=$transcriptText"
     Write-Host "SEMANTIC_AUDIO_WORD_COUNT=$wordCount"
+    Write-Host "SEMANTIC_AUDIO_WORDS=$($wordTimingRows | ConvertTo-Json -Compress -Depth 5)"
     Write-Host "SEMANTIC_AUDIO_CANDIDATES=$($candidates | ConvertTo-Json -Compress -Depth 8)"
     Write-Host "SEMANTIC_AUDIO_DECISIONS=$($decisions | ConvertTo-Json -Compress -Depth 8)"
     Write-Host "SEMANTIC_AUDIO_ANALYZE_SECONDS=$([Math]::Round($watch.Elapsed.TotalSeconds, 3))"
@@ -179,32 +194,41 @@ foreach ($case in $cases) {
     if (@($decisions | Where-Object { $_.executable }).Count -ne 0) { Add-Failure "$caseId emitted executable semantic decision" }
     if (@($decisions | Where-Object { $_.auto_apply }).Count -ne 0) { Add-Failure "$caseId emitted auto_apply semantic decision" }
 
+    $matchedDecisionValue = $null
+    $matchedKind = $null
     if ([bool]$case.expected_positive) {
         if ($matching.Count -eq 0) {
-            Add-Failure "$caseId missing expected $($case.expected_kind)"
+            Add-Failure "$caseId missing expected semantic event ($($case.expected_kinds -join '|'))"
         } else {
             $matchedCandidate = $matching[0]
+            $matchedKind = [string]$matchedCandidate.kind
             $matchedDecision = @($decisions | Where-Object { $_.candidate_id -eq $matchedCandidate.id } | Select-Object -First 1)
             if ($matchedDecision.Count -eq 0) {
                 Add-Failure "$caseId expected candidate has no semantic decision"
-            } elseif ($matchedDecision[0].decision -ne "REVIEW") {
-                Add-Failure "$caseId expected REVIEW but got $($matchedDecision[0].decision)"
+            } else {
+                $matchedDecisionValue = [string]$matchedDecision[0].decision
+                if ($case.expected_decision -and $matchedDecisionValue -ne [string]$case.expected_decision) {
+                    Add-Failure "$caseId expected $($case.expected_decision) but got $matchedDecisionValue"
+                }
             }
         }
     } else {
         if ($matching.Count -ne 0) {
-            Add-Failure "$caseId produced unexpected $($case.expected_kind) candidate"
+            Add-Failure "$caseId produced unexpected semantic event ($($case.expected_kinds -join '|'))"
         }
     }
 
     $results.Add([ordered]@{
         id = $caseId
         expected_positive = [bool]$case.expected_positive
-        expected_kind = [string]$case.expected_kind
+        expected_kinds = @($case.expected_kinds)
+        expected_decision = $case.expected_decision
         transcript = $transcriptText
         word_count = $wordCount
         candidate_count = $candidates.Count
         matching_candidate_count = $matching.Count
+        matched_kind = $matchedKind
+        matched_decision = $matchedDecisionValue
         automatic_edits = [int]$analysis.summary.automatic_edits
         executable_decisions = @($decisions | Where-Object { $_.executable }).Count
         auto_apply_decisions = @($decisions | Where-Object { $_.auto_apply }).Count
@@ -214,7 +238,7 @@ foreach ($case in $cases) {
 
 $env:PATH = $originalPath
 $summary = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     source = "AMI Meeting Corpus ES2012d Mix-Headset"
     model = "large-v3-turbo"
     device = "cpu"
