@@ -19,7 +19,8 @@ No usarla para almacenar vídeos, ZIPs de CI, logs voluminosos, modelos ni outpu
 - `phase2d-acoustic-join.md` / `phase2d-human-acoustic-evidence.md` — 2D.3.2/2D.3.3.
 - `phase2d-combined-eligibility.md` — 2D.4.
 - `phase2d-human-combined-eligibility.md` — 2D.5.
-- `phase2d-human-positive-closeout.md` — **2D.6 final; `CLOSE_OUT_READY`; cierre de 2D como foundation/evidence.**
+- `phase2d-human-positive-closeout.md` — 2D.6 final; cierre de 2D como foundation/evidence.
+- `phase2e-promotion-foundation.md` — **2E.1 final; schema v9; Promotion Policy Foundation PASS.**
 
 ## Regla de interpretación
 
@@ -29,18 +30,23 @@ Una validación PASS acredita únicamente el alcance descrito en su documento. N
 - release publicable;
 - seguridad perceptual general;
 - autorización de corte;
+- aprobación de una promotion assessment;
 - promoción al Edit Plan;
 - generalización de métricas fuera del corpus evaluado.
 
-En particular, tras 2D.6:
+Tras 2E.1:
 
 ```text
 foundation_guards_pass != safe cut
 future_promotion_candidate != approved edit
+promotion_review_candidate != approved edit
+requires_explicit_approval = true
+approved = false
+edit = null
 safe_for_cut = false
 executable = false
 auto_apply = false
 automatic_edits = 0
 ```
 
-La promoción explícita al Edit Plan pertenece a Fase 2E.
+El contrato de aprobación explícita pertenece a Fase 2E.2.
