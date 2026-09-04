@@ -11,22 +11,21 @@ Obligatorio:
 1. portable real: ZIP → descomprimir → ejecutar;
 2. vídeo con audio embebido o vídeo + audio externo;
 3. resolver master audio antes de análisis temporal;
-4. Whisper, VAD y acoustic join validation usan exactamente el mismo master acreditado;
+4. Whisper, VAD y acoustic join usan exactamente el mismo master acreditado;
 5. auto-sync sólo con evidencia suficiente; override/manual fallback;
 6. original siempre intacto;
-7. `candidate != correction scope != filler assessment != join assessment != acoustic join assessment != semantic decision != eligibility assessment != promotion assessment != edit`;
+7. `candidate != scope != assessment != semantic decision != eligibility != promotion assessment != approval != edit`;
 8. `PROPOSED_CUT != executable CUT`;
-9. `bounded scope != safe cut`;
-10. `acoustic_context_only != semantic permission to cut`;
-11. `foundation_guards_pass != safe cut`;
-12. `future_promotion_candidate != approved edit`;
-13. `promotion_review_candidate != approved edit`;
-14. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
-15. ante duda: `KEEP / REVIEW`;
-16. conservador por defecto.
+9. `foundation_guards_pass != safe cut`;
+10. `future_promotion_candidate != approved edit`;
+11. `promotion_review_candidate != approval`;
+12. `valid_approved approval != Edit Plan authorization`;
+13. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
+14. ante duda: `KEEP / REVIEW`;
+15. conservador por defecto.
 
 ```text
-sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join → acoustic join → semantic decisions → eligibility → promotion assessments → future approved Edit Plan → render → audit
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join → acoustic join → semantic → eligibility → promotion → explicit approval artifact → future Edit Plan proposal → future execution → audit
 ```
 
 ## 2. Estado
@@ -35,19 +34,13 @@ Versión `0.1.0-dev`.
 
 Completado:
 
-- Fase 2C.3 — audio humano real → semantic gate;
-- Fase 2D.1 — correction scope/schema v4;
-- Fase 2D.2 — fillers/schema v5;
-- Fase 2D.3 — join/acoustic + evidencia humana;
-- Fase 2D.4 — combined eligibility/schema v8;
-- Fase 2D.5 — human combined eligibility evidence;
-- Fase 2D.6 — human positive eligibility close-out;
-- **Fase 2D cerrada como foundation/evidence**;
-- **Fase 2E.1 — Promotion Policy Foundation/schema v9 — COMPLETADA**.
+- Fase 2D cerrada como foundation/evidence;
+- Fase 2E.1 — Promotion Policy Foundation / analysis schema v9;
+- **Fase 2E.2 — Explicit Approval Contract / approval artifact schema v1 — COMPLETADA**.
 
-Siguiente: **Fase 2E.2 — Explicit Approval Contract**.
+Siguiente: **Fase 2E.3 — Approved Edit Plan Proposal + Global Limits**.
 
-No existe todavía promoción aprobada ni ejecutable al Edit Plan.
+No existe todavía autorización de Edit Plan ni ejecución automática derivada de approvals.
 
 ## 3. Evidencia principal
 
@@ -57,18 +50,17 @@ No existe todavía promoción aprobada ni ejecutable al Edit Plan.
 33639009841  Sync hardening PASS
 33656235038  Target Spanish PASS — WER 1.64%, RTF 0.4854
 33750836791  Human correction corpus PASS
-33755013415  3 AMI audio-backed semantic cases PASS
+33755013415  Audio-backed semantic PASS
 33758185755  88/88 — correction scope/schema v4
 33771792867  101/101 — fillers/schema v5
-33773287106  117/117 — join context/schema v6
-33781903986  131/131 — acoustic join/schema v7
-33782959293  134/134 — human acoustic evidence PASS
-33790792753  138/138 — combined eligibility/schema v8 PASS
-33791950505  142/142 — human combined eligibility PASS
-33892213960  AMI repeat discovery PASS — 80 compatible exact repeats
-33894995584  Human positive close-out PASS — CLOSE_OUT_READY
-33896244733  2E.1 isolated promotion policy PASS — 165/165
-33899201093  2E.1 integrated schema v9 PASS — 166/166 + doctor
+33773287106  117/117 — join/schema v6
+33781903986  131/131 — acoustic/schema v7
+33782959293  134/134 — human acoustic PASS
+33790792753  138/138 — eligibility/schema v8
+33791950505  142/142 — human eligibility PASS
+33894995584  human positive close-out — CLOSE_OUT_READY
+33899201093  2E.1 schema v9 — 166/166 + doctor PASS
+33899857378  2E.2 approval contract — 174/174 + doctor PASS
 ```
 
 No generalizar métricas de corpus fuera de su muestra.
@@ -86,9 +78,9 @@ PyInstaller 6.22.2
 
 VAD: faster-whisper + `silero_vad_v6.onnx`. Modelo objetivo: `large-v3-turbo`.
 
-## 5. Analysis / schema
+## 5. Analysis schema v9
 
-Schema actual: **v9**.
+`analysis.json` **permanece v9 tras 2E.2**:
 
 ```text
 candidates[]
@@ -101,139 +93,45 @@ eligibility_assessments[]
 promotion_assessments[]
 ```
 
-Siempre en 2E.1:
+No mutar `analysis.json` para registrar approvals.
 
-```text
-promotion_assessments_are_not_edits = true
-promotion_review_requires_explicit_approval = true
-promotion_assessments_approved = false
-edit_plan_promotion_enabled = false
-promotion_assessments_executable = false
-promotion_assessments_safe_for_cut = false
-approved = false
-edit = null
-safe_for_cut = false
-executable = false
-auto_apply = false
-automatic_edits = 0
-```
+## 6. Eligibility / promotion
 
-## 6. Semantic / scope / filler guards
-
-Semantic decisions: `KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT`; siguen no ejecutables.
-
-Correction scope: `bounded / ambiguous / invalid`; `bounded` no implica cut seguro.
-
-Fillers: sólo `isolated_hesitation` puede atravesar eligibility foundation; cluster, repair, boundary, uncertain ASR o invalid quedan bloqueados.
-
-Whisper puede omitir fillers, truncamientos o incluso una repetición humana completa. No inventar evidencia ausente.
-
-## 7. Join + acoustic guards
-
-Join pass para eligibility: sólo `join_context_only`.
-
-Acoustic pass para eligibility: sólo `acoustic_context_only` o `low_energy_boundary_context`, siempre con `measurement_available=true`.
-
-Thresholds acústicos v1:
-
-```text
-SILENCE_DBFS                 = -42.0
-MAX_RMS_DELTA_DB             = 12.0
-MAX_BOUNDARY_SAMPLE_JUMP     = 0.35
-MAX_BOUNDARY_JUMP_RATIO      = 1.25
-```
-
-No relajar thresholds para fabricar positivos.
-
-## 8. Combined Eligibility — Fase 2D
-
-Estados:
-
-```text
-foundation_guards_pass
-blocked_acoustic_context
-blocked_filler_context
-blocked_semantic_decision
-blocked_join_context
-blocked_correction_scope
-invalid_removed_text
-missing_required_evidence
-```
-
-Precedencia fail-safe:
-
-1. corrections requieren scope `bounded`;
-2. validar target/`removedText`;
-3. exigir filler isolated cuando aplica;
-4. exigir semantic decision cuando aplica;
-5. exigir semantic `PROPOSED_CUT/PROPOSED_TRIM` + `guard_status=pass`;
-6. exigir `join_context_only`;
-7. exigir acoustic assessment presente;
-8. exigir acoustic status permitido y medición real;
-9. sólo entonces `foundation_guards_pass`.
-
-`foundation_guards_pass` produce únicamente un `future_promotion_candidate`; no autoriza corte.
-
-## 9. Fase 2D.6 — Human Positive Close-out
-
-AMI manual disfluency annotations, CC BY 4.0; headsets individuales por hablante; selección fijada antes de ASR.
-
-Final `33894995584`:
-
-```text
-155 tests OK; 11 host-PATH skips
-cases                             8
-aligned human positives           6
-foundation human positives        3
-foundation sources                2
-hard failures                     0
-HUMAN_POSITIVE_EVIDENCE_GATE      PASS
-HUMAN_POSITIVE_CLOSE_OUT_DECISION CLOSE_OUT_READY
-safe_for_cut/executable/auto_apply/automatic_edits 0
-artifacts                          0
-```
-
-No extrapolar las tasas de esta muestra.
-
-Detalle: `Validation/phase2d-human-positive-closeout.md`.
-
-## 10. Fase 2E.1 — Promotion Policy Foundation
-
-Objetivo: introducir una capa explícita de **revisión de promoción**, todavía separada del Edit Plan.
-
-### Clase respaldada inicialmente
+La única clase actualmente respaldada por evidencia humana positiva para `eligible_for_promotion_review` es:
 
 ```text
 possible_repetition
 ```
 
-Es la única clase con evidencia humana positiva suficiente procedente del close-out 2D.6. `conservative` y `aggressive` usan la misma whitelist en 2E.1.
+Conservative y aggressive mantienen la misma whitelist.
 
-### Estados
+Todo blocker upstream sigue siendo veto absoluto.
+
+## 7. Fase 2E.2 — Explicit Approval Contract
+
+Artefacto separado:
 
 ```text
-eligible_for_promotion_review
-blocked_upstream_eligibility
-blocked_removed_text_validation
-blocked_unvalidated_candidate_kind
-invalid_candidate_reference
+promotion_approval.json
+schema_version = 1
+record_type = promotion_approval
 ```
 
-Para `eligible_for_promotion_review` exigir simultáneamente:
-
-1. candidate existente;
-2. candidate kind consistente con eligibility;
-3. eligibility `foundation_guards_pass`;
-4. `future_promotion_candidate=true`;
-5. `removed_text_validation.valid=true`;
-6. kind respaldado por evidencia humana positiva.
-
-Incluso el positivo queda:
+Comandos:
 
 ```text
-requires_explicit_approval = true
-approval_state = required
+video-tunner approval create ANALYSIS --promotion-assessment ID --decision approve|reject --actor ACTOR --reason REASON --output promotion_approval.json
+video-tunner approval validate ANALYSIS promotion_approval.json
+```
+
+### Requisitos para crear approval
+
+Sólo puede crearse sobre una promotion assessment que siga siendo:
+
+```text
+status = eligible_for_promotion_review
 promotion_review_candidate = true
+requires_explicit_approval = true
 approved = false
 edit = null
 safe_for_cut = false
@@ -241,47 +139,92 @@ executable = false
 auto_apply = false
 ```
 
-No existe aún API/CLI ni objeto de aprobación explícita.
+Además deben seguir siendo coherentes candidate, eligibility, promotion y target.
+
+### Provenance e integridad
+
+Cada approval almacena:
+
+- SHA-256 del `analysis.json` exacto;
+- candidate ID/kind;
+- eligibility assessment ID/status;
+- promotion assessment ID/status;
+- mode;
+- target exacto;
+- fingerprint SHA-256 de snapshot JSON canónico;
+- actor;
+- reason;
+- timestamp.
 
 ### Validación
 
-- `33896244733`: 165/165 PASS — policy/report aislados.
-- `33898758391`: 165/166; fixture con `hoy` correctamente bloqueado por contexto temporal crítico.
-- `33898967491`: 165/166; `vamos a lanzar` correctamente bloqueado por contexto verbal crítico.
-- Sólo se corrigieron fixtures; producto/thresholds/guards permanecieron intactos.
-- `33899201093`: **166/166 PASS en 7.079 s + doctor PASS**.
+Estados:
 
-Detalle: `Validation/phase2e-promotion-foundation.md`.
+```text
+valid_approved
+valid_rejected
+stale_analysis
+stale_evidence
+stale_or_invalid_reference
+invalid_record
+```
 
-## 11. Siguiente — Fase 2E.2 Explicit Approval Contract
+Un approval `APPROVE` válido **sigue sin ser edit ni autorización de Edit Plan**:
 
-Reglas de diseño:
+```text
+approved = true
+edit_plan_authorization = false
+edit = null
+safe_for_cut = false
+executable = false
+auto_apply = false
+```
 
-1. una promotion assessment nunca se autoaprueba;
-2. la aprobación debe referenciar candidate + promotion assessment + target exactos;
-3. debe existir evidencia de integridad/provenance que invalide aprobaciones obsoletas;
-4. blockers upstream siguen siendo veto absoluto;
-5. separar `approval` de `Edit Plan proposal` y de ejecución/render;
-6. fijar límites globales/fail-safe antes de habilitar ejecución;
-7. mantener el default en REVIEW/KEEP;
-8. ninguna ampliación de clases promocionables sin nueva evidencia humana suficiente.
+Manipular el record para declarar autorización/edición/capacidad ejecutable lo invalida fail-safe.
 
-## 12. Edit Plan / render
+Run `33899857378`:
 
-Edit Plan sólo contiene ediciones efectivas aprobadas. Candidates, assessments y promotion review candidates no aprobados nunca entran en él.
+```text
+174/174 PASS en 7.150 s
+doctor PASS
+stale analysis/evidence PASS
+tampering blocked PASS
+upstream blocker veto PASS
+```
 
-Pendiente después de 2E: join treatment/audit, fades/loudness, post-render verification y capas posteriores del roadmap.
+Detalle: `Validation/phase2e-explicit-approval-contract.md`.
 
-## 13. GitHub / CI / Release
+## 8. Siguiente — 2E.3 Approved Edit Plan Proposal + Global Limits
+
+Diseñar un artefacto de **propuesta**, todavía separado de ejecución.
+
+Reglas mínimas:
+
+1. sólo consumir approvals que `approval validate` marque `valid_approved`;
+2. revalidar contra analysis SHA + evidence fingerprint;
+3. sólo `possible_repetition` inicialmente;
+4. target dentro de timeline;
+5. rechazar overlaps/conflictos;
+6. límites máximos predefinidos de número de edits, segundos retirados y porcentaje de duración;
+7. propuesta != autorización de render;
+8. stale/rejected/invalid = veto;
+9. no ampliar clases sin evidencia humana nueva;
+10. ejecución/render en capa posterior.
+
+## 9. Edit Plan / render
+
+El Edit Plan ejecutable no puede aceptar directamente candidates, promotion assessments o approval artifacts. 2E.3 deberá mediar mediante una propuesta validada y con límites globales.
+
+## 10. GitHub / CI / Release
 
 GitHub es source of truth.
 
 - CI deliberada;
-- no modelos, vídeos, ZIPs o artifacts pesados ordinarios;
 - workflows manual-only normalmente;
+- no modelos, vídeos, ZIPs o artifacts pesados ordinarios;
 - trigger one-shot sólo cuando sea necesario y restaurar inmediatamente;
 - no publicar GitHub Release sin autorización expresa de Guille.
 
-## 14. Docs
+## 11. Docs
 
 Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.
