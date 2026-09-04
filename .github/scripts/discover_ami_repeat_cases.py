@@ -20,9 +20,15 @@ _TOKEN_RE = re.compile(r"[^a-z0-9]+")
 
 
 def _normalise(text: str) -> str:
+    """Mirror production word normalisation: punctuation is removed, not token-split."""
     decomposed = unicodedata.normalize("NFKD", text.lower())
     asciiish = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
-    return " ".join(part for part in _TOKEN_RE.sub(" ", asciiish).split() if part)
+    tokens: list[str] = []
+    for raw in asciiish.split():
+        token = _TOKEN_RE.sub("", raw)
+        if token:
+            tokens.append(token)
+    return " ".join(tokens)
 
 
 def _local_name(tag: str) -> str:
@@ -99,10 +105,11 @@ def _span_from_ids(word_ids: Iterable[str], words: dict[str, dict[str, Any]]) ->
     if not starts or not ends:
         return None
     text = " ".join(str(item["text"]).strip() for item in lexical if str(item["text"]).strip())
+    normalised = _normalise(text)
     return {
         "text": text,
-        "normalised": _normalise(text),
-        "token_count": len(_normalise(text).split()),
+        "normalised": normalised,
+        "token_count": len(normalised.split()),
         "start": min(starts),
         "end": max(ends),
     }
