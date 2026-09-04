@@ -2,42 +2,45 @@
 
 Esta carpeta conserva únicamente evidencia técnica ligera y reproducible: hashes, manifiestos de versiones, provenance y resúmenes de validación cuando proceda.
 
-No usarla para almacenar vídeos, ZIPs de CI, logs voluminosos ni outputs temporales.
+No usarla para almacenar vídeos, ZIPs de CI, logs voluminosos, modelos ni outputs temporales.
 
-## Bootstrap 0.1.0-dev
+## Evidencia principal vigente
 
-Antes de incorporar el bootstrap inicial al repositorio se ejecutaron en el entorno de desarrollo:
+- `portable-foundation-spike.md` — portable core.
+- `portable-analysis-spike.md` — portable ML/análisis.
+- `sync-foundation-spike.md` / `sync-hardening.md` — ingesta dual y sync.
+- `spanish-large-v3-turbo-plan.md` — target Spanish.
+- `phase2-semantic-candidates.md` — Semantic Candidates v1.
+- `phase2-semantic-protection.md` — Semantic Decisions + Protection v1.
+- `phase2c-semantic-validation.md` / `phase2c-audio-backed-validation.md` — validación semántica real.
+- `phase2d-correction-scope.md` — 2D.1.
+- `phase2d-contextual-fillers.md` — 2D.2.
+- `phase2d-join-safety.md` — 2D.3.1.
+- `phase2d-acoustic-join.md` / `phase2d-human-acoustic-evidence.md` — 2D.3.2/2D.3.3.
+- `phase2d-combined-eligibility.md` — 2D.4.
+- `phase2d-human-combined-eligibility.md` — 2D.5.
+- `phase2d-human-positive-closeout.md` — **2D.6 final; `CLOSE_OUT_READY`; cierre de 2D como foundation/evidence.**
 
-- tests unitarios iniciales: OK.
-- test end-to-end sintético adicional: OK.
-- `doctor` con FFmpeg/ffprobe reales: OK.
-- render real de un MP4 de 3,0 s con 1 s de silencio central: output ~2,22 s.
-- Edit Plan detectó y retiró ~0,80 s manteniendo ~0,20 s de pausa.
-- ruta de entrada y salida con espacios: OK en el test end-to-end.
+## Regla de interpretación
 
-## Transcription/VAD candidate layer
+Una validación PASS acredita únicamente el alcance descrito en su documento. No implica por sí sola:
 
-Validación realizada antes de la incorporación:
+- prueba manual realizada por Guille;
+- release publicable;
+- seguridad perceptual general;
+- autorización de corte;
+- promoción al Edit Plan;
+- generalización de métricas fuera del corpus evaluado.
 
-- 16 tests automáticos totales: OK.
-- serialización de transcript word-level: OK.
-- TXT/JSON/SRT: OK.
-- timestamps SRT: OK.
-- complemento y fusión de speech intervals: OK.
-- Candidate Analysis: ningún candidato se auto-aplica: OK.
-- enriquecimiento VAD + word-gap: OK.
-- SHA-256 del source: OK.
-- orquestación del pipeline con backends simulados: OK.
-- extracción real WAV mono 16 kHz PCM16 con FFmpeg: OK.
-- regresión end-to-end del Cleaner de silencios previo: OK.
-- `python -m compileall`: OK.
-- `doctor`: FFmpeg/ffprobe reales detectados; dependencias ML reportadas como ausentes en el entorno de validación.
+En particular, tras 2D.6:
 
-No se pudo validar en este entorno:
+```text
+foundation_guards_pass != safe cut
+future_promotion_candidate != approved edit
+safe_for_cut = false
+executable = false
+auto_apply = false
+automatic_edits = 0
+```
 
-- inferencia real `faster-whisper`;
-- carga/descarga real `large-v3-turbo`;
-- inferencia real `silero-vad`;
-- pipeline completo `video-tunner analyze` sobre voz real.
-
-Estas pruebas **no equivalen a validación Windows ni a validación portable**. La CI Windows manual todavía no se ha ejecutado.
+La promoción explícita al Edit Plan pertenece a Fase 2E.

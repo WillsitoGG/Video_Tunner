@@ -22,7 +22,9 @@
 - Fase 2D.3.3: COMPLETADA — human-audio acoustic evidence
 - Fase 2D.4: COMPLETADA — combined eligibility/schema v8
 - Fase 2D.5: COMPLETADA — Human Combined Eligibility Evidence v1
-- Fase 2D.6: **SIGUIENTE — Human Positive Eligibility Expansion / Close-out Gate**
+- Fase 2D.6: **COMPLETADA — Human Positive Eligibility Expansion / Close-out Gate**
+- Fase 2D: **CERRADA COMO FOUNDATION/EVIDENCE**
+- Fase 2E: **SIGUIENTE — Promotion to Edit Plan**
 
 ## Evidencia principal
 
@@ -40,9 +42,11 @@ Phase 2D.3.2 final               33781903986  PASS — 131/131, schema v7
 Phase 2D.3.3 human acoustic      33782959293  PASS — 134/134
 Phase 2D.4 combined eligibility  33790792753  PASS — 138/138, schema v8
 Phase 2D.5 human eligibility     33791950505  PASS — 142/142, human gate
+Phase 2D.6 repeat discovery      33892213960  PASS — 80 exact repeats, 8/4 selection
+Phase 2D.6 human close-out       33894995584  PASS — CLOSE_OUT_READY
 ```
 
-Todas mantienen `automatic_edits = 0` donde aplica y artifacts = 0.
+Todas las validaciones de 2D mantienen `automatic_edits = 0` y no suben artifacts pesados.
 
 ## Schema v8
 
@@ -56,45 +60,50 @@ semantic_decisions[]
 eligibility_assessments[]
 ```
 
-## Fase 2D.5 — Human Combined Eligibility Evidence v1
+## Fase 2D.6 — Human Positive Close-out
 
-Se aplicó la policy combinada a tres casos humanos AMI trazables, usando word timings/endpoints congelados de `large-v3-turbo` del run `33755013415` y el WAV AMI original CC BY 4.0.
+Se seleccionaron de forma reproducible 8 repeticiones humanas AMI etiquetadas como reparandum removible, procedentes de 4 headsets individuales. La selección se realizó antes de ejecutar `large-v3-turbo`, sobre 80 exact repeats compatibles con la tokenización de producción.
 
-Baseline `33791636767`:
-
-```text
-141/141 regression tests PASS
-human gate FAIL por 1 mismatch diagnóstico
-safe_for_cut 0
-executable 0
-auto_apply 0
-```
-
-La correction humana ambigua estaba bloqueada de todos modos, pero el estado principal era `invalid_removed_text`. Se ajustó la precedencia para conservar el blocker más informativo `blocked_correction_scope` cuando el scope ya acredita ambigüedad. La ausencia de target sigue registrada en `removed_text_reason`.
-
-Final `33791950505`:
+Criterio fijado antes de observar el resultado:
 
 ```text
-142/142 tests PASS en 7.087 s
-HUMAN_ELIGIBILITY_GATE=PASS
-cases                    3
-foundation_guards_pass   1
-blocked                  2
-safe_for_cut             0
-executable               0
-auto_apply               0
-automatic_edits          0
-artifacts                 0
+casos long evaluados                 >= 8
+positivos humanos alineados          >= 3
+foundation_guards_pass humanos       >= 2
+fuentes/headsets con foundation pass >= 2
 ```
 
-Interpretación:
+Run final `33894995584`:
 
-- el control humano de pausa atraviesa las guardas foundation, pero no está etiquetado como ejemplo humano de removibilidad;
-- el retake humano permanece `blocked_semantic_decision`;
-- la correction humana ambigua permanece `blocked_correction_scope`;
-- ninguna evidencia humana autoriza cortes.
+```text
+155 tests OK; 11 host-PATH skips
+HUMAN_POSITIVE_EVIDENCE_GATE      PASS
+HUMAN_POSITIVE_CLOSE_OUT_DECISION CLOSE_OUT_READY
+casos evaluados                    8
+positivos humanos alineados        6
+foundation_guards_pass             3
+fuentes con foundation pass        2
+hard failures                      0
+safe_for_cut                       0
+executable                         0
+auto_apply                         0
+automatic_edits                    0
+artifacts                           0
+```
 
-Evidencia: `Validation/phase2d-human-combined-eligibility.md`.
+Diagnóstico por etapa:
+
+```text
+asr_repeat_not_preserved                 2
+foundation_guards_pass                   3
+downstream_blocked:blocked_join_context  3
+```
+
+En los 6 casos donde ASR conserva la repetición completa, el detector la identifica y alinea en esta muestra. Tres atraviesan las guardas foundation y tres quedan bloqueados deliberadamente por join context. No generalizar la tasa de esta muestra al producto completo.
+
+No se relajó ningún threshold ni guarda para cerrar 2D.
+
+Evidencia: `Validation/phase2d-human-positive-closeout.md`.
 
 ## Safety actual
 
@@ -115,11 +124,13 @@ auto_apply = false
 automatic_edits = 0
 ```
 
+Cerrar 2D **no** activa promoción ni cortes. Sólo habilita el diseño de la policy de 2E.
+
 ## Pendiente antes de Release
 
-- Fase 2D.6: ampliar positivos humanos de removibilidad y cerrar el close-out gate de 2D;
-- no iniciar promoción al Edit Plan sin ese cierre;
-- Fase 2E: promoción explícita sólo si la evidencia lo permite;
+- Fase 2E: Promotion to Edit Plan explícita y auditable;
+- definir clases promocionables, approvals, thresholds por modo y límites globales;
+- mantener blockers 2D como vetos acumulativos y el resto en REVIEW/KEEP;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;
