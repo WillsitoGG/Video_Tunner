@@ -31,14 +31,10 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 2A — Semantic Candidates v1: ✅
 - Fase 2B — Semantic Decisions + Protection v1: ✅
 - Fase 2C — Validación semántica real v1: ✅
-- Fase 2D.1 — Correction scope foundation v1: ✅
-- Fase 2D.2 — Fillers contextuales foundation v1: ✅
-- Fase 2D.3 — Join + acoustic + evidencia humana: ✅
-- Fase 2D.4 — Combined Eligibility / Promotion Policy Foundation: ✅
-- Fase 2D.5 — Human Combined Eligibility Evidence: ✅
-- Fase 2D.6 — Human Positive Eligibility Expansion / Close-out Gate: ✅
-- **Fase 2D — cerrada como foundation/evidence**
-- Fase 2E — Promotion to Edit Plan: 🟡 **siguiente**
+- Fase 2D — Scope + fillers + join + combined eligibility: ✅ **cerrada como foundation/evidence**
+- Fase 2E.1 — Promotion Policy Foundation: ✅
+- Fase 2E — Promotion to Edit Plan: 🟡 **en curso**
+- Fase 2E.2 — Explicit Approval Contract: 🟡 **siguiente**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -66,7 +62,9 @@ semantic decisions + protection
   ↓
 combined eligibility assessments
   ↓
-future approved Edit Plan
+promotion assessments
+  ↓
+future explicitly approved Edit Plan
   ↓
 render + audit
 ```
@@ -78,6 +76,9 @@ candidate != scope != assessment != semantic decision != edit
 PROPOSED_CUT != executable CUT
 foundation_guards_pass != safe cut
 future_promotion_candidate != approved edit
+promotion_review_candidate != approved edit
+approved = false                 # Phase 2E.1
+edit = null                      # Phase 2E.1
 safe_for_cut = false
 executable = false
 auto_apply = false
@@ -95,7 +96,7 @@ Modelo objetivo: **`large-v3-turbo`**.
 
 ## Análisis
 
-`analysis.json` actual usa **schema v8**:
+`analysis.json` actual usa **schema v9**:
 
 ```text
 candidates[]
@@ -105,17 +106,18 @@ join_assessments[]
 acoustic_join_assessments[]
 semantic_decisions[]
 eligibility_assessments[]
+promotion_assessments[]
 ```
 
-Safety v8:
+Safety v9 añade:
 
 ```text
-eligibility_assessments_are_not_edits = true
-eligibility_assessments_executable = false
-eligibility_assessments_safe_for_cut = false
-future_promotion_candidates_are_not_approved_edits = true
-combined_eligibility_enabled = true
-combined_eligibility_is_not_edit_plan_promotion = true
+promotion_assessments_are_not_edits = true
+promotion_review_requires_explicit_approval = true
+promotion_assessments_approved = false
+edit_plan_promotion_enabled = false
+promotion_assessments_executable = false
+promotion_assessments_safe_for_cut = false
 ```
 
 ## Evidencia principal de Fase 2
@@ -132,101 +134,81 @@ combined_eligibility_is_not_edit_plan_promotion = true
 33791950505  142/142 — human combined eligibility PASS
 33892213960  AMI exact-repeat discovery PASS — 80 compatibles
 33894995584  Human Positive Close-out PASS — CLOSE_OUT_READY
+33896244733  2E.1 isolated promotion policy PASS — 165/165
+33899201093  2E.1 schema v9 integrated PASS — 166/166 + doctor
 ```
 
-Todas mantienen automatic edits 0 donde aplica y artifacts pesados 0.
+## Fase 2D — cerrada como foundation/evidence
 
-## Fase 2D — Combined Eligibility cerrada como foundation/evidence
+2D validó guardas acumulativas y evidencia humana positiva sin activar cortes. Run final `33894995584`: 8 casos humanos AMI evaluados, 6 positivos alineados, 3 `foundation_guards_pass` en 2 fuentes independientes y 0 capacidad ejecutable. Detalle: `Validation/phase2d-human-positive-closeout.md`.
 
-La policy combina guardas de forma acumulativa. Una señal posterior favorable nunca rescata una anterior.
+## Fase 2E.1 — Promotion Policy Foundation
 
-Estados v1:
+2E.1 introduce una capa explícita entre eligibility y un futuro Edit Plan aprobado. **No crea edits.**
+
+La única clase inicialmente respaldada por evidencia humana positiva suficiente para entrar en revisión de promoción es:
 
 ```text
-foundation_guards_pass
-blocked_acoustic_context
-blocked_filler_context
-blocked_semantic_decision
-blocked_join_context
-blocked_correction_scope
-invalid_removed_text
-missing_required_evidence
+possible_repetition
 ```
 
-`foundation_guards_pass` sólo significa que las guardas implementadas han pasado:
+Conservative y aggressive usan por ahora exactamente la misma whitelist. El modo aggressive no amplía clases sin evidencia.
+
+Estados de `promotion_assessments[]`:
 
 ```text
-future_promotion_candidate = true
+eligible_for_promotion_review
+blocked_upstream_eligibility
+blocked_removed_text_validation
+blocked_unvalidated_candidate_kind
+invalid_candidate_reference
+```
+
+Para llegar a `eligible_for_promotion_review` deben cumplirse simultáneamente:
+
+1. candidato existente y kind consistente;
+2. eligibility `foundation_guards_pass`;
+3. `future_promotion_candidate=true`;
+4. `removed_text_validation.valid=true`;
+5. clase respaldada por evidencia humana positiva.
+
+Incluso entonces:
+
+```text
+requires_explicit_approval = true
+approval_state = required
+approved = false
+edit = null
 safe_for_cut = false
 executable = false
 auto_apply = false
 ```
 
-### 2D.5 — evidencia humana combinada
+El mecanismo de aprobación explícita todavía **no existe** en 2E.1; pertenece a 2E.2.
 
-Run `33791950505`: 142/142 tests PASS; 3 casos humanos, 1 `foundation_guards_pass`, 2 bloqueados y cero capacidad ejecutable. Detalle: `Validation/phase2d-human-combined-eligibility.md`.
+### Validación
 
-### 2D.6 — positivos humanos y close-out
+- `33896244733`: policy/report aislados, **165/165 PASS**.
+- `33898758391`: integración 165/166; el fixture positivo usaba `hoy`, correctamente bloqueado como contexto temporal crítico.
+- `33898967491`: integración 165/166; `vamos a lanzar` seguía activando contexto verbal crítico por `vamos`.
+- Se modificaron sólo los fixtures sintéticos; no se cambió producto, thresholds ni guardas.
+- `33899201093`: **166/166 PASS en 7.079 s + `doctor` PASS**.
 
-Para evitar seleccionar ejemplos después de ver Whisper, se creó un discovery reproducible sobre anotaciones manuales AMI de `repeat/reparandum/reparans`, con tokenización equivalente a producción y headsets individuales por hablante.
+La prueba positiva final usa contexto léxicamente neutro y confirma que una repetición interior puede llegar a `eligible_for_promotion_review` sin producir edit alguno.
 
-Discovery `33892213960`:
+Detalle: `Validation/phase2e-promotion-foundation.md`.
 
-```text
-80 exact repeats compatibles
-8 casos seleccionados
-4 headsets
-```
+## Siguiente trabajo — Fase 2E.2
 
-El gate de suficiencia se fijó antes del run final:
+Objetivo: definir un **contrato de aprobación explícita** auditable entre `promotion_assessments[]` y una propuesta aprobada, todavía sin habilitar auto-apply indiscriminado.
 
-```text
-casos long evaluados                 >= 8
-positivos humanos alineados          >= 3
-foundation_guards_pass humanos       >= 2
-fuentes/headsets con foundation pass >= 2
-```
-
-Run final `33894995584`:
-
-```text
-155 tests OK; 11 host-PATH skips
-HUMAN_POSITIVE_EVIDENCE_GATE      PASS
-HUMAN_POSITIVE_CLOSE_OUT_DECISION CLOSE_OUT_READY
-casos evaluados                    8
-positivos alineados                6
-foundation_guards_pass             3
-fuentes con foundation pass        2
-hard failures                      0
-safe_for_cut                       0
-executable                         0
-auto_apply                         0
-automatic_edits                    0
-artifacts                           0
-```
-
-Diagnóstico:
-
-- 2 casos: Whisper no conserva la repetición humana completa;
-- 3 casos: repetición detectada/alineada y `foundation_guards_pass`;
-- 3 casos: repetición detectada/alineada pero `blocked_join_context`;
-- 0 detector misses sobre una repetición completa preservada por ASR en **esta muestra**.
-
-No se relajó ningún threshold o guarda. La conclusión no debe generalizarse fuera de la muestra.
-
-Detalle: `Validation/phase2d-human-positive-closeout.md`.
-
-## Siguiente trabajo — Fase 2E
-
-**2E no significa activar cortes.** Su objetivo es diseñar y validar el contrato explícito de promoción al Edit Plan.
-
-1. definir qué clases pueden siquiera optar a promoción;
-2. conservar blockers de 2D como vetos acumulativos;
-3. definir approval/thresholds por modo y límites globales;
-4. mantener el resto en REVIEW/KEEP;
-5. convertir eligibility → Edit Plan sólo mediante un contrato auditable;
-6. validar primero sin habilitar ejecución automática;
-7. usar evidencia humana antes de cualquier promoción productiva.
+1. definir quién/qué puede aprobar y cómo queda registrada la aprobación;
+2. ligar la aprobación al candidate/promotion assessment exacto y a su target validado;
+3. invalidar aprobación si cambia cualquier evidencia upstream;
+4. mantener blockers 2D como veto acumulativo;
+5. definir límites globales y fail-safe antes de ejecución;
+6. separar aprobación, construcción de Edit Plan y ejecución/render;
+7. validar primero con tests controlados y después con evidencia humana cuando cambie una decisión técnica.
 
 ## Principios
 
