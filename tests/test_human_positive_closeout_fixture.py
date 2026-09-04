@@ -65,14 +65,34 @@ class HumanPositiveCloseoutFixtureTests(unittest.TestCase):
                 case["reparans_end"],
             )
 
-    def test_audio_sources_are_official_ami_headset_audio(self):
-        for meeting, source in self.fixture["meetings"].items():
-            self.assertEqual(source["audio"], f"{meeting}.Mix-Headset.wav")
+    def test_cases_use_speaker_specific_individual_headsets(self):
+        sources = self.fixture["audio_sources"]
+        self.assertGreaterEqual(len(sources), 2)
+        for case in self.fixture["cases"]:
+            source_id = case["audio_source_id"]
+            self.assertIn(source_id, sources)
+            source = sources[source_id]
+            self.assertEqual(source["meeting"], case["meeting"])
+            self.assertEqual(source["speaker"], case["speaker"])
+            self.assertEqual(source["source_kind"], "individual_headset")
+            self.assertEqual(source["audio"], f'{case["meeting"]}.Headset-{source["channel"]}.wav')
             self.assertEqual(
                 source["url"],
-                "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/HeadsetAudio/"
-                + source["audio"],
+                "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/"
+                f'{case["meeting"]}/audio/{source["audio"]}',
             )
+
+    def test_pinned_annotation_provenance_records_channel_mapping_source(self):
+        mirror = self.fixture["annotation_provenance"]["inspection_mirror"]
+        self.assertEqual(mirror["repository"], "ColingPaper2018/DialogueAct-Tagger")
+        self.assertEqual(
+            mirror["commit"],
+            "4307e9899ed9058e80d0861530de124d4f134317",
+        )
+        self.assertEqual(
+            mirror["meeting_mapping"],
+            "data/AMI/corpus/corpusResources/meetings.xml",
+        )
 
 
 if __name__ == "__main__":

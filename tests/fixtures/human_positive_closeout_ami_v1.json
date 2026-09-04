@@ -13,7 +13,8 @@
     "inspection_mirror": {
       "repository": "ColingPaper2018/DialogueAct-Tagger",
       "commit": "4307e9899ed9058e80d0861530de124d4f134317",
-      "note": "Exact annotation IDs/text were inspected in this mirror; licensing/provenance is attributed to the official AMI distribution."
+      "meeting_mapping": "data/AMI/corpus/corpusResources/meetings.xml",
+      "note": "Exact annotation IDs/text and speaker-to-channel mappings were inspected in this pinned mirror; licensing/provenance is attributed to the official AMI distribution."
     }
   },
   "detector_contract": {
@@ -21,16 +22,24 @@
     "minimum_exact_repeat_tokens": 3,
     "short_positive_policy": "observation_only_known_limitation"
   },
-  "meetings": {
-    "ES2005a": {
-      "audio": "ES2005a.Mix-Headset.wav",
-      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/HeadsetAudio/ES2005a.Mix-Headset.wav",
+  "audio_sources": {
+    "ES2005a-B": {
+      "meeting": "ES2005a",
+      "speaker": "B",
+      "channel": 1,
+      "source_kind": "individual_headset",
+      "audio": "ES2005a.Headset-1.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2005a/audio/ES2005a.Headset-1.wav",
       "expected_bytes": null,
       "expected_sha256": null
     },
-    "IS1001d": {
-      "audio": "IS1001d.Mix-Headset.wav",
-      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/HeadsetAudio/IS1001d.Mix-Headset.wav",
+    "IS1001d-C": {
+      "meeting": "IS1001d",
+      "speaker": "C",
+      "channel": 2,
+      "source_kind": "individual_headset",
+      "audio": "IS1001d.Headset-2.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1001d/audio/IS1001d.Headset-2.wav",
       "expected_bytes": null,
       "expected_sha256": null
     }
@@ -40,18 +49,27 @@
       "id": "ami-es2005a-b-repeat-or-playing-with",
       "meeting": "ES2005a",
       "speaker": "B",
+      "audio_source_id": "ES2005a-B",
       "human_label": "removable_reparandum",
       "annotation_type": "repeat",
       "annotation_parent_id": "ES2005a.B.disfluency.alex.24",
       "reparandum_annotation_id": "ES2005a.B.disfluency.alex.25",
       "reparans_annotation_id": "ES2005a.B.disfluency.alex.26",
-      "reparandum_word_ids": ["ES2005a.B.words139", "ES2005a.B.words140", "ES2005a.B.words141"],
-      "reparans_word_ids": ["ES2005a.B.words143", "ES2005a.B.words144", "ES2005a.B.words145"],
+      "reparandum_word_ids": [
+        "ES2005a.B.words139",
+        "ES2005a.B.words140",
+        "ES2005a.B.words141"
+      ],
+      "reparans_word_ids": [
+        "ES2005a.B.words143",
+        "ES2005a.B.words144",
+        "ES2005a.B.words145"
+      ],
       "reparandum_text": "or playing with",
       "reparans_text": "or playing with",
       "reparandum_start": 121.58,
-      "reparandum_end": 123.10,
-      "reparans_start": 123.10,
+      "reparandum_end": 123.1,
+      "reparans_start": 123.1,
       "reparans_end": 123.97,
       "clip_start": 117.0,
       "clip_duration": 11.0,
@@ -62,13 +80,24 @@
       "id": "ami-is1001d-c-repeat-i-give-it-a",
       "meeting": "IS1001d",
       "speaker": "C",
+      "audio_source_id": "IS1001d-C",
       "human_label": "removable_reparandum",
       "annotation_type": "repeat",
       "annotation_parent_id": "IS1001d.C.disfluency.alex.1",
       "reparandum_annotation_id": "IS1001d.C.disfluency.alex.2",
       "reparans_annotation_id": "IS1001d.C.disfluency.alex.3",
-      "reparandum_word_ids": ["IS1001d.C.words33", "IS1001d.C.words34", "IS1001d.C.words35", "IS1001d.C.words36"],
-      "reparans_word_ids": ["IS1001d.C.words38", "IS1001d.C.words39", "IS1001d.C.words40", "IS1001d.C.words41"],
+      "reparandum_word_ids": [
+        "IS1001d.C.words33",
+        "IS1001d.C.words34",
+        "IS1001d.C.words35",
+        "IS1001d.C.words36"
+      ],
+      "reparans_word_ids": [
+        "IS1001d.C.words38",
+        "IS1001d.C.words39",
+        "IS1001d.C.words40",
+        "IS1001d.C.words41"
+      ],
       "reparandum_text": "I give it a",
       "reparans_text": "I give it a",
       "reparandum_start": 280.26,
@@ -84,13 +113,20 @@
       "id": "ami-is1001d-c-repeat-we-can-short-control",
       "meeting": "IS1001d",
       "speaker": "C",
+      "audio_source_id": "IS1001d-C",
       "human_label": "removable_reparandum",
       "annotation_type": "repeat",
       "annotation_parent_id": "IS1001d.C.disfluency.alex.15",
       "reparandum_annotation_id": "IS1001d.C.disfluency.alex.16",
       "reparans_annotation_id": "IS1001d.C.disfluency.alex.17",
-      "reparandum_word_ids": ["IS1001d.C.words137", "IS1001d.C.words138"],
-      "reparans_word_ids": ["IS1001d.C.words139", "IS1001d.C.words140"],
+      "reparandum_word_ids": [
+        "IS1001d.C.words137",
+        "IS1001d.C.words138"
+      ],
+      "reparans_word_ids": [
+        "IS1001d.C.words139",
+        "IS1001d.C.words140"
+      ],
       "reparandum_text": "we can",
       "reparans_text": "we can",
       "reparandum_start": 494.09,

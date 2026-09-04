@@ -42,7 +42,7 @@ jobs:
           }
           Write-Host "HUMAN_POSITIVE_CLOSEOUT_POWERSHELL_PARSE=PASS"
 
-      - name: Download licensed AMI positive fixtures
+      - name: Download licensed AMI speaker-specific positive fixtures
         shell: pwsh
         run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1
 
@@ -67,6 +67,7 @@ jobs:
         run: |
           Write-Host "2D.6 separates evidence-integrity PASS from CLOSE_OUT_READY/INSUFFICIENT product evidence."
           Write-Host "Human removable labels come from AMI manual reparandum/reparans annotations."
+          Write-Host "Each labelled case is evaluated from the mapped individual speaker headset, not Mix-Headset."
           Write-Host "The target model is pinned large-v3-turbo and the analyzer runs from the frozen portable in strict/offline mode."
           Write-Host "No model, AMI audio, generated video, ZIP or analysis output artifact is uploaded."
           Write-Host "This workflow never authorizes or executes a cut."
