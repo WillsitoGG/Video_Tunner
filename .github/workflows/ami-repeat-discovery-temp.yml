@@ -1,0 +1,49 @@
+name: AMI Repeat Discovery Temporary
+
+on:
+  push:
+    branches:
+      - phase2d-human-positive-closeout
+
+concurrency:
+  group: video-tunner-ami-repeat-discovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Video_Tunner
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run discovery unit tests
+        shell: pwsh
+        run: python -m unittest discover -s tests -p "test_ami_repeat_discovery.py" -v
+      - name: Download pinned AMI annotation mirror
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $revision = "4307e9899ed9058e80d0861530de124d4f134317"
+          $zip = Join-Path $env:RUNNER_TEMP "ami-annotations.zip"
+          $extract = Join-Path $env:RUNNER_TEMP "ami-annotations"
+          curl.exe --location --fail --silent --show-error --retry 4 --retry-all-errors --output $zip "https://codeload.github.com/ColingPaper2018/DialogueAct-Tagger/zip/$revision"
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+          $repoRoot = Get-ChildItem $extract -Directory | Select-Object -First 1
+          if (-not $repoRoot) { throw "No se extrajo el mirror AMI." }
+          "AMI_MIRROR_ROOT=$($repoRoot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Discover exact human repeat positives
+        shell: pwsh
+        run: |
+          python .\.github\scripts\discover_ami_repeat_cases.py `
+            --corpus-root "$env:AMI_MIRROR_ROOT\data\AMI\corpus" `
+            --min-tokens 3 `
+            --max-cases 8 `
+            --max-sources 4 `
+            --max-per-source 2
+      - name: Scope note
+        shell: pwsh
+        run: Write-Host "Discovery only; no model/audio/artifact upload."
