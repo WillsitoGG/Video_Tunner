@@ -135,7 +135,7 @@ def run_fake_analysis(transcript: TranscriptResult) -> dict:
 
 
 class SemanticPipelineIntegrationTests(unittest.TestCase):
-    def test_analyze_emits_candidate_decision_join_acoustic_and_eligibility_for_repetition(self):
+    def test_analyze_emits_candidate_decision_join_acoustic_eligibility_and_promotion_for_repetition(self):
         report = run_fake_analysis(
             timed_transcript("vamos a lanzar vamos a lanzar el producto mañana")
         )
@@ -166,7 +166,12 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
             for item in report["eligibility_assessments"]
             if item["candidate_id"] == repetition["id"]
         )
-        self.assertEqual(report["schema_version"], 8)
+        promotion = next(
+            item
+            for item in report["promotion_assessments"]
+            if item["candidate_id"] == repetition["id"]
+        )
+        self.assertEqual(report["schema_version"], 9)
         self.assertEqual(report["correction_scopes"], [])
         self.assertEqual(report["summary"]["correction_scopes"]["count"], 0)
         self.assertEqual(report["filler_assessments"], [])
@@ -179,6 +184,10 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(eligibility["status"], "blocked_join_context")
         self.assertTrue(eligibility["removed_text_validation"]["valid"])
         self.assertFalse(eligibility["future_promotion_candidate"])
+        self.assertEqual(promotion["status"], "blocked_upstream_eligibility")
+        self.assertFalse(promotion["promotion_review_candidate"])
+        self.assertFalse(promotion["approved"])
+        self.assertIsNone(promotion["edit"])
         self.assertFalse(eligibility["safe_for_cut"])
         self.assertFalse(eligibility["executable"])
         self.assertFalse(eligibility["auto_apply"])
@@ -187,10 +196,51 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["acoustic_join_assessments"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["eligibility_assessments"]["safe_for_cut"], 0)
+        self.assertEqual(report["summary"]["promotion_assessments"]["approved"], 0)
+        self.assertEqual(report["summary"]["promotion_assessments"]["edits"], 0)
         self.assertTrue(report["safety"]["combined_eligibility_enabled"])
         self.assertTrue(report["safety"]["combined_eligibility_is_not_edit_plan_promotion"])
+        self.assertTrue(report["safety"]["promotion_assessments_are_not_edits"])
+        self.assertTrue(report["safety"]["promotion_review_requires_explicit_approval"])
+        self.assertFalse(report["safety"]["edit_plan_promotion_enabled"])
 
-    def test_analyze_links_correction_scope_join_acoustic_eligibility_and_review_decision(self):
+    def test_analyze_can_mark_interior_exact_repetition_for_explicit_promotion_review_only(self):
+        report = run_fake_analysis(
+            timed_transcript("hoy vamos a lanzar vamos a lanzar el producto mañana")
+        )
+        repetition = next(
+            item for item in report["candidates"] if item["kind"] == "possible_repetition"
+        )
+        eligibility = next(
+            item
+            for item in report["eligibility_assessments"]
+            if item["candidate_id"] == repetition["id"]
+        )
+        promotion = next(
+            item
+            for item in report["promotion_assessments"]
+            if item["candidate_id"] == repetition["id"]
+        )
+
+        self.assertEqual(report["schema_version"], 9)
+        self.assertEqual(eligibility["status"], "foundation_guards_pass")
+        self.assertTrue(eligibility["future_promotion_candidate"])
+        self.assertEqual(promotion["status"], "eligible_for_promotion_review")
+        self.assertTrue(promotion["promotion_review_candidate"])
+        self.assertEqual(promotion["approval_state"], "required")
+        self.assertFalse(promotion["approved"])
+        self.assertIsNotNone(promotion["target_preview"])
+        self.assertEqual(promotion["target_preview"]["text"], "vamos a lanzar")
+        self.assertIsNone(promotion["edit"])
+        self.assertFalse(promotion["safe_for_cut"])
+        self.assertFalse(promotion["executable"])
+        self.assertFalse(promotion["auto_apply"])
+        self.assertEqual(report["summary"]["promotion_assessments"]["promotion_review_candidates"], 1)
+        self.assertEqual(report["summary"]["promotion_assessments"]["approved"], 0)
+        self.assertEqual(report["summary"]["promotion_assessments"]["edits"], 0)
+        self.assertEqual(report["summary"]["automatic_edits"], 0)
+
+    def test_analyze_links_correction_scope_join_acoustic_eligibility_promotion_and_review_decision(self):
         report = run_fake_analysis(
             timed_transcript("la facturación fue de 200 perdón de 250 mil euros")
         )
@@ -216,8 +266,13 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
             for item in report["eligibility_assessments"]
             if item["candidate_id"] == correction["id"]
         )
+        promotion = next(
+            item
+            for item in report["promotion_assessments"]
+            if item["candidate_id"] == correction["id"]
+        )
 
-        self.assertEqual(report["schema_version"], 8)
+        self.assertEqual(report["schema_version"], 9)
         self.assertEqual(scope["status"], "bounded")
         self.assertEqual(scope["strategy"], "repeated_corrected_prefix_anchor")
         self.assertEqual(scope["attempt_span"]["text"], "de 200")
@@ -236,6 +291,10 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(eligibility["correction_scope_status"], "bounded")
         self.assertEqual(eligibility["removed_text_validation"]["text"], "de 200 perdón")
         self.assertTrue(eligibility["removed_text_validation"]["valid"])
+        self.assertEqual(promotion["status"], "blocked_upstream_eligibility")
+        self.assertFalse(promotion["promotion_review_candidate"])
+        self.assertFalse(promotion["approved"])
+        self.assertIsNone(promotion["edit"])
         self.assertFalse(eligibility["future_promotion_candidate"])
         self.assertFalse(eligibility["safe_for_cut"])
         self.assertFalse(eligibility["executable"])
@@ -245,6 +304,8 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(report["summary"]["join_assessments"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["acoustic_join_assessments"]["safe_for_cut"], 0)
         self.assertEqual(report["summary"]["eligibility_assessments"]["safe_for_cut"], 0)
+        self.assertEqual(report["summary"]["promotion_assessments"]["approved"], 0)
+        self.assertEqual(report["summary"]["promotion_assessments"]["edits"], 0)
 
 
 if __name__ == "__main__":
