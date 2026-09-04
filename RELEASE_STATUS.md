@@ -11,9 +11,10 @@
 - Fase 2D: **CERRADA COMO FOUNDATION/EVIDENCE**
 - Fase 2E.1: **COMPLETADA — Promotion Policy Foundation / analysis schema v9**
 - Fase 2E.2: **COMPLETADA — Explicit Approval Contract / approval schema v1**
-- Fase 2E.3: **COMPLETADA — Approved Edit Plan Proposal + Global Limits / proposal schema v1**
+- Fase 2E.3: **COMPLETADA — Approved Edit Plan Proposal / proposal schema v1**
+- Fase 2E.4: **COMPLETADA — Execution Authorization / Semantic Render Gate**
 - Fase 2E: **EN CURSO**
-- Fase 2E.4: **SIGUIENTE — Execution Authorization / Semantic Render Gate**
+- Fase 2E.5: **SIGUIENTE — Semantic Render Verification / Close-out**
 
 ## Evidencia principal
 
@@ -27,117 +28,72 @@ Phase 2E.1 integrated schema v9  33899201093  PASS — 166/166 + doctor
 Phase 2E.2 explicit approval     33899857378  PASS — 174/174 + doctor
 Phase 2E.3 proposal foundation   33900544072  PASS — 185/185 + doctor
 Phase 2E.3 renderer isolation    33908500929  PASS — 186/186 + doctor
+Phase 2E.4 execution core        33909424933  PASS — 201/201 + doctor
+Phase 2E.4 real semantic E2E     33909625346  PASS — 202/202 + doctor
 ```
 
-## Analysis schema v9
-
-`analysis.json` permanece v9.
-
-## Approval artifact schema v1
+## Artifact chain
 
 ```text
-promotion_approval.json
-schema_version = 1
-record_type = promotion_approval
+analysis.json                         schema v9
+promotion_approval.json               schema v1
+approved_edit_plan_proposal.json      schema v1
+semantic_execution_authorization.json schema v1
+semantic_edit_plan.json               schema v1
 ```
 
-## Proposal artifact schema v1
+## Safety 2E.4
 
 ```text
-approved_edit_plan_proposal.json
-schema_version = 1
-record_type = approved_edit_plan_proposal
-```
-
-La proposal usa `proposed_edits[]`, no `edits[]`.
-
-## Fase 2E.3 — contrato de seguridad
-
-Sólo consume approvals que sigan validando como `valid_approved` frente al `analysis.json` actual.
-
-Límites globales precomprometidos:
-
-```text
-max_semantic_edits    = 10
-max_removed_seconds   = 30.0
-max_removed_fraction  = 0.05
-```
-
-Sólo `possible_repetition` está soportada inicialmente.
-
-Cualquier blocker invalida la proposal completa:
-
-```text
-no approvals
-stale/rejected/invalid approval
-duplicate target
-unsupported candidate kind
-invalid/out-of-timeline target
-overlapping targets
-max edit count exceeded
-max removed seconds exceeded
-max removed fraction exceeded
-```
-
-Proposal lista:
-
-```text
-status = proposal_ready_for_global_review
-requires_global_review = true
-globally_approved = false
-render_authorization = false
-executable = false
-auto_apply = false
-```
-
-Cada proposed edit también permanece no autorizado/no ejecutable.
-
-## Renderer boundary
-
-El renderer ejecutable sólo trabaja con Edit Plans materializados. Además, `render_from_plan` rechaza explícitamente cualquier artefacto que contenga `proposed_edits`, por lo que una proposal no puede atravesar accidentalmente el renderer como plan ejecutable.
-
-## Validación 2E.3
-
-`33900544072`:
-
-```text
-185/185 tests PASS en 5.144 s
-doctor PASS
-all global limit tests PASS
-overlap/duplicate/stale/rejected/timeline blockers PASS
-valid proposal stays review-only PASS
-```
-
-Hardening final `33908500929`:
-
-```text
-186/186 tests PASS en 7.887 s
-doctor PASS
-renderer rejects non-executable proposal PASS
-```
-
-Workflow restaurado a `workflow_dispatch`. No se habilitó auto-render ni auto-apply semántico.
-
-Evidencia: `Validation/phase2e-approved-plan-proposal.md`.
-
-## Safety actual
-
-```text
-candidate != promotion assessment != approval != proposal != executable edit
-valid_approved approval != Edit Plan authorization
+promotion approval APPROVE != global execution authorization
 proposal_ready_for_global_review != render authorization
-proposed_edits[] != edits[]
-globally_approved = false
-render_authorization = false
+proposal uses proposed_edits[]
+semantic plan uses edits[] only after valid global authorization
+generic render rejects proposals
+generic render rejects semantic Edit Plans
+semantic render revalidates exact full chain + source SHA immediately before FFmpeg
+auto_apply = false
+```
+
+Global execution APPROVE:
+
+```text
+authorized = true
+edit_plan_materialization_authorized = true
+semantic_render_authorization = true
+proposal_render_authorization = false
 executable = false
 auto_apply = false
-automatic_edits = 0
 ```
+
+Materialized Semantic Edit Plan:
+
+```text
+globally_authorized = true
+requires_semantic_render_gate = true
+executable = true
+auto_apply = false
+```
+
+## Real FFmpeg gate
+
+Final `33909625346`:
+
+```text
+202/202 tests PASS en 7.782 s
+doctor PASS
+real semantic FFmpeg E2E PASS
+```
+
+El E2E construye una cadena completa autorizada sobre un MP4 real de 10 s, materializa un único edit de 0.4 s, verifica que el SHA-256 del original queda intacto y que el output conserva audio+vídeo con duración esperada dentro de ±0.15 s.
+
+Esta evidencia no implica todavía calidad perceptual humana general de joins renderizados.
+
+Evidencia: `Validation/phase2e-execution-authorization.md`.
 
 ## Pendiente antes de Release
 
-- Fase 2E.4: Execution Authorization / Semantic Render Gate;
-- Fase 2E.5: semantic render verification / close-out;
+- Fase 2E.5: post-render verification + human/perceptual semantic join close-out;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;
