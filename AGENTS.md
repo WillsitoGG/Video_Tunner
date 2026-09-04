@@ -32,7 +32,7 @@ sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scop
 
 Versión `0.1.0-dev`.
 
-Completado hasta:
+Completado:
 
 - Fase 2C.3 — audio humano real → semantic gate;
 - Fase 2D.1 — correction scope/schema v4;
@@ -41,11 +41,14 @@ Completado hasta:
 - Fase 2D.3.2 — acoustic join/schema v7;
 - Fase 2D.3.3 — human-audio acoustic evidence;
 - Fase 2D.4 — combined eligibility/schema v8;
-- Fase 2D.5 — human combined eligibility evidence.
+- Fase 2D.5 — human combined eligibility evidence;
+- Fase 2D.6 — human positive eligibility expansion / close-out.
 
-Siguiente: **Fase 2D.6 — Human Positive Eligibility Expansion / Close-out Gate**.
+**Fase 2D cerrada como foundation/evidence.**
 
-No existe todavía promoción al Edit Plan.
+Siguiente: **Fase 2E — Promotion to Edit Plan**.
+
+No existe todavía promoción ejecutable al Edit Plan.
 
 ## 3. Evidencia principal
 
@@ -63,6 +66,8 @@ No existe todavía promoción al Edit Plan.
 33782959293  134/134 — human acoustic evidence PASS
 33790792753  138/138 — combined eligibility/schema v8 PASS
 33791950505  142/142 — human combined eligibility PASS
+33892213960  AMI repeat discovery PASS — 80 compatible exact repeats
+33894995584  Human positive close-out PASS — CLOSE_OUT_READY
 ```
 
 No generalizar métricas de corpus fuera de su muestra.
@@ -111,13 +116,13 @@ automatic_edits = 0
 
 ## 6. Semantic / scope / filler guards
 
-Semantic decisions: `KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT`; siempre no ejecutables.
+Semantic decisions: `KEEP / REVIEW / PROPOSED_TRIM / PROPOSED_CUT`; siempre no ejecutables en 2D.
 
 Correction scope: `bounded / ambiguous / invalid`; `bounded` no implica cut seguro.
 
 Fillers: sólo `isolated_hesitation` puede atravesar la policy foundation; cluster, repair, boundary, uncertain ASR o invalid quedan bloqueados.
 
-Whisper puede omitir fillers, vacilaciones o truncamientos; no inventar evidencia ausente.
+Whisper puede omitir fillers, vacilaciones, truncamientos o incluso una repetición humana completa. No inventar evidencia ausente.
 
 ## 7. Join + acoustic guards
 
@@ -135,6 +140,8 @@ MAX_RMS_DELTA_DB             = 12.0
 MAX_BOUNDARY_SAMPLE_JUMP     = 0.35
 MAX_BOUNDARY_JUMP_RATIO      = 1.25
 ```
+
+No relajar thresholds para fabricar positivos de validación.
 
 ## 8. Combined Eligibility — 2D.4/2D.5
 
@@ -174,64 +181,100 @@ executable = false
 auto_apply = false
 ```
 
-### 2D.4 foundation
+## 9. Fase 2D.6 — Human Positive Close-out
 
-Run `33790792753`: 138/138 PASS; 12 casos, 4 rutas pass y 8 blockers; artifacts 0.
+### Procedencia
 
-### 2D.5 evidencia humana
+- Corpus: AMI Meeting Corpus, anotaciones manuales de disfluencias, CC BY 4.0.
+- Mirror de inspección fijado: `ColingPaper2018/DialogueAct-Tagger@4307e9899ed9058e80d0861530de124d4f134317`.
+- Ontología: repeat `ami_dsfl_12`, reparans `ami_dsfl_18`, reparandum `ami_dsfl_19`.
+- Audio: siempre headset individual del hablante; no `Mix-Headset` para etiquetas speaker-specific.
+- Tokenización del discovery/harness debe ser equivalente a producción: normalización dentro de cada token separado por whitespace; una contracción como `you've` cuenta como `youve`, un token.
 
-Baseline `33791636767`:
+### Selección
 
-- 141/141 regresiones PASS;
-- gate humano falló sólo por diagnóstico `invalid_removed_text` frente a `blocked_correction_scope` en correction ambigua;
-- seguridad permaneció a cero.
-
-Se cambió sólo la precedencia diagnóstica; la evidencia secundaria `removed_text_reason=missing_target_span` se conserva.
-
-Final `33791950505`:
+Run ligero `33892213960`:
 
 ```text
-142/142 tests PASS en 7.087 s
-cases 3
-foundation_guards_pass 1
-blocked 2
-safe_for_cut/executable/auto_apply/automatic_edits 0
-HUMAN_ELIGIBILITY_GATE=PASS
-artifacts 0
+80 exact repeats compatibles con detector conservador
+8 casos seleccionados
+4 fuentes/headsets
+máximo 2 casos por fuente
 ```
 
-Casos:
+La selección se fija antes de ejecutar `large-v3-turbo` para no escoger ejemplos por resultado ASR.
 
-- pausa humana control → `foundation_guards_pass`, no cut;
-- retake humano → `blocked_semantic_decision`;
-- correction humana ambigua → `blocked_correction_scope`.
+### Gate precomprometido
 
-La pausa es un control técnico; no cuenta como evidencia de que el producto deba borrarla automáticamente.
+```text
+minimum_evaluated_long_cases        8
+minimum_aligned_human_positives     3
+minimum_foundation_human_positives  2
+minimum_foundation_sources          2
+```
 
-Detalle: `Validation/phase2d-human-combined-eligibility.md`.
+Son thresholds de **suficiencia de evidencia**, no thresholds del producto.
 
-## 9. Siguiente — 2D.6 Human Positive Eligibility Expansion / Close-out Gate
+### Final
 
-Objetivo: conseguir evidencia humana etiquetada como **realmente descartable** antes de decidir cierre de 2D.
+Run `33894995584`, commit evaluado `aecea4a35ed204d877b02937d5746a41d41af5d7`:
 
-Reglas:
+```text
+155 tests OK; 11 host-PATH skips
+cases                             8
+aligned human positives           6
+foundation human positives        3
+foundation sources                2
+hard failures                     0
+HUMAN_POSITIVE_EVIDENCE_GATE      PASS
+HUMAN_POSITIVE_CLOSE_OUT_DECISION CLOSE_OUT_READY
+safe_for_cut/executable/auto_apply/automatic_edits 0
+artifacts                          0
+```
 
-1. buscar fuentes humanas trazables/licenciadas;
-2. priorizar pausas limpias, fillers aislados y repeticiones/retakes claramente descartables;
-3. incluir negativos cercanos;
-4. aplicar la policy actual sin relajarla para fabricar positivos;
-5. validar `removedText`, word timings, join y acústica real;
-6. si no aparecen suficientes positivos elegibles, registrar el fallo y endurecer/tunear sólo con evidencia;
-7. mantener todo `safe_for_cut=false`, `executable=false`, `auto_apply=false`, `automatic_edits=0`;
-8. sólo el close-out gate de 2D puede justificar diseñar 2E.
+Diagnóstico:
 
-## 10. Edit Plan / render
+```text
+asr_repeat_not_preserved                 2
+foundation_guards_pass                   3
+downstream_blocked:blocked_join_context  3
+```
+
+En esta muestra:
+
+- no hay `detector_miss_on_preserved_repeat`;
+- no hay `candidate_span_mismatch`;
+- no hay `timing_mismatch`;
+- 6/6 repeats completos preservados por ASR se detectan/alinean;
+- 3/6 quedan bloqueados por join context, que es comportamiento conservador esperado;
+- 3/6 alcanzan `foundation_guards_pass`, pero siguen no ejecutables.
+
+No extrapolar 6/6 como tasa global del detector.
+
+Detalle: `Validation/phase2d-human-positive-closeout.md`.
+
+## 10. Siguiente — 2E Promotion to Edit Plan
+
+2E debe introducir un contrato explícito entre eligibility y Edit Plan sin invalidar los blockers de 2D.
+
+Reglas de diseño:
+
+1. ninguna `eligibility_assessment` se convierte por sí sola en edit;
+2. `future_promotion_candidate` sólo permite evaluación de promoción;
+3. blockers previos son veto acumulativo;
+4. definir clases promocionables, approval/thresholds por modo, límites globales y fail-safe;
+5. REVIEW/KEEP siguen siendo fallback;
+6. validar la promotion policy antes de habilitar ejecución automática;
+7. la validación debe incluir positivos humanos y negativos cercanos;
+8. cada promoción al Edit Plan debe ser auditable y reproducible.
+
+## 11. Edit Plan / render
 
 Edit Plan sólo contiene ediciones efectivas aprobadas; nunca candidates, scopes, assessments o future-promotion candidates no aprobados.
 
-Pendiente: 2D.6, eventual promotion policy explícita, join treatment/audit, fades/loudness y post-render verification.
+Pendiente después de 2E: join treatment/audit, fades/loudness, post-render verification y capas posteriores del roadmap.
 
-## 11. GitHub / CI / Release
+## 12. GitHub / CI / Release
 
 GitHub es source of truth.
 
@@ -239,8 +282,10 @@ GitHub es source of truth.
 - no modelos, vídeos, ZIPs o artifacts pesados ordinarios;
 - workflows manual-only normalmente;
 - trigger one-shot sólo cuando sea necesario y restaurar inmediatamente;
+- `human-positive-closeout-spike.yml` queda manual-only tras el run final;
+- no dejar workflows temporales de discovery en `main`;
 - no publicar GitHub Release sin autorización expresa de Guille.
 
-## 12. Docs
+## 13. Docs
 
 Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.

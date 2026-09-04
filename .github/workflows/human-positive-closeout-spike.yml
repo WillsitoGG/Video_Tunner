@@ -1,0 +1,90 @@
+name: Human Positive Closeout Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-human-positive-closeout-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HUMAN_POSITIVE_FIXTURE: tests\fixtures\human_positive_closeout_ami_v2.json
+
+jobs:
+  windows-human-positive-closeout:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Preflight closeout PowerShell syntax
+        shell: pwsh
+        run: |
+          foreach ($path in @(
+            ".\.github\scripts\download_ami_positive_closeout_fixtures.ps1",
+            ".\.github\scripts\run_human_positive_closeout_validation.ps1",
+            ".\.github\scripts\run_human_positive_diagnostics.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              $errors | ForEach-Object { Write-Error "$path :: $($_.Message)" }
+              throw "Closeout script has PowerShell parser errors: $path"
+            }
+          }
+          Write-Host "HUMAN_POSITIVE_CLOSEOUT_POWERSHELL_PARSE=PASS"
+
+      - name: Validate expanded fixture before heavy downloads
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m unittest discover -s tests -p "test_human_positive_closeout_fixture.py" -v
+          python -m unittest discover -s tests -p "test_ami_repeat_discovery.py" -v
+
+      - name: Download licensed AMI speaker-specific positive fixtures
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1 -Fixture $env:HUMAN_POSITIVE_FIXTURE
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Build analysis portable
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+
+      - name: Run regression suite
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
+      - name: Evaluate expanded human removable positives through schema v8
+        shell: pwsh
+        run: .\.github\scripts\run_human_positive_closeout_validation.ps1 -Fixture $env:HUMAN_POSITIVE_FIXTURE
+
+      - name: Diagnose ASR vs detector vs downstream loss stage
+        shell: pwsh
+        run: .\.github\scripts\run_human_positive_diagnostics.ps1 -Fixture $env:HUMAN_POSITIVE_FIXTURE
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "2D.6 separates evidence-integrity PASS from CLOSE_OUT_READY/INSUFFICIENT product evidence."
+          Write-Host "Fixture v2 is a reproducible selection from 80 exact AMI manual repeats using production-equivalent tokenization."
+          Write-Host "Each labelled case is evaluated from the mapped individual speaker headset, not Mix-Headset."
+          Write-Host "Diagnostics distinguish ASR evidence loss, detector miss/span mismatch and downstream policy blockers."
+          Write-Host "Close-out evidence thresholds do not relax detector, join, acoustic or eligibility guards."
+          Write-Host "The target model is pinned large-v3-turbo and the analyzer runs from the frozen portable in strict/offline mode."
+          Write-Host "No model, AMI audio, generated video, ZIP or analysis output artifact is uploaded."
+          Write-Host "This workflow never authorizes or executes a cut."
