@@ -47,6 +47,11 @@ def render_from_plan(
     destination_path = Path(destination).resolve()
     if source_path == destination_path:
         raise ValueError("El original nunca puede sobrescribirse.")
+    if "proposed_edits" in plan:
+        raise ValueError(
+            "Una Edit Plan Proposal no es ejecutable; requiere aprobación global y "
+            "materialización explícita de un Edit Plan."
+        )
 
     duration = float(plan["source"]["duration_seconds"])
     segments = keep_segments(duration, plan.get("edits", []))
