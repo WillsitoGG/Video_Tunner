@@ -26,7 +26,8 @@ jobs:
         run: |
           foreach ($path in @(
             ".\.github\scripts\download_ami_positive_closeout_fixtures.ps1",
-            ".\.github\scripts\run_human_positive_closeout_validation.ps1"
+            ".\.github\scripts\run_human_positive_closeout_validation.ps1",
+            ".\.github\scripts\run_human_positive_diagnostics.ps1"
           )) {
             $tokens = $null
             $errors = $null
@@ -62,12 +63,17 @@ jobs:
         shell: pwsh
         run: .\.github\scripts\run_human_positive_closeout_validation.ps1
 
+      - name: Diagnose ASR vs detector vs downstream loss stage
+        shell: pwsh
+        run: .\.github\scripts\run_human_positive_diagnostics.ps1
+
       - name: Scope note
         shell: pwsh
         run: |
           Write-Host "2D.6 separates evidence-integrity PASS from CLOSE_OUT_READY/INSUFFICIENT product evidence."
           Write-Host "Human removable labels come from AMI manual reparandum/reparans annotations."
           Write-Host "Each labelled case is evaluated from the mapped individual speaker headset, not Mix-Headset."
+          Write-Host "Diagnostics distinguish ASR evidence loss, detector miss/span mismatch and downstream policy blockers."
           Write-Host "The target model is pinned large-v3-turbo and the analyzer runs from the frozen portable in strict/offline mode."
           Write-Host "No model, AMI audio, generated video, ZIP or analysis output artifact is uploaded."
           Write-Host "This workflow never authorizes or executes a cut."
