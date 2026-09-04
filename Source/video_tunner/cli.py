@@ -8,6 +8,13 @@ from pathlib import Path
 
 from . import __version__
 from .analysis_pipeline import analyze_spoken_video
+from .approval import (
+    build_approval_record,
+    load_json_object,
+    save_approval_record,
+    sha256_path,
+    validate_approval_record,
+)
 from .edit_plan import MODE_SETTINGS, build_silence_plan, load_plan, save_plan
 from .ingest import ingest_video
 from .media import probe_media
@@ -156,6 +163,34 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_approval_create(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    analysis_sha = sha256_path(args.analysis)
+    record = build_approval_record(
+        analysis,
+        args.promotion_assessment,
+        decision=args.decision,
+        actor=args.actor,
+        reason=args.reason,
+        analysis_sha256=analysis_sha,
+    )
+    destination = save_approval_record(record, args.output)
+    _json({"approval": str(destination), "record": record})
+    return 0
+
+
+def cmd_approval_validate(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    approval = load_json_object(args.approval)
+    validation = validate_approval_record(
+        analysis,
+        approval,
+        analysis_sha256=sha256_path(args.analysis),
+    )
+    _json(validation)
+    return 0 if validation.get("valid") else 3
+
+
 def cmd_render(args: argparse.Namespace) -> int:
     plan = load_plan(args.plan)
     destination = render_from_plan(args.input, plan, args.output)
@@ -259,6 +294,32 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--device", choices=("auto", "cpu", "cuda"), default="cpu")
     analyze.add_argument("--compute-type", default="auto")
     analyze.set_defaults(func=cmd_analyze)
+
+    approval = sub.add_parser(
+        "approval",
+        help="Crea o valida decisiones explícitas sobre promotion assessments sin generar edits.",
+    )
+    approval_sub = approval.add_subparsers(dest="approval_command", required=True)
+
+    approval_create = approval_sub.add_parser(
+        "create",
+        help="Crea un artefacto auditable APPROVE/REJECT ligado al analysis.json exacto.",
+    )
+    approval_create.add_argument("analysis", help="analysis.json schema v9+ que contiene la promotion assessment.")
+    approval_create.add_argument("--promotion-assessment", required=True, help="ID exacto de promotion assessment.")
+    approval_create.add_argument("--decision", required=True, choices=("approve", "reject"))
+    approval_create.add_argument("--actor", required=True, help="Identidad/etiqueta del revisor humano.")
+    approval_create.add_argument("--reason", required=True, help="Motivo auditable de la decisión.")
+    approval_create.add_argument("--output", default="promotion_approval.json")
+    approval_create.set_defaults(func=cmd_approval_create)
+
+    approval_validate = approval_sub.add_parser(
+        "validate",
+        help="Valida fingerprint, provenance y vigencia de un artefacto de aprobación.",
+    )
+    approval_validate.add_argument("analysis", help="analysis.json actual contra el que validar.")
+    approval_validate.add_argument("approval", help="promotion_approval.json a validar.")
+    approval_validate.set_defaults(func=cmd_approval_validate)
 
     render = sub.add_parser("render", help="Renderiza un vídeo a partir de un Edit Plan.")
     render.add_argument("input")

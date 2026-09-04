@@ -20,7 +20,8 @@ No usarla para almacenar vídeos, ZIPs de CI, logs voluminosos, modelos ni outpu
 - `phase2d-combined-eligibility.md` — 2D.4.
 - `phase2d-human-combined-eligibility.md` — 2D.5.
 - `phase2d-human-positive-closeout.md` — 2D.6 final; cierre de 2D como foundation/evidence.
-- `phase2e-promotion-foundation.md` — **2E.1 final; schema v9; Promotion Policy Foundation PASS.**
+- `phase2e-promotion-foundation.md` — 2E.1 final; analysis schema v9; Promotion Policy Foundation PASS.
+- `phase2e-explicit-approval-contract.md` — **2E.2 final; approval artifact schema v1; Explicit Approval Contract PASS.**
 
 ## Regla de interpretación
 
@@ -30,18 +31,18 @@ Una validación PASS acredita únicamente el alcance descrito en su documento. N
 - release publicable;
 - seguridad perceptual general;
 - autorización de corte;
-- aprobación de una promotion assessment;
-- promoción al Edit Plan;
+- autorización global de Edit Plan;
+- autorización de render;
 - generalización de métricas fuera del corpus evaluado.
 
-Tras 2E.1:
+Tras 2E.2:
 
 ```text
-foundation_guards_pass != safe cut
-future_promotion_candidate != approved edit
-promotion_review_candidate != approved edit
-requires_explicit_approval = true
-approved = false
+analysis.json = schema v9
+promotion_approval.json = schema v1
+promotion_review_candidate != approval
+valid_approved approval != Edit Plan authorization
+edit_plan_authorization = false
 edit = null
 safe_for_cut = false
 executable = false
@@ -49,4 +50,4 @@ auto_apply = false
 automatic_edits = 0
 ```
 
-El contrato de aprobación explícita pertenece a Fase 2E.2.
+La conversión de approvals vigentes en una propuesta limitada de Edit Plan pertenece a Fase 2E.3.
