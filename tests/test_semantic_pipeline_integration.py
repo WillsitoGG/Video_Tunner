@@ -206,7 +206,7 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
 
     def test_analyze_can_mark_interior_exact_repetition_for_explicit_promotion_review_only(self):
         report = run_fake_analysis(
-            timed_transcript("equipo vamos a lanzar vamos a lanzar el producto mañana")
+            timed_transcript("equipo proyecto central listo proyecto central listo seguimos bien")
         )
         repetition = next(
             item for item in report["candidates"] if item["kind"] == "possible_repetition"
@@ -230,7 +230,7 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(promotion["approval_state"], "required")
         self.assertFalse(promotion["approved"])
         self.assertIsNotNone(promotion["target_preview"])
-        self.assertEqual(promotion["target_preview"]["text"], "vamos a lanzar")
+        self.assertEqual(promotion["target_preview"]["text"], "proyecto central listo")
         self.assertIsNone(promotion["edit"])
         self.assertFalse(promotion["safe_for_cut"])
         self.assertFalse(promotion["executable"])
