@@ -206,7 +206,7 @@ class SemanticPipelineIntegrationTests(unittest.TestCase):
 
     def test_analyze_can_mark_interior_exact_repetition_for_explicit_promotion_review_only(self):
         report = run_fake_analysis(
-            timed_transcript("hoy vamos a lanzar vamos a lanzar el producto mañana")
+            timed_transcript("equipo vamos a lanzar vamos a lanzar el producto mañana")
         )
         repetition = next(
             item for item in report["candidates"] if item["kind"] == "possible_repetition"
