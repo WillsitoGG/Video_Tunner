@@ -58,13 +58,7 @@ No se modificaron thresholds acústicos tras la evidencia humana.
 
 #### 2D.4 — Combined Eligibility / Promotion Policy Foundation v1 — COMPLETADA
 
-Schema v8 añade:
-
-```text
-eligibility_assessments[]
-```
-
-La policy aplica guardas acumulativas y fail-safe:
+Schema v8 añade `eligibility_assessments[]` y aplica guardas acumulativas fail-safe:
 
 ```text
 removedText integrity
@@ -76,20 +70,7 @@ removedText integrity
 → foundation_guards_pass OR blocker
 ```
 
-Estados:
-
-```text
-foundation_guards_pass
-blocked_acoustic_context
-blocked_filler_context
-blocked_semantic_decision
-blocked_join_context
-blocked_correction_scope
-invalid_removed_text
-missing_required_evidence
-```
-
-`foundation_guards_pass` **no** es cut authorization:
+`foundation_guards_pass` no es autorización de corte:
 
 ```text
 future_promotion_candidate = true
@@ -98,38 +79,69 @@ executable = false
 auto_apply = false
 ```
 
-Benchmark: 12 casos, 4 rutas foundation positivas y 8 bloqueos deliberados cubriendo todas las capas.
+Benchmark: 12 casos, 4 rutas foundation positivas y 8 bloqueos deliberados.
 
-Run `33790792753`:
-
-```text
-138/138 tests PASS en 7.035 s
-status contract PASS
-removedText contract PASS
-schema v8 integration PASS
-FFmpeg/sync + doctor PASS
-artifacts 0
-```
+Run `33790792753`: 138/138 PASS en 7.035 s; schema v8, removedText contract, FFmpeg/sync y doctor PASS; artifacts 0.
 
 Detalle: `Validation/phase2d-combined-eligibility.md`.
 
-#### 2D.5 — Human Combined Eligibility Evidence — SIGUIENTE
+#### 2D.5 — Human Combined Eligibility Evidence v1 — COMPLETADA
 
-Objetivo: comprobar la policy combinada con evidencia humana real antes de cerrar 2D.
+Se aplicó schema v8 sobre 3 casos AMI reales, reutilizando los endpoints de `large-v3-turbo` del run `33755013415` y el WAV AMI original CC BY 4.0.
+
+Baseline `33791636767`:
+
+```text
+141/141 regression tests PASS
+1 control foundation_guards_pass
+2 casos bloqueados
+0 safe_for_cut / executable / auto_apply
+human gate FAIL únicamente por precedencia diagnóstica
+```
+
+El caso de correction ambigua quedaba bloqueado como `invalid_removed_text` antes de expresar el blocker más específico `blocked_correction_scope`. Se corrigió sólo la precedencia diagnóstica; no se relajó ninguna guarda ni cambió la capacidad de promoción.
+
+Final `33791950505`:
+
+```text
+142/142 tests PASS en 7.087 s
+HUMAN_ELIGIBILITY_GATE=PASS
+cases                    3
+foundation_guards_pass   1
+blocked                  2
+safe_for_cut             0
+executable               0
+auto_apply               0
+automatic_edits          0
+artifacts                 0
+```
+
+Resultados humanos:
+
+- pausa de control → `foundation_guards_pass`; sigue no ejecutable y no es un positivo humano de removibilidad;
+- retake humano → `blocked_semantic_decision`;
+- correction humana ambigua → `blocked_correction_scope`, conservando `removed_text_reason=missing_target_span`.
+
+Detalle: `Validation/phase2d-human-combined-eligibility.md`.
+
+#### 2D.6 — Human Positive Eligibility Expansion / Close-out Gate — SIGUIENTE
+
+Objetivo: reunir evidencia humana positiva específicamente etiquetada como **contenido realmente prescindible** antes de cerrar 2D o diseñar 2E.
 
 Orden:
 
-1. reutilizar endpoints humanos reales y procedencia ya fijada;
-2. reconstruir las capas necesarias hasta `eligibility_assessments`;
-3. confirmar que retakes/corrections/contextos protegidos siguen bloqueados;
-4. validar `removedText` final con timings humanos reales;
-5. medir si aparece alguna ruta humana `foundation_guards_pass` sin relajar policy;
-6. si no aparece, registrar la ausencia y no fabricar un positivo;
-7. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`, `automatic_edits=0`.
+1. localizar varios clips humanos reales con licencia y procedencia claras;
+2. priorizar español y habla espontánea; usar inglés como control si aporta cobertura;
+3. exigir etiquetas humanas explícitas de `removable` vs `must_keep/review`, no inferirlas sólo porque la policy pase;
+4. reconstruir ASR/timestamps + guardas completas hasta `eligibility_assessments`;
+5. medir cuántos positivos humanos realmente removibles llegan a `foundation_guards_pass` y cuántos negativos quedan bloqueados;
+6. no relajar thresholds o guardas para alcanzar una métrica objetivo;
+7. mantener `safe_for_cut=false`, `executable=false`, `auto_apply=false`, `automatic_edits=0`;
+8. sólo con evidencia suficiente decidir cierre de 2D y diseño de 2E.
 
 ### 2E — Promotion to Edit Plan — FUTURA
 
-Sólo después de cerrar 2D con evidencia suficiente:
+Sólo después del close-out gate de 2D:
 - decidir clases realmente promocionables;
 - definir aprobación y thresholds por modo;
 - límites globales y fail-safe;
@@ -149,8 +161,8 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. mergear 2D.4 combined eligibility/schema v8;
-2. arrancar 2D.5 Human Combined Eligibility Evidence;
-3. no relajar guardas para conseguir positivos humanos;
-4. mantener toda elegibilidad no ejecutable;
-5. decidir cierre de 2D sólo con evidencia humana suficiente.
+1. mergear 2D.5 Human Combined Eligibility Evidence;
+2. arrancar 2D.6 Human Positive Eligibility Expansion / Close-out Gate;
+3. obtener positivos humanos de removibilidad, no meros controles técnicos;
+4. no relajar guardas para fabricar positivos;
+5. no iniciar 2E hasta cerrar 2D con evidencia suficiente.

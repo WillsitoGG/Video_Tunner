@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "description": "Phase 2D.5 human combined eligibility expectations over the frozen AMI evidence from Phase 2D.3.3.",
+  "human_fixture": "human_acoustic_ami_v1.json",
+  "semantic_reference": {
+    "workflow_run": 33755013415,
+    "model": "large-v3-turbo",
+    "note": "Semantic decisions are frozen from the successful real-audio run; the model is not rerun."
+  },
+  "cases": [
+    {
+      "id": "ami-human-pause-control-0311",
+      "semantic_decision": null,
+      "expected_eligibility_status": "foundation_guards_pass",
+      "expected_future_promotion_candidate": true,
+      "note": "Human acoustic control only. A foundation pass is not evidence that the product should automatically remove this pause."
+    },
+    {
+      "id": "ami-human-retake-protected-0311",
+      "semantic_decision": {
+        "id": "frozen-semantic-retake-33755013415",
+        "decision": "REVIEW",
+        "guard_status": "review",
+        "executable": false,
+        "auto_apply": false
+      },
+      "expected_eligibility_status": "blocked_semantic_decision",
+      "expected_future_promotion_candidate": false,
+      "note": "The real discourse/retake candidate remained REVIEW in run 33755013415."
+    },
+    {
+      "id": "ami-human-correction-ambiguous-0250",
+      "semantic_decision": {
+        "id": "frozen-semantic-correction-33755013415",
+        "decision": "REVIEW",
+        "guard_status": "review",
+        "executable": false,
+        "auto_apply": false
+      },
+      "expected_eligibility_status": "blocked_correction_scope",
+      "expected_future_promotion_candidate": false,
+      "note": "The real correction has ambiguous scope, so lack of a join target is expected and should be diagnosed as a scope blocker rather than target corruption."
+    }
+  ]
+}
