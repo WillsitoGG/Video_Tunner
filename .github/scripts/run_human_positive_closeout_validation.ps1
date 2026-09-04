@@ -1,5 +1,5 @@
 param(
-    [string]$Fixture = (Join-Path $PWD "tests\fixtures\human_positive_closeout_ami_v1.json"),
+    [string]$Fixture = (Join-Path $PWD "tests\fixtures\human_positive_closeout_ami_v2.json"),
     [string]$ModelStage = $env:SPANISH_TARGET_MODEL_STAGE,
     [string]$PortableSource = (Join-Path $PWD "dist\Video_Tunner")
 )
@@ -70,7 +70,12 @@ function Normalize-Phrase {
             [void]$builder.Append($char)
         }
     }
-    return (($builder.ToString() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+    $tokens = [System.Collections.Generic.List[string]]::new()
+    foreach ($raw in @($builder.ToString() -split '\s+' | Where-Object { $_ })) {
+        $token = ([string]$raw -replace '[^a-z0-9]+', '')
+        if ($token) { $tokens.Add($token) }
+    }
+    return ($tokens -join ' ')
 }
 
 function Add-HardFailure {
@@ -86,10 +91,11 @@ $totalAnalyzeSeconds = 0.0
 foreach ($case in @($spec.cases)) {
     $id = [string]$case.id
     $meeting = [string]$case.meeting
-    $envName = "AMI_CLOSEOUT_{0}_WAV" -f ($meeting.ToUpperInvariant() -replace '[^A-Z0-9]', '')
+    $sourceId = [string]$case.audio_source_id
+    $envName = "AMI_CLOSEOUT_{0}_WAV" -f ($sourceId.ToUpperInvariant() -replace '[^A-Z0-9]', '')
     $sourceWav = [Environment]::GetEnvironmentVariable($envName)
     if (-not $sourceWav -or -not (Test-Path $sourceWav)) {
-        throw "No existe audio AMI para $id ($envName)."
+        throw "No existe audio AMI para $id ($sourceId / $envName)."
     }
 
     $root = Join-Path $caseRoot $id
@@ -226,6 +232,7 @@ foreach ($case in @($spec.cases)) {
     $foundationHumanPositive = $alignedHumanPositive -and $eligibilityStatus -eq "foundation_guards_pass"
 
     Write-Host "HUMAN_POSITIVE_CASE=$id"
+    Write-Host "HUMAN_POSITIVE_SOURCE=$sourceId"
     Write-Host "HUMAN_POSITIVE_MEETING=$meeting"
     Write-Host "HUMAN_POSITIVE_LABEL=$($case.human_label)"
     Write-Host "HUMAN_POSITIVE_DETECTOR_EXPECTATION=$($case.detector_expectation)"
@@ -243,6 +250,7 @@ foreach ($case in @($spec.cases)) {
 
     $results.Add([ordered]@{
         id = $id
+        audio_source_id = $sourceId
         meeting = $meeting
         human_label = [string]$case.human_label
         detector_expectation = [string]$case.detector_expectation
@@ -274,20 +282,36 @@ $longResults = @($results | Where-Object { $_.detector_expectation -eq "long_det
 $shortResults = @($results | Where-Object { $_.detector_expectation -eq "short_known_limitation" })
 $alignedLong = @($longResults | Where-Object { $_.aligned_human_positive })
 $foundationLong = @($longResults | Where-Object { $_.foundation_human_positive })
+$foundationSources = @($foundationLong | ForEach-Object { $_.audio_source_id } | Sort-Object -Unique)
+
+$minimumEvaluated = if ($spec.close_out_policy.minimum_evaluated_long_cases) {
+    [int]$spec.close_out_policy.minimum_evaluated_long_cases
+} else { 2 }
+$minimumAligned = if ($spec.close_out_policy.minimum_aligned_human_positives) {
+    [int]$spec.close_out_policy.minimum_aligned_human_positives
+} else { 2 }
+$minimumFoundation = if ($spec.close_out_policy.minimum_foundation_human_positives) {
+    [int]$spec.close_out_policy.minimum_foundation_human_positives
+} else { 1 }
+$minimumFoundationSources = if ($spec.close_out_policy.minimum_foundation_sources) {
+    [int]$spec.close_out_policy.minimum_foundation_sources
+} else { 1 }
 
 $evidenceGate = $hardFailures.Count -eq 0 -and $results.Count -eq @($spec.cases).Count
 $closeOutReady = (
     $evidenceGate -and
-    $longResults.Count -ge 2 -and
-    $alignedLong.Count -ge 2 -and
-    $foundationLong.Count -ge 1
+    $longResults.Count -ge $minimumEvaluated -and
+    $alignedLong.Count -ge $minimumAligned -and
+    $foundationLong.Count -ge $minimumFoundation -and
+    $foundationSources.Count -ge $minimumFoundationSources
 )
 $closeOutDecision = if ($closeOutReady) { "CLOSE_OUT_READY" } else { "INSUFFICIENT" }
 
 $summary = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     phase = "2D.6"
-    source = "AMI manually annotated disfluencies"
+    fixture_schema_version = [int]$spec.schema_version
+    source = "AMI manually annotated exact repetitions"
     model = "large-v3-turbo"
     device = "cpu"
     compute_type = "int8"
@@ -296,6 +320,13 @@ $summary = [ordered]@{
     short_known_limitation_cases = $shortResults.Count
     aligned_long_human_positives = $alignedLong.Count
     foundation_long_human_positives = $foundationLong.Count
+    foundation_sources = $foundationSources.Count
+    close_out_policy = [ordered]@{
+        minimum_evaluated_long_cases = $minimumEvaluated
+        minimum_aligned_human_positives = $minimumAligned
+        minimum_foundation_human_positives = $minimumFoundation
+        minimum_foundation_sources = $minimumFoundationSources
+    }
     hard_failures = $hardFailures.Count
     total_analyze_seconds = [Math]::Round($totalAnalyzeSeconds, 3)
     safe_for_cut = 0

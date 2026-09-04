@@ -1,5 +1,5 @@
 param(
-    [string]$Fixture = (Join-Path $PWD "tests\fixtures\human_positive_closeout_ami_v1.json")
+    [string]$Fixture = (Join-Path $PWD "tests\fixtures\human_positive_closeout_ami_v2.json")
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,7 +19,6 @@ New-Item -ItemType Directory -Force -Path $root | Out-Null
 $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
 if (-not $curl) { throw "curl.exe no está disponible en el runner Windows." }
 
-$seenMeetings = @{}
 foreach ($sourceProperty in $spec.audio_sources.PSObject.Properties) {
     $sourceId = [string]$sourceProperty.Name
     $source = $sourceProperty.Value
@@ -30,10 +29,6 @@ foreach ($sourceProperty in $spec.audio_sources.PSObject.Properties) {
     if ([string]$source.source_kind -ne "individual_headset") {
         throw "2D.6 exige individual_headset; source=$sourceId kind=$($source.source_kind)"
     }
-    if ($seenMeetings.ContainsKey($meeting)) {
-        throw "El harness actual admite un único speaker-specific source por meeting; duplicado=$meeting"
-    }
-    $seenMeetings[$meeting] = $true
 
     Write-Host "AMI_CLOSEOUT_DOWNLOAD_SOURCE=$sourceId"
     Write-Host "AMI_CLOSEOUT_DOWNLOAD_MEETING=$meeting"
@@ -72,9 +67,9 @@ foreach ($sourceProperty in $spec.audio_sources.PSObject.Properties) {
         throw "AMI $sourceId SHA-256 mismatch: actual=$sha expected=$expectedSha"
     }
 
-    # Keep the existing meeting-level environment contract used by the closeout
-    # validator. The fixture intentionally has one selected speaker per meeting.
-    $envName = "AMI_CLOSEOUT_{0}_WAV" -f ($meeting.ToUpperInvariant() -replace '[^A-Z0-9]', '')
+    # Environment identity is source-specific, not only meeting-specific. This
+    # remains correct if future fixtures select more than one speaker per meeting.
+    $envName = "AMI_CLOSEOUT_{0}_WAV" -f ($sourceId.ToUpperInvariant() -replace '[^A-Z0-9]', '')
     if ($env:GITHUB_ENV) {
         "$envName=$target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     }

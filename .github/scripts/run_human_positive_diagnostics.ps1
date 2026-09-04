@@ -1,5 +1,5 @@
 param(
-    [string]$Fixture = (Join-Path $PWD "tests\fixtures\human_positive_closeout_ami_v1.json"),
+    [string]$Fixture = (Join-Path $PWD "tests\fixtures\human_positive_closeout_ami_v2.json"),
     [string]$CaseRoot = (Join-Path $env:RUNNER_TEMP "Video Tunner Human Positive Closeout Cases")
 )
 
@@ -22,7 +22,12 @@ function Normalize-Phrase {
             [void]$builder.Append($char)
         }
     }
-    return (($builder.ToString() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+    $tokens = [System.Collections.Generic.List[string]]::new()
+    foreach ($raw in @($builder.ToString() -split '\s+' | Where-Object { $_ })) {
+        $token = ([string]$raw -replace '[^a-z0-9]+', '')
+        if ($token) { $tokens.Add($token) }
+    }
+    return ($tokens -join ' ')
 }
 
 function Get-NormalizedTokens {
@@ -116,11 +121,17 @@ foreach ($case in @($spec.cases)) {
         return $true
     })
 
+    $manualLocalStart = [double]$case.reparandum_start - [double]$case.clip_start
     $matched = $null
     if ($exactCandidates.Count -gt 0) {
-        $matched = $exactCandidates | Select-Object -First 1
+        $matched = $exactCandidates | Sort-Object {
+            [Math]::Abs([double]$_.start - $manualLocalStart)
+        } | Select-Object -First 1
     } elseif ($prefixCandidates.Count -gt 0) {
-        $matched = $prefixCandidates | Sort-Object { -1 * @(Get-NormalizedTokens ([string]$_.evidence.removed_text)).Count } | Select-Object -First 1
+        $matched = $prefixCandidates | Sort-Object `
+            @{ Expression = { -1 * @(Get-NormalizedTokens ([string]$_.evidence.removed_text)).Count } }, `
+            @{ Expression = { [Math]::Abs([double]$_.start - $manualLocalStart) } } |
+            Select-Object -First 1
     }
 
     $candidatePrefixTokens = 0
@@ -130,7 +141,6 @@ foreach ($case in @($spec.cases)) {
     if ($null -ne $matched) {
         $matchedRemovedText = [string]$matched.evidence.removed_text
         $candidatePrefixTokens = @(Get-NormalizedTokens $matchedRemovedText).Count
-        $manualLocalStart = [double]$case.reparandum_start - [double]$case.clip_start
         $manualLocalEnd = [double]$case.reparandum_end - [double]$case.clip_start
         $startDelta = [Math]::Abs([double]$matched.start - $manualLocalStart)
         $endDelta = [Math]::Abs([double]$matched.end - $manualLocalEnd)
@@ -167,6 +177,7 @@ foreach ($case in @($spec.cases)) {
 
     $result = [ordered]@{
         id = $id
+        audio_source_id = [string]$case.audio_source_id
         detector_expectation = [string]$case.detector_expectation
         human_reparandum = [string]$case.reparandum_text
         expected_tokens = $expectedTokens.Count
@@ -195,8 +206,9 @@ foreach ($case in @($spec.cases)) {
 $orderedCounts = [ordered]@{}
 foreach ($key in @($statusCounts.Keys | Sort-Object)) { $orderedCounts[$key] = $statusCounts[$key] }
 $summary = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     phase = '2D.6-diagnostics'
+    fixture_schema_version = [int]$spec.schema_version
     cases = $results.Count
     minimum_repeat_tokens = $minimumRepeatTokens
     by_diagnostic_status = $orderedCounts
