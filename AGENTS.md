@@ -14,19 +14,22 @@ Obligatorio:
 4. Whisper, VAD y acoustic join usan exactamente el mismo master acreditado;
 5. auto-sync sólo con evidencia suficiente; override/manual fallback;
 6. original siempre intacto;
-7. `candidate != scope != assessment != semantic decision != eligibility != promotion assessment != approval != proposal != executable edit`;
+7. `candidate != scope != assessment != semantic decision != eligibility != promotion != approval != proposal != execution authorization != semantic edit plan != rendered output`;
 8. `PROPOSED_CUT != executable CUT`;
 9. `foundation_guards_pass != safe cut`;
 10. `promotion_review_candidate != approval`;
-11. `valid_approved approval != Edit Plan authorization`;
+11. `valid_approved promotion approval != global execution authorization`;
 12. `proposal_ready_for_global_review != render authorization`;
 13. `proposed_edits[] != edits[]`;
-14. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
-15. ante duda: `KEEP / REVIEW`;
-16. conservador por defecto.
+14. global APPROVE nunca implica `auto_apply`;
+15. `semantic_edit_plan` sólo puede renderizarse por semantic render gate;
+16. cualquier cambio de analysis/proposal/authorization/plan/source invalida la cadena correspondiente;
+17. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
+18. ante duda: `KEEP / REVIEW`;
+19. conservador por defecto.
 
 ```text
-sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join → acoustic → semantic → eligibility → promotion → approval artifacts → bounded proposal → future global authorization → executable Edit Plan → render → audit
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join → acoustic → semantic → eligibility → promotion → individual approval → bounded proposal → global execution authorization → semantic Edit Plan → semantic render gate → FFmpeg → verification/audit
 ```
 
 ## 2. Estado
@@ -38,11 +41,12 @@ Completado:
 - Fase 2D cerrada como foundation/evidence;
 - Fase 2E.1 — Promotion Policy Foundation / analysis schema v9;
 - Fase 2E.2 — Explicit Approval Contract / approval schema v1;
-- **Fase 2E.3 — Approved Edit Plan Proposal + Global Limits / proposal schema v1 — COMPLETADA**.
+- Fase 2E.3 — Approved Edit Plan Proposal + Global Limits / proposal schema v1;
+- **Fase 2E.4 — Execution Authorization / Semantic Render Gate — COMPLETADA**.
 
-Siguiente: **Fase 2E.4 — Execution Authorization / Semantic Render Gate**.
+Siguiente: **Fase 2E.5 — Semantic Render Verification / Close-out**.
 
-No existe todavía autorización global ni Edit Plan semántico ejecutable derivado de approvals.
+Auto-apply semántico sigue deshabilitado.
 
 ## 3. Evidencia principal
 
@@ -51,13 +55,13 @@ No existe todavía autorización global ni Edit Plan semántico ejecutable deriv
 33621357438  Portable ML PASS
 33639009841  Sync hardening PASS
 33656235038  Target Spanish PASS — WER 1.64%, RTF 0.4854
-33790792753  138/138 — eligibility/schema v8
-33791950505  142/142 — human eligibility PASS
-33894995584  human positive close-out — CLOSE_OUT_READY
-33899201093  2E.1 schema v9 — 166/166 + doctor PASS
-33899857378  2E.2 approval contract — 174/174 + doctor PASS
-33900544072  2E.3 proposal foundation — 185/185 + doctor PASS
+33894995584  Human positive close-out — CLOSE_OUT_READY
+33899201093  2E.1 — 166/166 + doctor PASS
+33899857378  2E.2 — 174/174 + doctor PASS
+33900544072  2E.3 proposal — 185/185 + doctor PASS
 33908500929  2E.3 renderer isolation — 186/186 + doctor PASS
+33909424933  2E.4 core — 201/201 in 7.310 s + doctor PASS
+33909625346  2E.4 real FFmpeg E2E — 202/202 in 7.782 s + doctor PASS
 ```
 
 No generalizar métricas de corpus fuera de su muestra.
@@ -75,83 +79,27 @@ PyInstaller 6.22.2
 
 VAD: faster-whisper + `silero_vad_v6.onnx`. Modelo objetivo: `large-v3-turbo`.
 
-## 5. Artefactos y schemas
-
-`analysis.json` permanece **schema v9**.
-
-Approval separado:
+## 5. Schemas / artifacts
 
 ```text
-promotion_approval.json
-schema_version = 1
-record_type = promotion_approval
+analysis.json                         schema v9
+promotion_approval.json               schema v1
+approved_edit_plan_proposal.json      schema v1
+semantic_execution_authorization.json schema v1
+semantic_edit_plan.json               schema v1
 ```
 
-Proposal separada:
+No mutar `analysis.json` para approvals, proposal, authorization o plan.
 
-```text
-approved_edit_plan_proposal.json
-schema_version = 1
-record_type = approved_edit_plan_proposal
-```
+## 6. Promotion + approvals
 
-No mutar `analysis.json` para approvals o proposals.
+Sólo `possible_repetition` está respaldada actualmente por evidencia humana positiva para promotion/semantic execution.
 
-## 6. Eligibility / promotion
+Un approval individual `valid_approved` sigue sin ser autorización global.
 
-La única clase respaldada actualmente por evidencia humana positiva para promotion review y 2E.3 es:
+## 7. Proposal 2E.3
 
-```text
-possible_repetition
-```
-
-`conservative` y `aggressive` mantienen la misma whitelist.
-
-Todo blocker upstream sigue siendo veto absoluto.
-
-## 7. Fase 2E.2 — Explicit Approval Contract
-
-Comandos:
-
-```text
-video-tunner approval create ANALYSIS --promotion-assessment ID --decision approve|reject --actor ACTOR --reason REASON --output promotion_approval.json
-video-tunner approval validate ANALYSIS promotion_approval.json
-```
-
-Cada approval liga la decisión a analysis SHA-256, candidate, eligibility, promotion assessment, mode, target exacto y evidence fingerprint canónico, además de actor/reason/timestamp.
-
-Estados de validación:
-
-```text
-valid_approved
-valid_rejected
-stale_analysis
-stale_evidence
-stale_or_invalid_reference
-invalid_record
-```
-
-Incluso `valid_approved`:
-
-```text
-edit_plan_authorization = false
-edit = null
-safe_for_cut = false
-executable = false
-auto_apply = false
-```
-
-## 8. Fase 2E.3 — Approved Edit Plan Proposal + Global Limits
-
-Comando:
-
-```text
-video-tunner proposal build ANALYSIS --approval approval1.json --approval approval2.json --output approved_edit_plan_proposal.json
-```
-
-### Límites precomprometidos
-
-Fijados antes de observar resultados y comunes a ambos modos:
+Límites precomprometidos e iguales para `conservative/aggressive`:
 
 ```text
 max_semantic_edits    = 10
@@ -159,28 +107,7 @@ max_removed_seconds   = 30.0
 max_removed_fraction  = 0.05
 ```
 
-### Contrato de entrada
-
-Cada approval suministrada se revalida contra el analysis actual. Todas deben seguir siendo `valid_approved`.
-
-Veto total ante:
-
-```text
-no approvals
-stale / rejected / invalid approval
-duplicate approved target
-unsupported candidate kind
-missing/invalid target
-target outside source timeline
-overlapping approved targets
-max_semantic_edits exceeded
-max_removed_seconds exceeded
-max_removed_fraction exceeded
-```
-
-No hacer best-effort parcial: cualquiera de esos blockers vacía `proposed_edits[]` y bloquea la proposal completa.
-
-### Proposal positiva
+Una proposal válida sigue:
 
 ```text
 status = proposal_ready_for_global_review
@@ -192,57 +119,158 @@ executable = false
 auto_apply = false
 ```
 
-Cada proposed edit mantiene:
+Cualquier approval stale/rejected/invalid, duplicado, overlap, target inválido/out-of-timeline o límite global excedido bloquea la proposal completa.
+
+## 8. Fase 2E.4 — Global execution authorization
+
+Artefacto:
 
 ```text
-action = remove
-globally_approved = false
-render_authorized = false
+semantic_execution_authorization.json
+schema_version = 1
+record_type = semantic_execution_authorization
+```
+
+Requisitos:
+
+1. proposal vigente y `proposal_ready_for_global_review`;
+2. analysis SHA-256 exacto;
+3. proposal SHA-256 exacto;
+4. proposal execution snapshot/fingerprint exactos;
+5. actor + reason + timestamp;
+6. decisión global explícita APPROVE/REJECT.
+
+Estados principales:
+
+```text
+valid_authorized
+valid_rejected
+stale_analysis
+stale_proposal
+stale_evidence
+stale_or_invalid_proposal
+invalid_record
+```
+
+APPROVE válido:
+
+```text
+authorized = true
+edit_plan_materialization_authorized = true
+semantic_render_authorization = true
+proposal_render_authorization = false
 executable = false
 auto_apply = false
 ```
 
-### Renderer boundary
+La proposal nunca se vuelve renderizable.
 
-El renderer ejecutable usa `edits[]`. La proposal usa `proposed_edits[]` y, además, `render_from_plan` **rechaza explícitamente** cualquier artefacto que contenga `proposed_edits`.
+## 9. Semantic Edit Plan
 
-No quitar esta guarda al implementar 2E.4; la conversión proposal → executable Edit Plan debe ser explícita y validada.
-
-### Validación
+Artefacto:
 
 ```text
-33900544072  185/185 PASS en 5.144 s + doctor
-33908500929  186/186 PASS en 7.887 s + doctor
+semantic_edit_plan.json
+schema_version = 1
+record_type = semantic_edit_plan
 ```
 
-El run final incluye `test_renderer_rejects_non_executable_plan_proposal` PASS.
+Sólo se materializa desde `valid_authorized`.
 
-Detalle: `Validation/phase2e-approved-plan-proposal.md`.
+Debe conservar:
 
-## 9. Siguiente — 2E.4 Execution Authorization / Semantic Render Gate
+- source file/duration/SHA-256;
+- mode;
+- límites 2E.3;
+- analysis SHA-256;
+- proposal SHA-256;
+- authorization SHA-256;
+- proposal evidence fingerprint;
+- edits derivados exactamente de `proposed_edits[]`;
+- plan fingerprint;
+- summary.
 
-Reglas de diseño:
+Contrato:
 
-1. autorización global separada de approvals individuales;
-2. ligar autorización al analysis exacto y a la proposal exacta con SHA/fingerprint;
-3. actor + reason + timestamp obligatorios;
-4. stale/tampered proposal o analysis = veto;
-5. sólo autorización global válida puede materializar `edits[]` ejecutables;
-6. el Edit Plan materializado debe conservar provenance a approvals/proposal;
-7. renderer continúa rechazando proposals;
-8. antes de auto-apply general, definir semantic render gate y post-render verification;
-9. no ampliar candidate kinds ni límites sin evidencia nueva suficiente.
+```text
+globally_authorized = true
+requires_semantic_render_gate = true
+executable = true
+auto_apply = false
+```
 
-## 10. GitHub / CI / Release
+Cualquier cambio del plan invalida el fingerprint.
 
-GitHub es source of truth.
+## 10. Semantic render gate
 
+El renderer genérico:
+
+- rechaza cualquier artifact con `proposed_edits`;
+- rechaza `record_type=semantic_edit_plan` salvo llamada interna con semantic gate autorizado.
+
+La vía pública correcta es:
+
+```text
+video-tunner execution render INPUT ANALYSIS PROPOSAL AUTHORIZATION PLAN OUTPUT
+```
+
+Antes de FFmpeg debe revalidar:
+
+1. plan contra analysis/proposal/authorization actuales;
+2. authorization global;
+3. hashes de analysis/proposal/authorization;
+4. plan fingerprint;
+5. source SHA-256 real contra analysis/proposal/plan.
+
+No eliminar ni puentear esta revalidación.
+
+## 11. CLI 2E.4
+
+```text
+execution authorize
+execution validate
+execution materialize
+execution plan-validate
+execution render-check
+execution render
+```
+
+El `render` legacy no acepta Semantic Edit Plans.
+
+## 12. E2E real 2E.4
+
+Run `33909625346`:
+
+- crea MP4 real 10 s A/V;
+- cadena completa analysis → individual approval → proposal → global authorization → semantic plan → render gate → FFmpeg;
+- un único semantic edit de 0.4 s;
+- original SHA-256 preservado;
+- output duration esperada dentro de ±0.15 s;
+- 1 stream vídeo + 1 audio;
+- 202/202 PASS + doctor.
+
+Esto valida ruta técnica, no calidad perceptual general de joins.
+
+Detalle: `Validation/phase2e-execution-authorization.md`.
+
+## 13. Siguiente — 2E.5 Semantic Render Verification / Close-out
+
+1. post-render structural verification;
+2. duración esperada vs real;
+3. streams/output provenance;
+4. audit local de cada join renderizado;
+5. evidencia perceptual humana de joins semánticos;
+6. audit report end-to-end;
+7. decidir cierre de 2E.
+
+## 14. GitHub / CI / Release
+
+- GitHub source of truth;
 - CI deliberada;
 - workflows manual-only normalmente;
-- no modelos, vídeos, ZIPs o artifacts pesados ordinarios;
-- trigger one-shot sólo cuando sea necesario y restaurar inmediatamente;
-- no publicar GitHub Release sin autorización expresa de Guille.
+- no modelos/vídeos/ZIPs artifacts ordinarios;
+- no Release sin autorización expresa de Guille.
 
-## 11. Docs
+## 15. Docs
 
 Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.
