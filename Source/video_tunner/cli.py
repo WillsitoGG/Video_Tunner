@@ -18,6 +18,11 @@ from .approval import (
 from .edit_plan import MODE_SETTINGS, build_silence_plan, load_plan, save_plan
 from .ingest import ingest_video
 from .media import probe_media
+from .plan_proposal import (
+    PROPOSAL_READY_STATUS,
+    build_approved_edit_plan_proposal,
+    save_edit_plan_proposal,
+)
 from .render import render_from_plan
 from .silence import detect_silences
 from .sync import SyncDependencyError, SyncInsufficientSignalError
@@ -191,6 +196,20 @@ def cmd_approval_validate(args: argparse.Namespace) -> int:
     return 0 if validation.get("valid") else 3
 
 
+def cmd_proposal_build(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    analysis_sha = sha256_path(args.analysis)
+    approvals = [load_json_object(path) for path in args.approval]
+    proposal = build_approved_edit_plan_proposal(
+        analysis,
+        approvals,
+        analysis_sha256=analysis_sha,
+    )
+    destination = save_edit_plan_proposal(proposal, args.output)
+    _json({"proposal": str(destination), "record": proposal})
+    return 0 if proposal.get("status") == PROPOSAL_READY_STATUS else 3
+
+
 def cmd_render(args: argparse.Namespace) -> int:
     plan = load_plan(args.plan)
     destination = render_from_plan(args.input, plan, args.output)
@@ -321,7 +340,26 @@ def build_parser() -> argparse.ArgumentParser:
     approval_validate.add_argument("approval", help="promotion_approval.json a validar.")
     approval_validate.set_defaults(func=cmd_approval_validate)
 
-    render = sub.add_parser("render", help="Renderiza un vídeo a partir de un Edit Plan.")
+    proposal = sub.add_parser(
+        "proposal",
+        help="Construye propuestas globalmente limitadas desde approvals vigentes, sin autorizar render.",
+    )
+    proposal_sub = proposal.add_subparsers(dest="proposal_command", required=True)
+    proposal_build = proposal_sub.add_parser(
+        "build",
+        help="Construye approved_edit_plan_proposal desde uno o más approval artifacts.",
+    )
+    proposal_build.add_argument("analysis", help="analysis.json actual schema v9+.")
+    proposal_build.add_argument(
+        "--approval",
+        action="append",
+        required=True,
+        help="promotion_approval.json; repetir la opción para varios approvals.",
+    )
+    proposal_build.add_argument("--output", default="approved_edit_plan_proposal.json")
+    proposal_build.set_defaults(func=cmd_proposal_build)
+
+    render = sub.add_parser("render", help="Renderiza un vídeo a partir de un Edit Plan ejecutable.")
     render.add_argument("input")
     render.add_argument("plan")
     render.add_argument("output")
