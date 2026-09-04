@@ -10,9 +10,10 @@
 - Fase 0–2C: COMPLETADAS según evidencia registrada
 - Fase 2D: **CERRADA COMO FOUNDATION/EVIDENCE**
 - Fase 2E.1: **COMPLETADA — Promotion Policy Foundation / analysis schema v9**
-- Fase 2E.2: **COMPLETADA — Explicit Approval Contract / approval artifact schema v1**
+- Fase 2E.2: **COMPLETADA — Explicit Approval Contract / approval schema v1**
+- Fase 2E.3: **COMPLETADA — Approved Edit Plan Proposal + Global Limits / proposal schema v1**
 - Fase 2E: **EN CURSO**
-- Fase 2E.3: **SIGUIENTE — Approved Edit Plan Proposal + Global Limits**
+- Fase 2E.4: **SIGUIENTE — Execution Authorization / Semantic Render Gate**
 
 ## Evidencia principal
 
@@ -21,31 +22,18 @@ Portable core                    33600174568  PASS
 Portable ML                      33621357438  PASS
 Sync hardening                   33639009841  PASS
 Target Spanish                   33656235038  PASS — WER 1.64%, RTF 0.4854
-Phase 2D.4 combined eligibility  33790792753  PASS — 138/138, schema v8
-Phase 2D.5 human eligibility     33791950505  PASS — 142/142
 Phase 2D.6 human close-out       33894995584  PASS — CLOSE_OUT_READY
 Phase 2E.1 integrated schema v9  33899201093  PASS — 166/166 + doctor
 Phase 2E.2 explicit approval     33899857378  PASS — 174/174 + doctor
+Phase 2E.3 proposal foundation   33900544072  PASS — 185/185 + doctor
+Phase 2E.3 renderer isolation    33908500929  PASS — 186/186 + doctor
 ```
 
 ## Analysis schema v9
 
-`analysis.json` permanece v9 después de 2E.2:
-
-```text
-candidates[]
-correction_scopes[]
-filler_assessments[]
-join_assessments[]
-acoustic_join_assessments[]
-semantic_decisions[]
-eligibility_assessments[]
-promotion_assessments[]
-```
+`analysis.json` permanece v9.
 
 ## Approval artifact schema v1
-
-Nuevo artefacto separado:
 
 ```text
 promotion_approval.json
@@ -53,77 +41,94 @@ schema_version = 1
 record_type = promotion_approval
 ```
 
-No se muta el análisis para registrar la decisión.
-
-Un approval liga:
+## Proposal artifact schema v1
 
 ```text
-analysis SHA-256
-candidate ID/kind
-eligibility ID/status
-promotion assessment ID/status
-mode
-target exacto
-canonical evidence fingerprint
-actor
-reason
-timestamp
+approved_edit_plan_proposal.json
+schema_version = 1
+record_type = approved_edit_plan_proposal
 ```
 
-Estados de validación:
+La proposal usa `proposed_edits[]`, no `edits[]`.
+
+## Fase 2E.3 — contrato de seguridad
+
+Sólo consume approvals que sigan validando como `valid_approved` frente al `analysis.json` actual.
+
+Límites globales precomprometidos:
 
 ```text
-valid_approved
-valid_rejected
-stale_analysis
-stale_evidence
-stale_or_invalid_reference
-invalid_record
+max_semantic_edits    = 10
+max_removed_seconds   = 30.0
+max_removed_fraction  = 0.05
 ```
 
-Safety:
+Sólo `possible_repetition` está soportada inicialmente.
+
+Cualquier blocker invalida la proposal completa:
 
 ```text
-valid_approved != Edit Plan authorization
-edit_plan_authorization = false
-edit = null
-safe_for_cut = false
+no approvals
+stale/rejected/invalid approval
+duplicate target
+unsupported candidate kind
+invalid/out-of-timeline target
+overlapping targets
+max edit count exceeded
+max removed seconds exceeded
+max removed fraction exceeded
+```
+
+Proposal lista:
+
+```text
+status = proposal_ready_for_global_review
+requires_global_review = true
+globally_approved = false
+render_authorization = false
 executable = false
 auto_apply = false
 ```
 
-Records manipulados que intenten declarar autorización de plan, edit o ejecución son inválidos.
+Cada proposed edit también permanece no autorizado/no ejecutable.
 
-## Validación 2E.2
+## Renderer boundary
 
-Run `33899857378`:
+El renderer ejecutable sólo trabaja con Edit Plans materializados. Además, `render_from_plan` rechaza explícitamente cualquier artefacto que contenga `proposed_edits`, por lo que una proposal no puede atravesar accidentalmente el renderer como plan ejecutable.
+
+## Validación 2E.3
+
+`33900544072`:
 
 ```text
-174/174 tests PASS en 7.150 s
+185/185 tests PASS en 5.144 s
 doctor PASS
-APPROVE valid/no-edit-authority PASS
-REJECT auditability PASS
-analysis SHA stale detection PASS
-upstream evidence stale detection PASS
-upstream blocker veto PASS
-tampered edit authorization blocked PASS
-mandatory actor/reason PASS
-fingerprint roundtrip PASS
+all global limit tests PASS
+overlap/duplicate/stale/rejected/timeline blockers PASS
+valid proposal stays review-only PASS
 ```
 
-Workflow restaurado a `workflow_dispatch`. No se subieron artifacts pesados.
+Hardening final `33908500929`:
 
-Evidencia: `Validation/phase2e-explicit-approval-contract.md`.
+```text
+186/186 tests PASS en 7.887 s
+doctor PASS
+renderer rejects non-executable proposal PASS
+```
+
+Workflow restaurado a `workflow_dispatch`. No se habilitó auto-render ni auto-apply semántico.
+
+Evidencia: `Validation/phase2e-approved-plan-proposal.md`.
 
 ## Safety actual
 
 ```text
-candidate != promotion assessment != approval != edit
-foundation_guards_pass != safe cut
-promotion_review_candidate != approval
+candidate != promotion assessment != approval != proposal != executable edit
 valid_approved approval != Edit Plan authorization
-edit_plan_authorization = false
-safe_for_cut = false
+proposal_ready_for_global_review != render authorization
+proposed_edits[] != edits[]
+globally_approved = false
+render_authorization = false
 executable = false
 auto_apply = false
 automatic_edits = 0
@@ -131,8 +136,8 @@ automatic_edits = 0
 
 ## Pendiente antes de Release
 
-- Fase 2E.3: Approved Edit Plan Proposal + Global Limits;
-- posterior autorización global/semantic render gate;
+- Fase 2E.4: Execution Authorization / Semantic Render Gate;
+- Fase 2E.5: semantic render verification / close-out;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;
