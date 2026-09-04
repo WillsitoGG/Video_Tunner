@@ -42,129 +42,88 @@ Run `33741195594` PASS.
 
 ### 2D — Scope + fillers + join safety + eligibility — COMPLETADA COMO FOUNDATION/EVIDENCE
 
-#### 2D.1 — Correction Scope Foundation v1 — COMPLETADA
-Schema v4. Final `33758185755`: 88/88 PASS.
-
-#### 2D.2 — Fillers Contextuales Foundation v1 — COMPLETADA
-Schema v5. Final `33771792867`: 101/101 PASS.
-
-#### 2D.3 — Sentence/join safety — COMPLETADA COMO BLOQUE DE EVIDENCIA v1
-
+- 2D.1 correction scope/schema v4: `33758185755`, 88/88 PASS.
+- 2D.2 fillers/schema v5: `33771792867`, 101/101 PASS.
 - 2D.3.1 join context/schema v6: `33773287106`, 117/117 PASS.
 - 2D.3.2 acoustic join/schema v7: `33781903986`, 131/131 PASS.
-- 2D.3.3 human acoustic: `33782959293`, 134/134 PASS, human gate PASS.
+- 2D.3.3 human acoustic: `33782959293`, 134/134 PASS.
+- 2D.4 combined eligibility/schema v8: `33790792753`, 138/138 PASS.
+- 2D.5 human eligibility: `33791950505`, 142/142 PASS.
+- 2D.6 human positive close-out: `33894995584`, `CLOSE_OUT_READY`.
 
-No se modificaron thresholds acústicos tras la evidencia humana.
+2D terminó con 8 casos humanos AMI, 6 positivos alineados, 3 `foundation_guards_pass` en 2 fuentes y 0 capacidad ejecutable. No se relajaron thresholds.
 
-#### 2D.4 — Combined Eligibility / Promotion Policy Foundation v1 — COMPLETADA
+### 2E — Promotion to Edit Plan — EN CURSO
 
-Schema v8 aplica guardas acumulativas fail-safe:
+#### 2E.1 — Promotion Policy Foundation / schema v9 — COMPLETADA
+
+Se introduce `promotion_assessments[]` entre eligibility y un futuro Edit Plan aprobado.
+
+La primera whitelist respaldada por evidencia humana es deliberadamente estrecha:
 
 ```text
-removedText integrity
-→ correction scope
-→ filler context
-→ semantic decision
-→ join context
-→ acoustic evidence
-→ foundation_guards_pass OR blocker
+possible_repetition
 ```
 
-`foundation_guards_pass` no es autorización de corte:
+`conservative` y `aggressive` usan la misma whitelist. No se amplían clases por modo sin evidencia.
+
+Estados:
 
 ```text
-future_promotion_candidate = true
+eligible_for_promotion_review
+blocked_upstream_eligibility
+blocked_removed_text_validation
+blocked_unvalidated_candidate_kind
+invalid_candidate_reference
+```
+
+Un `eligible_for_promotion_review` sigue siendo sólo revisión:
+
+```text
+requires_explicit_approval = true
+approved = false
+edit = null
 safe_for_cut = false
 executable = false
 auto_apply = false
 ```
 
-Run `33790792753`: 138/138 PASS. Detalle: `Validation/phase2d-combined-eligibility.md`.
-
-#### 2D.5 — Human Combined Eligibility Evidence v1 — COMPLETADA
-
-Run final `33791950505`:
+Validación:
 
 ```text
-142/142 tests PASS
-HUMAN_ELIGIBILITY_GATE=PASS
-cases                    3
-foundation_guards_pass   1
-blocked                  2
-safe_for_cut             0
-executable               0
-auto_apply               0
-automatic_edits          0
+33896244733  165/165 PASS — policy/report aislados
+33898758391  165/166 — fixture bloqueado correctamente por `hoy`
+33898967491  165/166 — fixture bloqueado correctamente por `vamos`
+33899201093  166/166 PASS en 7.079 s + doctor PASS
 ```
 
-Detalle: `Validation/phase2d-human-combined-eligibility.md`.
+Los dos fallos intermedios fueron errores de construcción del fixture positivo y confirmaron el funcionamiento de las join guards. Sólo se cambiaron fixtures; no producto ni thresholds.
 
-#### 2D.6 — Human Positive Eligibility Expansion / Close-out Gate — COMPLETADA
+Detalle: `Validation/phase2e-promotion-foundation.md`.
 
-Se construyó una selección reproducible a partir de anotaciones manuales AMI de repetición/reparandum/reparans, usando tokenización equivalente a producción y headsets individuales por hablante.
+#### 2E.2 — Explicit Approval Contract — SIGUIENTE
 
-Discovery ligero `33892213960`:
-
-```text
-exact repeats compatibles  80
-seleccionados                8
-fuentes/headsets             4
-```
-
-El criterio de suficiencia se fijó antes de observar la corrida pesada:
-
-```text
-casos long evaluados                 >= 8
-positivos alineados                  >= 3
-foundation_guards_pass humanos       >= 2
-fuentes con foundation pass          >= 2
-```
-
-Final `33894995584`:
-
-```text
-155 tests OK (11 host-PATH skips)
-HUMAN_POSITIVE_EVIDENCE_GATE     PASS
-HUMAN_POSITIVE_CLOSE_OUT_DECISION CLOSE_OUT_READY
-casos evaluados                   8
-positivos alineados               6
-foundation_guards_pass            3
-fuentes con foundation pass       2
-hard failures                     0
-safe_for_cut                      0
-executable                        0
-auto_apply                        0
-automatic_edits                   0
-artifacts                          0
-```
-
-Diagnóstico:
-
-```text
-ASR no conserva repeat completo       2
-detectado + foundation_guards_pass    3
-detectado + blocked_join_context      3
-```
-
-No hubo detector miss sobre una repetición completa preservada por ASR en esta muestra. No generalizar esta observación fuera de la muestra.
-
-**Decisión: Fase 2D cerrada como foundation/evidence.** Esto no habilita cortes: todos los `future_promotion_candidate` siguen no ejecutables.
-
-Detalle: `Validation/phase2d-human-positive-closeout.md`.
-
-### 2E — Promotion to Edit Plan — SIGUIENTE
-
-Objetivo: diseñar y validar la promoción explícita desde assessments no ejecutables al Edit Plan aprobado.
+Objetivo: definir cómo una promotion assessment puede recibir una aprobación explícita, íntegra y auditable, manteniendo separado approval de Edit Plan y ejecución.
 
 Orden:
 
-1. definir qué clases pueden ser candidatas a promoción;
-2. mantener blockers de 2D como veto acumulativo;
-3. definir approval/thresholds por modo sin convertir `foundation_guards_pass` en autorización automática;
-4. fijar límites globales/fail-safe y reglas de REVIEW/KEEP;
-5. definir contrato auditable entre eligibility y Edit Plan;
-6. validar primero con corpus sintético/controlado y después con evidencia humana;
-7. mantener ejecución automática desactivada hasta validar la promotion policy explícita.
+1. definir schema/objeto de aprobación explícita;
+2. ligar approval a candidate + promotion assessment + target exactos;
+3. incluir fingerprints/provenance para invalidar approvals obsoletos;
+4. mantener blockers upstream como veto absoluto;
+5. definir estados de aprobación/rechazo/revisión;
+6. no crear todavía auto-apply por defecto;
+7. añadir contrato para una futura conversión approval → Edit Plan proposal;
+8. validar en CI core antes de cualquier evidencia humana pesada adicional.
+
+#### 2E.3 — Approved Edit Plan Proposal / Global Limits — FUTURA
+
+Después de 2E.2:
+- convertir sólo approvals válidos en propuestas de Edit Plan;
+- límites globales de número/duración/porcentaje retirado;
+- conflictos/overlaps;
+- fail-safe y reversibilidad;
+- mantener ejecución automática separada.
 
 ## Fase 3 — Calidad audiovisual / auditoría
 Normalización, join treatment, denoise controlado, join audit, post-render verification e informe.
@@ -180,8 +139,8 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. integrar/cerrar 2D.6 en `main` manteniendo el workflow de close-out manual-only;
-2. arrancar 2E — Promotion to Edit Plan;
-3. diseñar el contrato de promoción sin relajar ninguna guarda de 2D;
-4. no convertir `future_promotion_candidate` en edición ejecutable por defecto;
-5. reservar nueva CI pesada para evidencia que cambie una decisión técnica.
+1. integrar 2E.1 en `main` con schema v9 y workflow manual-only;
+2. arrancar 2E.2 desde `main` limpio;
+3. diseñar approval explícito sin convertir review candidates en edits;
+4. añadir fingerprints/provenance y fail-safe de stale approvals;
+5. reservar CI pesada para evidencia que cambie una decisión técnica.
