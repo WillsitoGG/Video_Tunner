@@ -1,0 +1,72 @@
+name: Human Positive Closeout Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-human-positive-closeout-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-human-positive-closeout:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Preflight closeout PowerShell syntax
+        shell: pwsh
+        run: |
+          foreach ($path in @(
+            ".\.github\scripts\download_ami_positive_closeout_fixtures.ps1",
+            ".\.github\scripts\run_human_positive_closeout_validation.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              $errors | ForEach-Object { Write-Error "$path :: $($_.Message)" }
+              throw "Closeout script has PowerShell parser errors: $path"
+            }
+          }
+          Write-Host "HUMAN_POSITIVE_CLOSEOUT_POWERSHELL_PARSE=PASS"
+
+      - name: Download licensed AMI positive fixtures
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Build analysis portable
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+
+      - name: Run regression suite
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
+      - name: Evaluate human removable positives through schema v8
+        shell: pwsh
+        run: .\.github\scripts\run_human_positive_closeout_validation.ps1
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "2D.6 separates evidence-integrity PASS from CLOSE_OUT_READY/INSUFFICIENT product evidence."
+          Write-Host "Human removable labels come from AMI manual reparandum/reparans annotations."
+          Write-Host "The target model is pinned large-v3-turbo and the analyzer runs from the frozen portable in strict/offline mode."
+          Write-Host "No model, AMI audio, generated video, ZIP or analysis output artifact is uploaded."
+          Write-Host "This workflow never authorizes or executes a cut."
