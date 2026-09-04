@@ -2,6 +2,9 @@ name: Manual CI
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2e-execution-authorization
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
