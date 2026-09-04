@@ -21,7 +21,8 @@
 - Fase 2D.3.2: COMPLETADA — acoustic join/schema v7
 - Fase 2D.3.3: COMPLETADA — human-audio acoustic evidence
 - Fase 2D.4: COMPLETADA — combined eligibility/schema v8
-- Fase 2D.5: **SIGUIENTE — Human Combined Eligibility Evidence**
+- Fase 2D.5: COMPLETADA — Human Combined Eligibility Evidence v1
+- Fase 2D.6: **SIGUIENTE — Human Positive Eligibility Expansion / Close-out Gate**
 
 ## Evidencia principal
 
@@ -38,6 +39,7 @@ Phase 2D.3.1 final               33773287106  PASS — 117/117, schema v6
 Phase 2D.3.2 final               33781903986  PASS — 131/131, schema v7
 Phase 2D.3.3 human acoustic      33782959293  PASS — 134/134
 Phase 2D.4 combined eligibility  33790792753  PASS — 138/138, schema v8
+Phase 2D.5 human eligibility     33791950505  PASS — 142/142, human gate
 ```
 
 Todas mantienen `automatic_edits = 0` donde aplica y artifacts = 0.
@@ -54,49 +56,45 @@ semantic_decisions[]
 eligibility_assessments[]
 ```
 
-## Fase 2D.4 — Combined Eligibility Foundation v1
+## Fase 2D.5 — Human Combined Eligibility Evidence v1
 
-La policy v1 combina guardas acumulativas. Una capa favorable posterior nunca anula una anterior bloqueada.
+Se aplicó la policy combinada a tres casos humanos AMI trazables, usando word timings/endpoints congelados de `large-v3-turbo` del run `33755013415` y el WAV AMI original CC BY 4.0.
 
-Estados:
-
-```text
-foundation_guards_pass
-blocked_acoustic_context
-blocked_filler_context
-blocked_semantic_decision
-blocked_join_context
-blocked_correction_scope
-invalid_removed_text
-missing_required_evidence
-```
-
-Benchmark: 12 casos; 4 rutas `foundation_guards_pass` y 8 bloqueos deliberados.
-
-La capa vuelve a validar target/`removedText` contra transcript, índices y timestamps antes de declarar una ruta candidata a futura promoción.
-
-Final `33790792753`:
+Baseline `33791636767`:
 
 ```text
-138/138 tests PASS en 7.035 s
-combined eligibility gate PASS
-schema v8 integration PASS
-removedText contract PASS
-E2E FFmpeg/sync PASS
-doctor PASS
-artifacts 0
+141/141 regression tests PASS
+human gate FAIL por 1 mismatch diagnóstico
+safe_for_cut 0
+executable 0
+auto_apply 0
 ```
 
-Incluso `foundation_guards_pass` conserva:
+La correction humana ambigua estaba bloqueada de todos modos, pero el estado principal era `invalid_removed_text`. Se ajustó la precedencia para conservar el blocker más informativo `blocked_correction_scope` cuando el scope ya acredita ambigüedad. La ausencia de target sigue registrada en `removed_text_reason`.
+
+Final `33791950505`:
 
 ```text
-future_promotion_candidate = true
-safe_for_cut = false
-executable = false
-auto_apply = false
+142/142 tests PASS en 7.087 s
+HUMAN_ELIGIBILITY_GATE=PASS
+cases                    3
+foundation_guards_pass   1
+blocked                  2
+safe_for_cut             0
+executable               0
+auto_apply               0
+automatic_edits          0
+artifacts                 0
 ```
 
-Evidencia: `Validation/phase2d-combined-eligibility.md`.
+Interpretación:
+
+- el control humano de pausa atraviesa las guardas foundation, pero no está etiquetado como ejemplo humano de removibilidad;
+- el retake humano permanece `blocked_semantic_decision`;
+- la correction humana ambigua permanece `blocked_correction_scope`;
+- ninguna evidencia humana autoriza cortes.
+
+Evidencia: `Validation/phase2d-human-combined-eligibility.md`.
 
 ## Safety actual
 
@@ -119,8 +117,8 @@ automatic_edits = 0
 
 ## Pendiente antes de Release
 
-- Fase 2D.5: validar combined eligibility sobre evidencia humana real;
-- cerrar 2D antes de cualquier promoción al Edit Plan;
+- Fase 2D.6: ampliar positivos humanos de removibilidad y cerrar el close-out gate de 2D;
+- no iniciar promoción al Edit Plan sin ese cierre;
 - Fase 2E: promoción explícita sólo si la evidencia lo permite;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
