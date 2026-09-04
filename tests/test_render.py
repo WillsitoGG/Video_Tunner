@@ -1,6 +1,6 @@
 import unittest
 
-from video_tunner.render import keep_segments
+from video_tunner.render import keep_segments, render_from_plan
 
 
 class RenderPlanTests(unittest.TestCase):
@@ -18,6 +18,20 @@ class RenderPlanTests(unittest.TestCase):
             {"action": "remove", "start": 4.0, "end": 4.0},
         ]
         self.assertEqual(keep_segments(5.0, edits), [(0.0, 5.0)])
+
+    def test_renderer_rejects_non_executable_plan_proposal(self):
+        proposal = {
+            "schema_version": 1,
+            "artifact_type": "approved_edit_plan_proposal",
+            "source": {"duration_seconds": 10.0},
+            "proposed_edits": [
+                {"action": "remove", "start": 1.0, "end": 2.0, "executable": False}
+            ],
+            "render_authorization": False,
+            "executable": False,
+        }
+        with self.assertRaisesRegex(ValueError, "Proposal no es ejecutable"):
+            render_from_plan("input.mp4", proposal, "output.mp4")
 
 
 if __name__ == "__main__":
