@@ -18,6 +18,8 @@ from .ingest import ingest_video
 from .join_safety import build_join_assessments
 from .join_safety_report import attach_join_assessments
 from .media import probe_media
+from .promotion import build_promotion_assessments
+from .promotion_report import attach_promotion_assessments
 from .semantic_candidates import build_semantic_candidates
 from .semantic_decisions import build_semantic_decisions
 from .semantic_report import attach_semantic_decisions
@@ -120,13 +122,14 @@ def analyze_spoken_video(
     master_audio: str | Path | None = None,
     ingest_report_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Resolve master audio and emit separate non-executable evidence layers.
+    """Resolve master audio and emit separate non-executable analysis layers.
 
     Whisper, Silero VAD and acoustic join validation consume the same accredited
     master audio. Candidates, correction scopes, filler assessments, join
-    assessments, acoustic join assessments, semantic decisions and combined
-    eligibility assessments remain separate evidence layers and never become
-    executable edits in this phase.
+    assessments, acoustic join assessments, semantic decisions, combined
+    eligibility assessments and promotion assessments remain separate layers.
+    Promotion assessments are review-only in Phase 2E.1: they are never approved,
+    executable or converted into Edit Plan edits here.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
@@ -227,6 +230,11 @@ def analyze_spoken_video(
         join_assessments=join_assessments,
         acoustic_join_assessments=acoustic_join_assessments,
     )
+    promotion_assessments = build_promotion_assessments(
+        candidates,
+        eligibility_assessments,
+        mode=mode,
+    )
 
     stem = source_path.stem
     transcript_json = write_transcript_json(transcript, output_root / f"{stem}_transcript.json")
@@ -250,6 +258,7 @@ def analyze_spoken_video(
     attach_join_assessments(report, join_assessments)
     attach_acoustic_join_assessments(report, acoustic_join_assessments)
     attach_eligibility_assessments(report, eligibility_assessments)
+    attach_promotion_assessments(report, promotion_assessments)
     analysis_path = save_analysis_report(report, output_root / f"{stem}_analysis.json")
 
     return {
