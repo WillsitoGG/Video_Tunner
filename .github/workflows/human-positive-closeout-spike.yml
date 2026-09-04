@@ -2,11 +2,6 @@ name: Human Positive Closeout Spike
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2d-human-positive-closeout
-    paths:
-      - ".github/ci-triggers/human-positive-closeout.txt"
 
 concurrency:
   group: video-tunner-human-positive-closeout-${{ github.ref }}
