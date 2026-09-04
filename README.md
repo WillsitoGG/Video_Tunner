@@ -34,8 +34,9 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 2D — Scope + fillers + join + combined eligibility: ✅ **cerrada como foundation/evidence**
 - Fase 2E.1 — Promotion Policy Foundation: ✅
 - Fase 2E.2 — Explicit Approval Contract: ✅
+- Fase 2E.3 — Approved Edit Plan Proposal + Global Limits: ✅
 - Fase 2E — Promotion to Edit Plan: 🟡 **en curso**
-- Fase 2E.3 — Approved Edit Plan Proposal + Global Limits: 🟡 **siguiente**
+- Fase 2E.4 — Execution Authorization / Semantic Render Gate: 🟡 **siguiente**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -57,25 +58,27 @@ eligibility assessments
   ↓
 promotion assessments
   ↓
-explicit approval artifact (separate, auditable, stale-safe)
+explicit approval artifacts
   ↓
-future approved Edit Plan proposal
+approved_edit_plan_proposal
   ↓
-future execution / render + audit
+future global execution authorization
+  ↓
+future executable Edit Plan → render → audit
 ```
 
 Invariantes:
 
 ```text
-candidate != assessment != promotion assessment != approval != edit
+candidate != assessment != promotion assessment != approval != proposal != executable edit
 PROPOSED_CUT != executable CUT
 foundation_guards_pass != safe cut
-future_promotion_candidate != approved edit
 promotion_review_candidate != approval
 valid_approved approval != Edit Plan authorization
-edit_plan_authorization = false          # Phase 2E.2
-edit = null                              # Phase 2E.2
-safe_for_cut = false
+proposal_ready_for_global_review != render authorization
+proposed_edits[] != edits[]
+render_authorization = false          # Phase 2E.3
+globally_approved = false             # Phase 2E.3
 executable = false
 auto_apply = false
 automatic_edits = 0
@@ -90,20 +93,9 @@ automatic_edits = 0
 
 Modelo objetivo: **`large-v3-turbo`**.
 
-## Analysis + approval artifacts
+## Analysis + approval + proposal artifacts
 
-`analysis.json` sigue usando **schema v9**:
-
-```text
-candidates[]
-correction_scopes[]
-filler_assessments[]
-join_assessments[]
-acoustic_join_assessments[]
-semantic_decisions[]
-eligibility_assessments[]
-promotion_assessments[]
-```
+`analysis.json` sigue usando **schema v9**.
 
 2E.2 añade un artefacto separado:
 
@@ -113,119 +105,134 @@ schema_version = 1
 record_type = promotion_approval
 ```
 
-No se muta `analysis.json` al aprobar o rechazar.
+2E.3 añade otro artefacto separado:
+
+```text
+approved_edit_plan_proposal.json
+schema_version = 1
+record_type = approved_edit_plan_proposal
+```
+
+Una proposal lista usa `proposed_edits[]`, deliberadamente **no** `edits[]`. El renderer rechaza explícitamente cualquier artefacto que contenga `proposed_edits`.
 
 ## Evidencia principal de Fase 2
 
 ```text
-33750836791  Human correction corpus PASS
-33755013415  Audio-backed semantic gate PASS
-33758185755  88/88 — correction scope/schema v4
-33771792867  101/101 — contextual fillers/schema v5
-33773287106  117/117 — join context/schema v6
-33781903986  131/131 — acoustic join/schema v7
-33782959293  134/134 — human acoustic gate PASS
-33790792753  138/138 — combined eligibility/schema v8 PASS
-33791950505  142/142 — human combined eligibility PASS
+33790792753  Combined eligibility/schema v8 PASS — 138/138
+33791950505  Human combined eligibility PASS — 142/142
 33894995584  Human Positive Close-out PASS — CLOSE_OUT_READY
 33899201093  2E.1 integrated schema v9 PASS — 166/166 + doctor
 33899857378  2E.2 approval contract PASS — 174/174 + doctor
+33900544072  2E.3 proposal foundation PASS — 185/185 + doctor
+33908500929  2E.3 final renderer isolation PASS — 186/186 + doctor
 ```
 
 ## Fase 2E.1 — Promotion Policy Foundation
 
-Sólo `possible_repetition`, respaldada por la evidencia humana positiva de 2D.6, puede llegar a `eligible_for_promotion_review`. Sigue sin ser un edit ni una aprobación. Detalle: `Validation/phase2e-promotion-foundation.md`.
+Sólo `possible_repetition`, respaldada por evidencia humana positiva de 2D.6, puede llegar a `eligible_for_promotion_review`. Sigue sin ser edit ni aprobación. Detalle: `Validation/phase2e-promotion-foundation.md`.
 
 ## Fase 2E.2 — Explicit Approval Contract
 
-La aprobación es una **decisión humana explícita y auditable** sobre una promotion assessment concreta. Se materializa fuera de `analysis.json` para conservar el análisis original y permitir verificación de vigencia.
+La aprobación es una decisión humana explícita y auditable sobre una promotion assessment concreta. Se liga al SHA-256 del analysis exacto y a un fingerprint canónico de la evidencia. Un `valid_approved` sigue teniendo `edit_plan_authorization=false`, `edit=null`, `executable=false` y `auto_apply=false`.
 
-Comandos:
+CLI:
 
 ```text
-video-tunner approval create ANALYSIS \
-  --promotion-assessment ID \
-  --decision approve|reject \
-  --actor ACTOR \
-  --reason REASON \
-  --output promotion_approval.json
-
+video-tunner approval create ANALYSIS --promotion-assessment ID --decision approve|reject --actor ACTOR --reason REASON --output promotion_approval.json
 video-tunner approval validate ANALYSIS promotion_approval.json
 ```
 
-### Integridad y provenance
+Detalle: `Validation/phase2e-explicit-approval-contract.md`.
 
-El artefacto liga la decisión a:
+## Fase 2E.3 — Approved Edit Plan Proposal + Global Limits
 
-- SHA-256 del `analysis.json` exacto;
-- candidate ID/kind;
-- eligibility assessment ID/status;
-- promotion assessment ID/status;
-- mode;
-- target exacto;
-- fingerprint SHA-256 de una representación JSON canónica de esa evidencia;
-- actor, motivo y fecha de decisión.
+2E.3 transforma exclusivamente approvals que siguen validando como `valid_approved` en una **propuesta globalmente acotada y no ejecutable**.
 
-Si el análisis cambia, el target cambia o la evidencia upstream deja de ser compatible, la aprobación deja de ser vigente.
-
-Estados principales de validación:
+CLI:
 
 ```text
-valid_approved
-valid_rejected
-stale_analysis
-stale_evidence
-stale_or_invalid_reference
-invalid_record
+video-tunner proposal build ANALYSIS \
+  --approval promotion_approval_1.json \
+  --approval promotion_approval_2.json \
+  --output approved_edit_plan_proposal.json
 ```
 
-Un `APPROVE` válido significa únicamente que el revisor aprobó esa promotion assessment contra esa evidencia concreta:
+### Envelope de seguridad precomprometido
+
+Los límites se fijaron antes de observar resultados y son iguales en `conservative` y `aggressive`:
 
 ```text
-approved = true
-edit_plan_authorization = false
-edit = null
-safe_for_cut = false
+max_semantic_edits    = 10
+max_removed_seconds   = 30.0
+max_removed_fraction  = 0.05
+```
+
+Sólo `possible_repetition` está soportada inicialmente.
+
+La proposal completa queda bloqueada si aparece cualquiera de estos casos:
+
+- approval stale, rejected o invalid;
+- approval/target duplicado;
+- candidate kind no soportado;
+- target ausente o fuera de la timeline fuente;
+- targets aprobados solapados;
+- más de 10 semantic edits;
+- más de 30 segundos retirados;
+- más del 5% de duración retirado;
+- ausencia de approvals válidos.
+
+Una proposal válida queda:
+
+```text
+status = proposal_ready_for_global_review
+requires_global_review = true
+globally_approved = false
+render_authorization = false
 executable = false
 auto_apply = false
 ```
 
-2E.2 rechaza además records manipulados que intenten declarar `edit_plan_authorization=true`, añadir un `edit` o activar capacidad ejecutable.
+Cada elemento de `proposed_edits[]` también mantiene `globally_approved=false`, `render_authorized=false`, `executable=false` y `auto_apply=false`.
+
+### Aislamiento del renderer
+
+2E.3 no confía sólo en la diferencia estructural `proposed_edits[] != edits[]`: `render_from_plan` rechaza explícitamente cualquier proposal para evitar que pueda pasar accidentalmente por el renderer como Edit Plan.
 
 ### Validación
 
-Run `33899857378`:
+Run inicial `33900544072`:
 
 ```text
-174/174 tests PASS en 7.150 s
+185/185 tests PASS en 5.144 s
 doctor PASS
-APPROVE válido pero no ejecutable PASS
-REJECT auditable PASS
-stale por SHA de analysis PASS
-stale por evidencia upstream PASS
-upstream blocker veto PASS
-tampering / falsa autorización de edit bloqueado PASS
-actor + reason obligatorios PASS
-save/load fingerprint PASS
+límites independientes PASS
+overlap/duplicate/stale/rejected/timeline blockers PASS
+valid proposal remains review-only PASS
 ```
 
-Workflow final: manual-only. No se subieron artifacts pesados.
+Hardening final `33908500929`:
 
-Detalle: `Validation/phase2e-explicit-approval-contract.md`.
+```text
+186/186 tests PASS en 7.887 s
+doctor PASS
+renderer rejects non-executable proposal PASS
+```
 
-## Siguiente trabajo — Fase 2E.3
+Workflow final: `workflow_dispatch` manual-only. No se habilitó render semántico ni auto-apply.
 
-Construir una **propuesta** de Edit Plan exclusivamente desde approvals `valid_approved`, con límites globales predefinidos antes de habilitar cualquier ejecución:
+Detalle: `Validation/phase2e-approved-plan-proposal.md`.
 
-1. revalidar approval contra el análisis exacto;
-2. aceptar inicialmente sólo `possible_repetition`;
-3. generar propuesta, no auto-render;
-4. rechazar overlaps/conflictos;
-5. limitar número de semantic edits;
-6. limitar segundos y porcentaje total retirado;
-7. validar bounds contra la timeline fuente;
-8. mantener stale/invalid/rejected como veto;
-9. separar propuesta, aprobación del plan y ejecución/render.
+## Siguiente trabajo — Fase 2E.4
+
+Definir el **contrato de autorización global de ejecución** sin mezclarlo con las approvals individuales:
+
+1. validar que la proposal sigue vigente frente al `analysis.json` exacto;
+2. ligar la autorización a SHA/fingerprint exactos de proposal + analysis;
+3. exigir revisión global explícita y actor/motivo auditables;
+4. invalidar automáticamente autorización stale o manipulada;
+5. materializar un Edit Plan ejecutable sólo desde una autorización global válida;
+6. mantener el renderer cerrado a proposals no autorizadas;
+7. definir semantic render gate y post-render verification antes de auto-apply general.
 
 ## Principios
 
