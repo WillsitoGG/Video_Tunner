@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "purpose": "Phase 2D.6 human-positive eligibility close-out evidence. Human labels come from AMI manual disfluency annotations; Video_Tunner policy remains non-executable.",
+  "license": "CC BY 4.0",
+  "annotation_provenance": {
+    "corpus": "AMI Meeting Corpus",
+    "distribution": "AMI manual annotations / disfluency layer",
+    "ontology": {
+      "repeat": "ami_dsfl_12",
+      "reparans": "ami_dsfl_18",
+      "reparandum": "ami_dsfl_19"
+    },
+    "inspection_mirror": {
+      "repository": "ColingPaper2018/DialogueAct-Tagger",
+      "commit": "4307e9899ed9058e80d0861530de124d4f134317",
+      "note": "Exact annotation IDs/text were inspected in this mirror; licensing/provenance is attributed to the official AMI distribution."
+    }
+  },
+  "detector_contract": {
+    "mode": "conservative",
+    "minimum_exact_repeat_tokens": 3,
+    "short_positive_policy": "observation_only_known_limitation"
+  },
+  "meetings": {
+    "ES2005a": {
+      "audio": "ES2005a.Mix-Headset.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/HeadsetAudio/ES2005a.Mix-Headset.wav",
+      "expected_bytes": null,
+      "expected_sha256": null
+    },
+    "IS1001d": {
+      "audio": "IS1001d.Mix-Headset.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/HeadsetAudio/IS1001d.Mix-Headset.wav",
+      "expected_bytes": null,
+      "expected_sha256": null
+    }
+  },
+  "cases": [
+    {
+      "id": "ami-es2005a-b-repeat-or-playing-with",
+      "meeting": "ES2005a",
+      "speaker": "B",
+      "human_label": "removable_reparandum",
+      "annotation_type": "repeat",
+      "annotation_parent_id": "ES2005a.B.disfluency.alex.24",
+      "reparandum_annotation_id": "ES2005a.B.disfluency.alex.25",
+      "reparans_annotation_id": "ES2005a.B.disfluency.alex.26",
+      "reparandum_word_ids": ["ES2005a.B.words139", "ES2005a.B.words140", "ES2005a.B.words141"],
+      "reparans_word_ids": ["ES2005a.B.words143", "ES2005a.B.words144", "ES2005a.B.words145"],
+      "reparandum_text": "or playing with",
+      "reparans_text": "or playing with",
+      "reparandum_start": 121.58,
+      "reparandum_end": 123.10,
+      "reparans_start": 123.10,
+      "reparans_end": 123.97,
+      "clip_start": 117.0,
+      "clip_duration": 11.0,
+      "detector_expectation": "long_detector_compatible",
+      "expected_candidate_kind": "possible_repetition"
+    },
+    {
+      "id": "ami-is1001d-c-repeat-i-give-it-a",
+      "meeting": "IS1001d",
+      "speaker": "C",
+      "human_label": "removable_reparandum",
+      "annotation_type": "repeat",
+      "annotation_parent_id": "IS1001d.C.disfluency.alex.1",
+      "reparandum_annotation_id": "IS1001d.C.disfluency.alex.2",
+      "reparans_annotation_id": "IS1001d.C.disfluency.alex.3",
+      "reparandum_word_ids": ["IS1001d.C.words33", "IS1001d.C.words34", "IS1001d.C.words35", "IS1001d.C.words36"],
+      "reparans_word_ids": ["IS1001d.C.words38", "IS1001d.C.words39", "IS1001d.C.words40", "IS1001d.C.words41"],
+      "reparandum_text": "I give it a",
+      "reparans_text": "I give it a",
+      "reparandum_start": 280.26,
+      "reparandum_end": 281.12,
+      "reparans_start": 281.12,
+      "reparans_end": 281.68,
+      "clip_start": 276.0,
+      "clip_duration": 10.0,
+      "detector_expectation": "long_detector_compatible",
+      "expected_candidate_kind": "possible_repetition"
+    },
+    {
+      "id": "ami-is1001d-c-repeat-we-can-short-control",
+      "meeting": "IS1001d",
+      "speaker": "C",
+      "human_label": "removable_reparandum",
+      "annotation_type": "repeat",
+      "annotation_parent_id": "IS1001d.C.disfluency.alex.15",
+      "reparandum_annotation_id": "IS1001d.C.disfluency.alex.16",
+      "reparans_annotation_id": "IS1001d.C.disfluency.alex.17",
+      "reparandum_word_ids": ["IS1001d.C.words137", "IS1001d.C.words138"],
+      "reparans_word_ids": ["IS1001d.C.words139", "IS1001d.C.words140"],
+      "reparandum_text": "we can",
+      "reparans_text": "we can",
+      "reparandum_start": 494.09,
+      "reparandum_end": 494.33,
+      "reparans_start": 494.33,
+      "reparans_end": 494.65,
+      "clip_start": 490.0,
+      "clip_duration": 9.0,
+      "detector_expectation": "short_known_limitation",
+      "expected_candidate_kind": null
+    }
+  ]
+}
