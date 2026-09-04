@@ -1,5 +1,4 @@
 import importlib.util
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,6 +64,11 @@ class AmiRepeatDiscoveryTests(unittest.TestCase):
             encoding="utf-8",
         )
         return corpus
+
+    def test_normalisation_matches_production_contraction_token_count(self):
+        self.assertEqual(MODULE._normalise("Let's all"), "lets all")
+        self.assertEqual(MODULE._normalise("you can't"), "you cant")
+        self.assertEqual(len(MODULE._normalise("what I've").split()), 2)
 
     def test_discovers_exact_three_token_repeat_with_channel_and_timings(self):
         with tempfile.TemporaryDirectory() as temp:
