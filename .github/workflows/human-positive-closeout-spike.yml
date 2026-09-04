@@ -2,6 +2,9 @@ name: Human Positive Closeout Spike
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2d-human-positive-closeout
 
 concurrency:
   group: video-tunner-human-positive-closeout-${{ github.ref }}
