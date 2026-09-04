@@ -42,6 +42,8 @@ def render_from_plan(
     source: str | Path,
     plan: dict[str, Any],
     destination: str | Path,
+    *,
+    semantic_gate_authorized: bool = False,
 ) -> Path:
     source_path = Path(source).resolve()
     destination_path = Path(destination).resolve()
@@ -51,6 +53,11 @@ def render_from_plan(
         raise ValueError(
             "Una Edit Plan Proposal no es ejecutable; requiere aprobación global y "
             "materialización explícita de un Edit Plan."
+        )
+    if plan.get("record_type") == "semantic_edit_plan" and not semantic_gate_authorized:
+        raise ValueError(
+            "Un Semantic Edit Plan sólo puede renderizarse mediante el semantic render gate "
+            "que revalida analysis, proposal y autorización global."
         )
 
     duration = float(plan["source"]["duration_seconds"])

@@ -16,6 +16,11 @@ from .approval import (
     validate_approval_record,
 )
 from .edit_plan import MODE_SETTINGS, build_silence_plan, load_plan, save_plan
+from .execution_authorization import (
+    build_execution_authorization,
+    save_execution_authorization,
+    validate_execution_authorization,
+)
 from .ingest import ingest_video
 from .media import probe_media
 from .plan_proposal import (
@@ -24,6 +29,12 @@ from .plan_proposal import (
     save_edit_plan_proposal,
 )
 from .render import render_from_plan
+from .semantic_edit_plan import (
+    build_semantic_edit_plan,
+    save_semantic_edit_plan,
+    validate_semantic_edit_plan,
+)
+from .semantic_render import render_semantic_plan, validate_semantic_render_request
 from .silence import detect_silences
 from .sync import SyncDependencyError, SyncInsufficientSignalError
 from .tools import (
@@ -210,6 +221,112 @@ def cmd_proposal_build(args: argparse.Namespace) -> int:
     return 0 if proposal.get("status") == PROPOSAL_READY_STATUS else 3
 
 
+def cmd_execution_authorize(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    proposal = load_json_object(args.proposal)
+    record = build_execution_authorization(
+        analysis,
+        proposal,
+        decision=args.decision,
+        actor=args.actor,
+        reason=args.reason,
+        analysis_sha256=sha256_path(args.analysis),
+        proposal_sha256=sha256_path(args.proposal),
+    )
+    destination = save_execution_authorization(record, args.output)
+    _json({"execution_authorization": str(destination), "record": record})
+    return 0
+
+
+def cmd_execution_validate(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    proposal = load_json_object(args.proposal)
+    authorization = load_json_object(args.authorization)
+    validation = validate_execution_authorization(
+        analysis,
+        proposal,
+        authorization,
+        analysis_sha256=sha256_path(args.analysis),
+        proposal_sha256=sha256_path(args.proposal),
+    )
+    _json(validation)
+    return 0 if validation.get("valid") else 3
+
+
+def cmd_execution_materialize(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    proposal = load_json_object(args.proposal)
+    authorization = load_json_object(args.authorization)
+    plan = build_semantic_edit_plan(
+        analysis,
+        proposal,
+        authorization,
+        analysis_sha256=sha256_path(args.analysis),
+        proposal_sha256=sha256_path(args.proposal),
+        authorization_sha256=sha256_path(args.authorization),
+    )
+    destination = save_semantic_edit_plan(plan, args.output)
+    _json({"semantic_edit_plan": str(destination), "record": plan})
+    return 0
+
+
+def cmd_execution_plan_validate(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    proposal = load_json_object(args.proposal)
+    authorization = load_json_object(args.authorization)
+    plan = load_json_object(args.plan)
+    validation = validate_semantic_edit_plan(
+        analysis,
+        proposal,
+        authorization,
+        plan,
+        analysis_sha256=sha256_path(args.analysis),
+        proposal_sha256=sha256_path(args.proposal),
+        authorization_sha256=sha256_path(args.authorization),
+    )
+    _json(validation)
+    return 0 if validation.get("valid") else 3
+
+
+def cmd_execution_render_check(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    proposal = load_json_object(args.proposal)
+    authorization = load_json_object(args.authorization)
+    plan = load_json_object(args.plan)
+    validation = validate_semantic_render_request(
+        args.input,
+        analysis,
+        proposal,
+        authorization,
+        plan,
+        analysis_sha256=sha256_path(args.analysis),
+        proposal_sha256=sha256_path(args.proposal),
+        authorization_sha256=sha256_path(args.authorization),
+    )
+    _json(validation)
+    return 0 if validation.get("valid") else 3
+
+
+def cmd_execution_render(args: argparse.Namespace) -> int:
+    analysis = load_json_object(args.analysis)
+    proposal = load_json_object(args.proposal)
+    authorization = load_json_object(args.authorization)
+    plan = load_json_object(args.plan)
+    destination = render_semantic_plan(
+        args.input,
+        analysis,
+        proposal,
+        authorization,
+        plan,
+        args.output,
+        analysis_sha256=sha256_path(args.analysis),
+        proposal_sha256=sha256_path(args.proposal),
+        authorization_sha256=sha256_path(args.authorization),
+    )
+    print(destination)
+    return 0
+
+
 def cmd_render(args: argparse.Namespace) -> int:
     plan = load_plan(args.plan)
     destination = render_from_plan(args.input, plan, args.output)
@@ -359,7 +476,77 @@ def build_parser() -> argparse.ArgumentParser:
     proposal_build.add_argument("--output", default="approved_edit_plan_proposal.json")
     proposal_build.set_defaults(func=cmd_proposal_build)
 
-    render = sub.add_parser("render", help="Renderiza un vídeo a partir de un Edit Plan ejecutable.")
+    execution = sub.add_parser(
+        "execution",
+        help="Autoriza, materializa, valida y renderiza semantic edits mediante una cadena global stale-safe.",
+    )
+    execution_sub = execution.add_subparsers(dest="execution_command", required=True)
+
+    execution_authorize = execution_sub.add_parser(
+        "authorize",
+        help="Registra APPROVE/REJECT global sobre una proposal completa y exacta.",
+    )
+    execution_authorize.add_argument("analysis")
+    execution_authorize.add_argument("proposal")
+    execution_authorize.add_argument("--decision", required=True, choices=("approve", "reject"))
+    execution_authorize.add_argument("--actor", required=True)
+    execution_authorize.add_argument("--reason", required=True)
+    execution_authorize.add_argument("--output", default="semantic_execution_authorization.json")
+    execution_authorize.set_defaults(func=cmd_execution_authorize)
+
+    execution_validate = execution_sub.add_parser(
+        "validate",
+        help="Revalida la autorización global contra analysis y proposal actuales.",
+    )
+    execution_validate.add_argument("analysis")
+    execution_validate.add_argument("proposal")
+    execution_validate.add_argument("authorization")
+    execution_validate.set_defaults(func=cmd_execution_validate)
+
+    execution_materialize = execution_sub.add_parser(
+        "materialize",
+        help="Materializa un Semantic Edit Plan sólo desde autorización global vigente.",
+    )
+    execution_materialize.add_argument("analysis")
+    execution_materialize.add_argument("proposal")
+    execution_materialize.add_argument("authorization")
+    execution_materialize.add_argument("--output", default="semantic_edit_plan.json")
+    execution_materialize.set_defaults(func=cmd_execution_materialize)
+
+    execution_plan_validate = execution_sub.add_parser(
+        "plan-validate",
+        help="Revalida un Semantic Edit Plan materializado contra toda su provenance.",
+    )
+    execution_plan_validate.add_argument("analysis")
+    execution_plan_validate.add_argument("proposal")
+    execution_plan_validate.add_argument("authorization")
+    execution_plan_validate.add_argument("plan")
+    execution_plan_validate.set_defaults(func=cmd_execution_plan_validate)
+
+    execution_render_check = execution_sub.add_parser(
+        "render-check",
+        help="Ejecuta el semantic render gate sin lanzar FFmpeg.",
+    )
+    execution_render_check.add_argument("input")
+    execution_render_check.add_argument("analysis")
+    execution_render_check.add_argument("proposal")
+    execution_render_check.add_argument("authorization")
+    execution_render_check.add_argument("plan")
+    execution_render_check.set_defaults(func=cmd_execution_render_check)
+
+    execution_render = execution_sub.add_parser(
+        "render",
+        help="Renderiza semantic edits sólo después de revalidar source + cadena completa.",
+    )
+    execution_render.add_argument("input")
+    execution_render.add_argument("analysis")
+    execution_render.add_argument("proposal")
+    execution_render.add_argument("authorization")
+    execution_render.add_argument("plan")
+    execution_render.add_argument("output")
+    execution_render.set_defaults(func=cmd_execution_render)
+
+    render = sub.add_parser("render", help="Renderiza un vídeo desde un Edit Plan ordinario; Semantic Edit Plans requieren `execution render`.")
     render.add_argument("input")
     render.add_argument("plan")
     render.add_argument("output")
