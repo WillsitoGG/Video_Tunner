@@ -16,8 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install package
-        run: python -m pip install -e .
+      - name: Install analysis package
+        run: python -m pip install -e .[analysis]
       - name: Syntax preflight
         shell: pwsh
         run: |
