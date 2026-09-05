@@ -1,0 +1,76 @@
+name: Phase 2E ASR Deterministic Chunking Spike
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-phase2e-asr-chunking-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE2E_CHUNK_FIXTURE: tests\fixtures\phase2e_asr_chunking_spike_v1.json
+
+jobs:
+  windows-asr-chunking:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Preflight locked chunking policy and script
+        shell: pwsh
+        run: |
+          python -m py_compile .\.github\scripts\run_phase2e_asr_chunking_spike.py
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m unittest discover -s tests -p "test_phase2e_asr_chunking_spike_fixture.py" -v
+          Write-Host "PHASE2E_CHUNK_PREFLIGHT=PASS"
+
+      - name: Download licensed AMI speaker-specific sources
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1 -Fixture tests\fixtures\phase2e_human_render_closeout_ami_v1.json
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Build analysis portable
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+
+      - name: Run deterministic overlapping-window diagnostic
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          $ffmpeg = Join-Path $PWD "dist\Video_Tunner\Tools\ffmpeg\bin\ffmpeg.exe"
+          $output = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E ASR Chunking"
+          python .\.github\scripts\run_phase2e_asr_chunking_spike.py `
+            --fixture $env:PHASE2E_CHUNK_FIXTURE `
+            --model-stage $env:SPANISH_TARGET_MODEL_STAGE `
+            --ffmpeg $ffmpeg `
+            --output $output
+
+      - name: Upload lightweight chunking diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2e-asr-chunking-diagnostics
+          path: ${{ runner.temp }}\Video Tunner Phase2E ASR Chunking\manifest.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+
+      - name: Scope note
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Diagnostic only: canonical transcription remains unchanged."
+          Write-Host "Profiles are fixed absolute grids with 50% overlap; labels only score windows that the grid would generate anyway."
+          Write-Host "No detector threshold, semantic/join/acoustic/eligibility/promotion guard, execution limit or 5% removed-fraction limit is modified."
+          Write-Host "No approval, materialized edit or render is performed."
