@@ -2,6 +2,11 @@ name: Phase 2E AAC Master Center Diagnostic
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/triggers/phase2e-aac-master-center
 
 concurrency:
   group: video-tunner-phase2e-aac-master-center-${{ github.ref }}
