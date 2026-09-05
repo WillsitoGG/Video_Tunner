@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "purpose": "Phase 2E.5 human post-render close-out corpus. Cases are the three AMI exact-repetition positives that already reached foundation_guards_pass in the pre-existing Phase 2D.6 close-out run; selection is fixed before any Phase 2E.5 perceptual judgment.",
+  "license": "CC BY 4.0",
+  "provenance": {
+    "source_fixture": "tests/fixtures/human_positive_closeout_ami_v2.json",
+    "source_validation": "Validation/phase2d-human-positive-closeout.md",
+    "source_run": 33894995584,
+    "selection_rule": "Use exactly the three Phase 2D.6 cases recorded as foundation_guards_pass; do not add/remove cases after seeing Phase 2E.5 perceptual results.",
+    "selected_case_count": 3,
+    "selected_source_count": 2
+  },
+  "closeout_policy": {
+    "minimum_rendered_human_cases": 3,
+    "minimum_distinct_audio_sources": 2,
+    "required_technical_pass_fraction": 1.0,
+    "required_human_perceptual_pass_fraction": 1.0,
+    "maximum_safety_violations": 0,
+    "decision_if_all_pass": "CLOSE_OUT_READY",
+    "decision_if_any_fail": "INSUFFICIENT_JOIN_QUALITY",
+    "note": "These thresholds are committed before Phase 2E.5 listening evidence. A single perceptual FAIL keeps Phase 2E open and triggers join-treatment/hardening rather than threshold relaxation."
+  },
+  "audio_sources": {
+    "ES2002b-D": {
+      "meeting": "ES2002b",
+      "speaker": "D",
+      "channel": 3,
+      "source_kind": "individual_headset",
+      "audio": "ES2002b.Headset-3.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002b/audio/ES2002b.Headset-3.wav",
+      "expected_bytes": 72951852,
+      "expected_sha256": "B94F7B20C7B633AA37ED23CEB644C8376968CFAB1FADAA23FE47460194A46253"
+    },
+    "TS3005d-C": {
+      "meeting": "TS3005d",
+      "speaker": "C",
+      "channel": 2,
+      "source_kind": "individual_headset",
+      "audio": "TS3005d.Headset-2.wav",
+      "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3005d/audio/TS3005d.Headset-2.wav",
+      "expected_bytes": 85510444,
+      "expected_sha256": "1EC6AC109D322940E17D807213A95EE946AA5C160992628D8475FB0D7C60E3E3"
+    }
+  },
+  "cases": [
+    {
+      "id": "ami-es2002b-d-repeat-157",
+      "audio_source_id": "ES2002b-D",
+      "human_label": "removable_reparandum",
+      "reparandum_text": "what you've just told me",
+      "reparandum_start": 730.98,
+      "reparandum_end": 731.88,
+      "clip_start": 726.98,
+      "clip_duration": 9.62,
+      "expected_candidate_kind": "possible_repetition",
+      "expected_phase2d6_status": "foundation_guards_pass"
+    },
+    {
+      "id": "ami-ts3005d-c-repeat-298",
+      "audio_source_id": "TS3005d-C",
+      "human_label": "removable_reparandum",
+      "reparandum_text": "And then you can",
+      "reparandum_start": 1679.84,
+      "reparandum_end": 1681.26,
+      "clip_start": 1675.84,
+      "clip_duration": 9.88,
+      "expected_candidate_kind": "possible_repetition",
+      "expected_phase2d6_status": "foundation_guards_pass"
+    },
+    {
+      "id": "ami-es2002b-d-repeat-13",
+      "audio_source_id": "ES2002b-D",
+      "human_label": "removable_reparandum",
+      "reparandum_text": "a lot of",
+      "reparandum_start": 394.68,
+      "reparandum_end": 395.14,
+      "clip_start": 390.68,
+      "clip_duration": 8.8,
+      "expected_candidate_kind": "possible_repetition",
+      "expected_phase2d6_status": "foundation_guards_pass"
+    }
+  ]
+}
