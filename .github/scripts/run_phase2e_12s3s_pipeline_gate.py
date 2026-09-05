@@ -22,6 +22,10 @@ from video_tunner.transcription_profiles import (
 
 
 TIMING_TOLERANCE_SECONDS = 0.75
+ACOUSTIC_GATE_PASS_STATUSES = {
+    "acoustic_context_only",
+    "low_energy_boundary_context",
+}
 
 
 def _normalise_phrase(text: str | None) -> str:
@@ -62,8 +66,14 @@ def _load_json(path: str | Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def _linked_record(records: list[dict[str, Any]], candidate_id: str) -> dict[str, Any] | None:
-    matches = [item for item in records if str(item.get("candidate_id") or "") == candidate_id]
+def _linked_record(
+    records: list[dict[str, Any]], candidate_id: str
+) -> dict[str, Any] | None:
+    matches = [
+        item
+        for item in records
+        if str(item.get("candidate_id") or "") == candidate_id
+    ]
     return matches[0] if len(matches) == 1 else None
 
 
@@ -71,7 +81,9 @@ def _acoustic_for_join(
     records: list[dict[str, Any]], join_id: str
 ) -> dict[str, Any] | None:
     matches = [
-        item for item in records if str(item.get("join_assessment_id") or "") == join_id
+        item
+        for item in records
+        if str(item.get("join_assessment_id") or "") == join_id
     ]
     return matches[0] if len(matches) == 1 else None
 
@@ -89,7 +101,12 @@ def _safety_violations(analysis: dict[str, Any]) -> list[str]:
         "join_assessments": ("safe_for_cut", "executable", "auto_apply"),
         "acoustic_join_assessments": ("safe_for_cut", "executable", "auto_apply"),
         "eligibility_assessments": ("safe_for_cut", "executable", "auto_apply"),
-        "promotion_assessments": ("approved", "safe_for_cut", "executable", "auto_apply"),
+        "promotion_assessments": (
+            "approved",
+            "safe_for_cut",
+            "executable",
+            "auto_apply",
+        ),
     }
     for array_name, fields in array_rules.items():
         for index, item in enumerate(analysis.get(array_name) or []):
@@ -200,8 +217,16 @@ def _evaluate_case(
     strategy_ok = (
         int(transcript.get("schema_version") or 0) >= 2
         and strategy.get("name") == CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY
-        and abs(float(strategy.get("chunk_window_seconds")) - CHUNKED_TRANSCRIPTION_WINDOW_SECONDS) <= 1e-9
-        and abs(float(strategy.get("chunk_hop_seconds")) - CHUNKED_TRANSCRIPTION_12S_3S_HOP_SECONDS) <= 1e-9
+        and abs(
+            float(strategy.get("chunk_window_seconds"))
+            - CHUNKED_TRANSCRIPTION_WINDOW_SECONDS
+        )
+        <= 1e-9
+        and abs(
+            float(strategy.get("chunk_hop_seconds"))
+            - CHUNKED_TRANSCRIPTION_12S_3S_HOP_SECONDS
+        )
+        <= 1e-9
         and int(strategy.get("chunk_count") or 0) == expected_chunk_count
     )
 
@@ -231,12 +256,17 @@ def _evaluate_case(
     if promotion is not None:
         candidate_id = str(promotion.get("candidate_id") or "")
         candidate = _linked_record(analysis.get("candidates") or [], candidate_id)
-        decision = _linked_record(analysis.get("semantic_decisions") or [], candidate_id)
+        decision = _linked_record(
+            analysis.get("semantic_decisions") or [], candidate_id
+        )
         join = _linked_record(analysis.get("join_assessments") or [], candidate_id)
-        eligibility = _linked_record(analysis.get("eligibility_assessments") or [], candidate_id)
+        eligibility = _linked_record(
+            analysis.get("eligibility_assessments") or [], candidate_id
+        )
         if join is not None:
             acoustic = _acoustic_for_join(
-                analysis.get("acoustic_join_assessments") or [], str(join.get("id") or "")
+                analysis.get("acoustic_join_assessments") or [],
+                str(join.get("id") or ""),
             )
         target = promotion.get("target_preview") or {}
         manual_local_start = float(case["reparandum_start"]) - render_start
@@ -251,18 +281,23 @@ def _evaluate_case(
         layer_chain_ok = bool(
             candidate
             and candidate.get("kind") == case.get("expected_candidate_kind")
-            and _normalise_phrase((candidate.get("evidence") or {}).get("removed_text")) == expected_text
+            and _normalise_phrase(
+                (candidate.get("evidence") or {}).get("removed_text")
+            )
+            == expected_text
             and decision
             and decision.get("decision") == "PROPOSED_CUT"
             and decision.get("guard_status") == "pass"
             and join
             and join.get("status") == "join_context_only"
             and acoustic
-            and acoustic.get("status") == "acoustic_context_only"
+            and acoustic.get("status") in ACOUSTIC_GATE_PASS_STATUSES
             and bool(acoustic.get("measurement_available"))
             and eligibility
             and eligibility.get("status") == "foundation_guards_pass"
-            and bool((eligibility.get("removed_text_validation") or {}).get("valid"))
+            and bool(
+                (eligibility.get("removed_text_validation") or {}).get("valid")
+            )
             and bool(eligibility.get("future_promotion_candidate"))
             and bool(promotion.get("promotion_review_candidate"))
             and promotion.get("approval_state") == "required"
@@ -292,10 +327,14 @@ def _evaluate_case(
         "promotion_assessment_id": None if promotion is None else promotion.get("id"),
         "candidate_id": None if promotion is None else promotion.get("candidate_id"),
         "semantic_decision": None if decision is None else decision.get("decision"),
-        "semantic_guard_status": None if decision is None else decision.get("guard_status"),
+        "semantic_guard_status": None
+        if decision is None
+        else decision.get("guard_status"),
         "join_status": None if join is None else join.get("status"),
         "acoustic_status": None if acoustic is None else acoustic.get("status"),
-        "eligibility_status": None if eligibility is None else eligibility.get("status"),
+        "eligibility_status": None
+        if eligibility is None
+        else eligibility.get("status"),
         "target_text": None if target is None else target.get("text"),
         "target_start": None if target is None else target.get("start"),
         "target_end": None if target is None else target.get("end"),
@@ -335,7 +374,9 @@ def main() -> int:
     hard_failures: list[str] = []
     for case in spec.get("cases") or []:
         try:
-            results.append(_evaluate_case(case, case_root=case_root, ffmpeg=ffmpeg))
+            results.append(
+                _evaluate_case(case, case_root=case_root, ffmpeg=ffmpeg)
+            )
         except Exception as exc:
             case_id = str(case.get("id") or "unknown")
             message = f"{case_id}: {type(exc).__name__}: {exc}"
@@ -371,6 +412,7 @@ def main() -> int:
         "window_seconds": CHUNKED_TRANSCRIPTION_WINDOW_SECONDS,
         "hop_seconds": CHUNKED_TRANSCRIPTION_12S_3S_HOP_SECONDS,
         "timing_tolerance_seconds": TIMING_TOLERANCE_SECONDS,
+        "acoustic_gate_pass_statuses": sorted(ACOUSTIC_GATE_PASS_STATUSES),
         "required_cases": 3,
         "required_distinct_sources": 2,
         "cases": results,
@@ -381,7 +423,8 @@ def main() -> int:
         "product_default_changed": False,
         "cli_strategy_exposed": False,
         "detector_threshold_changed": False,
-        "downstream_guard_changed": False,
+        "downstream_guard_changed": True,
+        "downstream_guard_change_scope": "chunked exact-adjacent possible_repetition segment boundary only",
         "approval_created": False,
         "execution_authorization_created": False,
         "render_performed": False,
