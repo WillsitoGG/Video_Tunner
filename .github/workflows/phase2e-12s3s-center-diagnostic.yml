@@ -1,0 +1,71 @@
+name: Phase 2E 12s-3s Center Diagnostic
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-phase2e-12s3s-center-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE2E_HUMAN_FIXTURE: tests\fixtures\phase2e_human_render_closeout_ami_v1.json
+
+jobs:
+  windows-12s3s-center:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Preflight diagnostic
+        shell: pwsh
+        run: |
+          python -m py_compile .\.github\scripts\run_phase2e_12s3s_center_diagnostic.py
+          Write-Host "PHASE2E_12S3S_CENTER_PREFLIGHT=PASS"
+
+      - name: Install pinned analysis runtime
+        run: python -m pip install -e .[analysis]
+
+      - name: Download licensed AMI speaker-specific sources
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1 -Fixture $env:PHASE2E_HUMAN_FIXTURE
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Test precommitted 12s-3s owner windows
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          $env:HF_HUB_OFFLINE = "1"
+          $env:HF_HUB_DISABLE_XET = "1"
+          $output = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E 12s3s Center Diagnostic"
+          python .\.github\scripts\run_phase2e_12s3s_center_diagnostic.py `
+            --fixture $env:PHASE2E_HUMAN_FIXTURE `
+            --model-stage $env:SPANISH_TARGET_MODEL_STAGE `
+            --output $output
+
+      - name: Upload lightweight diagnostic manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2e-12s3s-center-diagnostic
+          path: ${{ runner.temp }}\Video Tunner Phase2E 12s3s Center Diagnostic\manifest.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+
+      - name: Scope note
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Diagnostic only. Profile 12s/3s and 3/3 success policy were fixed before inference."
+          Write-Host "No fuzzy merge, detector/guard change, approval, edit or render is performed."
