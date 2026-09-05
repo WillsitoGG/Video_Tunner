@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "phase": "2E-ASR-context-stability-spike",
+  "purpose": "Test whether disabling Whisper previous-text conditioning restores the same known removable exact repetitions when transcription context expands from the original Phase 2D.6 detector clips to the Phase 2E real-context windows. Diagnostic only; no product setting changes here.",
+  "source_fixture": "tests/fixtures/phase2e_human_render_closeout_ami_v1.json",
+  "source_diagnostic_run": 33957750498,
+  "locked_case_ids": [
+    "ami-es2002b-d-repeat-157",
+    "ami-ts3005d-c-repeat-298",
+    "ami-es2002b-d-repeat-13"
+  ],
+  "locked_settings": {
+    "model": "large-v3-turbo",
+    "language": "en",
+    "device": "cpu",
+    "compute_type": "int8",
+    "word_timestamps": true,
+    "vad_filter": false,
+    "semantic_mode": "conservative"
+  },
+  "arms": {
+    "baseline": {
+      "condition_on_previous_text": true,
+      "role": "Reproduce current production decoding behavior."
+    },
+    "challenger": {
+      "condition_on_previous_text": false,
+      "role": "Test decoder-window independence without changing any downstream detector or safety policy."
+    }
+  },
+  "success_policy": {
+    "required_challenger_long_exact_matches": 3,
+    "required_challenger_short_exact_matches": 3,
+    "required_case_count": 3,
+    "decision_if_pass": "CONDITIONING_OFF_CANDIDATE_FOR_FULL_PIPELINE_HARDENING",
+    "decision_if_fail": "CONDITIONING_OFF_REJECTED_OR_INSUFFICIENT",
+    "note": "Passing this spike does not authorize a production switch. It only justifies a subsequent full-pipeline and negative-corpus hardening gate. No detector threshold, semantic guard, join guard, acoustic guard, eligibility policy, promotion policy, execution limit or 5% removed-fraction limit may be relaxed based on this experiment."
+  }
+}
