@@ -2,11 +2,6 @@ name: Phase 2E Local Grid Phase Diagnostic
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2e-post-render-verification
-    paths:
-      - .github/triggers/phase2e-local-grid-phase
 
 concurrency:
   group: video-tunner-phase2e-local-grid-phase-${{ github.ref }}
