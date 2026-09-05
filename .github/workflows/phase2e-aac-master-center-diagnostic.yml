@@ -1,0 +1,85 @@
+name: Phase 2E AAC Master Center Diagnostic
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-phase2e-aac-master-center-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE2E_HUMAN_FIXTURE: tests\fixtures\phase2e_human_render_closeout_ami_v1.json
+
+jobs:
+  windows-aac-master-center:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Preflight diagnostic
+        shell: pwsh
+        run: |
+          python -m py_compile .\.github\scripts\run_phase2e_aac_master_center_diagnostic.py
+          Write-Host "PHASE2E_AAC_MASTER_CENTER_PREFLIGHT=PASS"
+
+      - name: Install pinned analysis runtime
+        run: python -m pip install -e .[analysis]
+
+      - name: Ensure FFmpeg is available for diagnostic media construction
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --no-progress -y
+          }
+          $ffmpeg = (Get-Command ffmpeg).Source
+          $ffmpegDir = Split-Path $ffmpeg -Parent
+          "VIDEO_TUNNER_FFMPEG_DIR=$ffmpegDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PHASE2E_DIAGNOSTIC_FFMPEG=$ffmpeg" | Out-File -FilePath $env:GITHUB_ENV -Append
+          ffmpeg -version | Select-Object -First 1
+
+      - name: Download licensed AMI speaker-specific sources
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1 -Fixture $env:PHASE2E_HUMAN_FIXTURE
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Test center window after AAC and product master ingest
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          $env:HF_HUB_OFFLINE = "1"
+          $env:HF_HUB_DISABLE_XET = "1"
+          $output = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E AAC Master Center Diagnostic"
+          python .\.github\scripts\run_phase2e_aac_master_center_diagnostic.py `
+            --fixture $env:PHASE2E_HUMAN_FIXTURE `
+            --model-stage $env:SPANISH_TARGET_MODEL_STAGE `
+            --ffmpeg $env:PHASE2E_DIAGNOSTIC_FFMPEG `
+            --output $output
+
+      - name: Upload lightweight diagnostic manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2e-aac-master-center-diagnostic
+          path: ${{ runner.temp }}\Video Tunner Phase2E AAC Master Center Diagnostic\manifest.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+
+      - name: Scope note
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Diagnostic only: three 12-second Whisper windows after AAC MP4 and product master ingest."
+          Write-Host "No canonical merge, detector/guard, approval, edit or render policy is changed."
+          Write-Host "System FFmpeg may be used; this run is not portable-release evidence."
