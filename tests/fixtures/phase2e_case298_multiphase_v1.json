@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "record_type": "phase2e_case298_multiphase_diagnostic_spec",
+  "source_fixture": "tests/fixtures/phase2e_human_render_closeout_ami_v1.json",
+  "case_id": "ami-ts3005d-c-repeat-298",
+  "purpose": "Test whether the known AAC/master ASR miss is sensitive to a fixed phase shift without selecting windows from the human label.",
+  "grid": {
+    "window_seconds": 12.0,
+    "hop_seconds": 3.0,
+    "phase_offsets_seconds": [0.0, 1.0, 2.0],
+    "transcribe_all_windows": true
+  },
+  "decoder": {
+    "model": "large-v3-turbo",
+    "language": "en",
+    "device": "cpu",
+    "compute_type": "int8",
+    "word_timestamps": true,
+    "vad_filter": false,
+    "condition_on_previous_text": true
+  },
+  "evaluation": {
+    "candidate_kind": "possible_repetition",
+    "timing_tolerance_seconds": 0.75,
+    "success_measure": "exact human reparandum recovered with aligned timing in at least one precommitted window",
+    "product_decision_if_recovered": "diagnostic_only_do_not_select_winning_phase",
+    "product_decision_if_not_recovered": "phase_shift_not_supported_as_solution"
+  },
+  "safety": {
+    "product_default_changed": false,
+    "cli_strategy_exposed": false,
+    "detector_threshold_changed": false,
+    "downstream_guard_changed": false,
+    "approval_created": false,
+    "execution_authorization_created": false,
+    "render_performed": false
+  }
+}
