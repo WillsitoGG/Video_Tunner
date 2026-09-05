@@ -1,6 +1,9 @@
 name: Phase 2E Context Stability Spike
 
 on:
+  push:
+    branches:
+      - phase2e-post-render-verification
   workflow_dispatch:
 
 concurrency:
