@@ -8,7 +8,19 @@
     "source_run": 33894995584,
     "selection_rule": "Use exactly the three Phase 2D.6 cases recorded as foundation_guards_pass; do not add/remove cases after seeing Phase 2E.5 perceptual results.",
     "selected_case_count": 3,
-    "selected_source_count": 2
+    "selected_source_count": 2,
+    "render_window_rule": "For execution validation only, use real speaker-specific AMI audio from exactly 20.0 seconds before the manual reparandum start through exactly 20.0 seconds after its end. This replaces the short Phase 2D.6 detector clip only for render validation so the pre-existing 5% global removed-fraction limit is evaluated on representative real context; no selected case, human label, semantic/acoustic threshold or global limit is changed.",
+    "render_context_before_seconds": 20.0,
+    "render_context_after_seconds": 20.0,
+    "first_heavy_run_diagnostic": {
+      "run": 33957081382,
+      "case": "ami-es2002b-d-repeat-157",
+      "result": "blocked_global_limits",
+      "blocker": "max_removed_fraction_exceeded",
+      "actual_removed_fraction": 0.097713098,
+      "global_limit": 0.05,
+      "interpretation": "Harness-duration mismatch on the 9.62s Phase 2D.6 detector clip; the product safety limit worked as designed and remains unchanged."
+    }
   },
   "closeout_policy": {
     "minimum_rendered_human_cases": 3,
@@ -52,6 +64,8 @@
       "reparandum_end": 731.88,
       "clip_start": 726.98,
       "clip_duration": 9.62,
+      "render_clip_start": 710.98,
+      "render_clip_duration": 40.9,
       "expected_candidate_kind": "possible_repetition",
       "expected_phase2d6_status": "foundation_guards_pass"
     },
@@ -64,6 +78,8 @@
       "reparandum_end": 1681.26,
       "clip_start": 1675.84,
       "clip_duration": 9.88,
+      "render_clip_start": 1659.84,
+      "render_clip_duration": 41.42,
       "expected_candidate_kind": "possible_repetition",
       "expected_phase2d6_status": "foundation_guards_pass"
     },
@@ -76,6 +92,8 @@
       "reparandum_end": 395.14,
       "clip_start": 390.68,
       "clip_duration": 8.8,
+      "render_clip_start": 374.68,
+      "render_clip_duration": 40.46,
       "expected_candidate_kind": "possible_repetition",
       "expected_phase2d6_status": "foundation_guards_pass"
     }
