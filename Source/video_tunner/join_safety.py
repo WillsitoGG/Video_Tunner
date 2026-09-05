@@ -44,7 +44,11 @@ def _text(words: list[WordTiming]) -> str:
     return " ".join(word.text for word in words).strip()
 
 
-def _word_record(word: WordTiming | None, index: int | None, segment_index: int | None) -> dict[str, Any] | None:
+def _word_record(
+    word: WordTiming | None,
+    index: int | None,
+    segment_index: int | None,
+) -> dict[str, Any] | None:
     if word is None or index is None or segment_index is None:
         return None
     return {
@@ -57,7 +61,9 @@ def _word_record(word: WordTiming | None, index: int | None, segment_index: int 
     }
 
 
-def _span_from_candidate(candidate: dict[str, Any], words: list[WordTiming]) -> dict[str, Any] | None:
+def _span_from_candidate(
+    candidate: dict[str, Any], words: list[WordTiming]
+) -> dict[str, Any] | None:
     evidence = candidate.get("evidence") or {}
     try:
         start = int(evidence["word_start_index"])
@@ -91,7 +97,9 @@ def _span_from_candidate(candidate: dict[str, Any], words: list[WordTiming]) -> 
     }
 
 
-def _span_from_filler_candidate(candidate: dict[str, Any], words: list[WordTiming]) -> dict[str, Any] | None:
+def _span_from_filler_candidate(
+    candidate: dict[str, Any], words: list[WordTiming]
+) -> dict[str, Any] | None:
     try:
         candidate_start = float(candidate["start"])
         candidate_end = float(candidate["end"])
@@ -127,7 +135,8 @@ def _span_from_correction_scope(
         (
             item
             for item in correction_scopes
-            if item.get("candidate_id") == candidate_id and item.get("status") == "bounded"
+            if item.get("candidate_id") == candidate_id
+            and item.get("status") == "bounded"
         ),
         None,
     )
@@ -143,9 +152,13 @@ def _span_from_correction_scope(
         return None
     if start < 0 or marker_start < start or end <= marker_start or end > len(words):
         return None
-    if _normalised_phrase(_text(words[start:marker_start])) != _normalised_phrase(str(attempt.get("text") or "")):
+    if _normalised_phrase(_text(words[start:marker_start])) != _normalised_phrase(
+        str(attempt.get("text") or "")
+    ):
         return None
-    if _normalised_phrase(_text(words[marker_start:end])) != _normalised_phrase(str(marker.get("text") or "")):
+    if _normalised_phrase(_text(words[marker_start:end])) != _normalised_phrase(
+        str(marker.get("text") or "")
+    ):
         return None
     return {
         "start_index": start,
@@ -211,7 +224,60 @@ def _has_critical_features(features: dict[str, list[str]]) -> bool:
 
 
 def _strong_punctuation_boundary(left: WordTiming, right: WordTiming) -> bool:
-    return left.text.rstrip().endswith(STRONG_BOUNDARY_ENDINGS) or right.text.lstrip().startswith(("¿", "¡"))
+    return left.text.rstrip().endswith(STRONG_BOUNDARY_ENDINGS) or right.text.lstrip().startswith(
+        ("¿", "¡")
+    )
+
+
+def _is_chunked_exact_adjacent_repetition(
+    transcript: TranscriptResult,
+    candidate: dict[str, Any],
+    words: list[WordTiming],
+    *,
+    right_index: int,
+) -> bool:
+    """Identify the narrow case where chunk segmentation alone is not a join veto.
+
+    The semantic detector already proves an exact adjacent repetition. For a
+    chunked transcript, an ASR segment boundary can be introduced mechanically by
+    chunk ownership. We therefore preserve the boundary as evidence but do not let
+    it block this exact-repeat pattern by itself. Single-pass transcripts retain
+    the original segment-boundary guard unchanged.
+    """
+    if transcript.strategy == "single_pass":
+        return False
+    if str(candidate.get("kind") or "") != "possible_repetition":
+        return False
+
+    evidence = candidate.get("evidence") or {}
+    if str(evidence.get("keep_occurrence") or "") != "later":
+        return False
+    try:
+        start = int(evidence["word_start_index"])
+        end = int(evidence["word_end_index_exclusive"])
+        repeat_tokens = int(evidence["repeat_token_count"])
+    except (KeyError, TypeError, ValueError):
+        return False
+
+    if start < 0 or end <= start or repeat_tokens <= 0:
+        return False
+    if end - start != repeat_tokens or right_index != end:
+        return False
+    second_end = end + repeat_tokens
+    if second_end > len(words):
+        return False
+
+    first_words = words[start:end]
+    second_words = words[end:second_end]
+    first = _normalised_phrase(_text(first_words))
+    second = _normalised_phrase(_text(second_words))
+    if not first or first != second:
+        return False
+
+    first_evidence = _normalised_phrase(str(evidence.get("first_occurrence_text") or ""))
+    second_evidence = _normalised_phrase(str(evidence.get("second_occurrence_text") or ""))
+    removed = _normalised_phrase(str(evidence.get("removed_text") or ""))
+    return first == first_evidence == second_evidence == removed
 
 
 def _assessment(
@@ -290,7 +356,9 @@ def build_join_assessments(
                 left_index = int(target_span["start_index"]) - 1
                 right_index = int(target_span["end_index_exclusive"])
         elif kind == "explicit_correction":
-            target_span = _span_from_correction_scope(str(candidate.get("id") or ""), correction_scopes, words)
+            target_span = _span_from_correction_scope(
+                str(candidate.get("id") or ""), correction_scopes, words
+            )
             if target_span is not None:
                 left_index = int(target_span["start_index"]) - 1
                 right_index = int(target_span["end_index_exclusive"])
@@ -320,10 +388,14 @@ def build_join_assessments(
         right_valid = right_index is not None and 0 <= right_index < len(words)
         if not left_valid or not right_valid:
             left_record = (
-                _word_record(words[left_index], left_index, segment_indexes[left_index]) if left_valid else None
+                _word_record(words[left_index], left_index, segment_indexes[left_index])
+                if left_valid
+                else None
             )
             right_record = (
-                _word_record(words[right_index], right_index, segment_indexes[right_index]) if right_valid else None
+                _word_record(words[right_index], right_index, segment_indexes[right_index])
+                if right_valid
+                else None
             )
             results.append(
                 _assessment(
@@ -343,16 +415,26 @@ def build_join_assessments(
         right_word = words[right_index]
         left_segment = segment_indexes[left_index]
         right_segment = segment_indexes[right_index]
-        left_window = words[max(0, left_index - JOIN_CRITICAL_WINDOW + 1):left_index + 1]
-        right_window = words[right_index:min(len(words), right_index + JOIN_CRITICAL_WINDOW)]
+        left_window = words[max(0, left_index - JOIN_CRITICAL_WINDOW + 1) : left_index + 1]
+        right_window = words[right_index : min(len(words), right_index + JOIN_CRITICAL_WINDOW)]
         left_features = _critical_token_features(left_window)
         right_features = _critical_token_features(right_window)
         critical = _has_critical_features(left_features) or _has_critical_features(right_features)
         segment_boundary = left_segment != right_segment
         punctuation_boundary = _strong_punctuation_boundary(left_word, right_word)
+        chunked_exact_repeat_boundary_exception = segment_boundary and _is_chunked_exact_adjacent_repetition(
+            transcript,
+            candidate,
+            words,
+            right_index=right_index,
+        )
 
         filler_context = next(
-            (item for item in filler_assessments if item.get("candidate_id") == candidate.get("id")),
+            (
+                item
+                for item in filler_assessments
+                if item.get("candidate_id") == candidate.get("id")
+            ),
             None,
         )
         protected_filler = filler_context is not None and filler_context.get("status") in {
@@ -374,7 +456,7 @@ def build_join_assessments(
             rationale = [
                 "Hay cifras/unidades/negación/persona/tiempo/causalidad junto al join hipotético."
             ]
-        elif segment_boundary:
+        elif segment_boundary and not chunked_exact_repeat_boundary_exception:
             status = "segment_boundary_risk"
             rationale = [
                 "Los lados del join pertenecen a segmentos ASR distintos; esta frontera no debe colapsarse sin revisión."
@@ -383,6 +465,11 @@ def build_join_assessments(
             status = "sentence_boundary_risk"
             rationale = [
                 "La puntuación ASR aporta una señal de posible frontera de frase; se conserva como riesgo, no como verdad absoluta."
+            ]
+        elif chunked_exact_repeat_boundary_exception:
+            status = "join_context_only"
+            rationale = [
+                "La única guarda activada era una frontera de segmento ASR en una repetición exacta adyacente de transcript chunked; se conserva como evidencia pero no actúa como veto autónomo."
             ]
         else:
             status = "join_context_only"
@@ -399,11 +486,15 @@ def build_join_assessments(
             "right_gap_from_target_seconds": round(max(0.0, right_word.start - target_end), 6),
             "target_duration_seconds": round(max(0.0, target_end - target_start), 6),
             "segment_boundary": segment_boundary,
+            "segment_boundary_nonblocking_chunked_exact_repetition": chunked_exact_repeat_boundary_exception,
+            "transcription_strategy": transcript.strategy,
             "punctuation_boundary": punctuation_boundary,
             "critical_features_left": left_features,
             "critical_features_right": right_features,
             "repair_kind": repair_kind,
-            "filler_context_status": None if filler_context is None else filler_context.get("status"),
+            "filler_context_status": None
+            if filler_context is None
+            else filler_context.get("status"),
         }
         results.append(
             _assessment(
