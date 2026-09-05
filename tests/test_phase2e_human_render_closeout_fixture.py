@@ -46,7 +46,7 @@ class Phase2EHumanRenderCloseoutFixtureTests(unittest.TestCase):
             self.assertEqual(len(digest), 64)
             self.assertTrue(all(ch in "0123456789ABCDEF" for ch in digest))
 
-    def test_every_case_has_valid_clip_and_manual_span(self):
+    def test_every_case_preserves_original_phase2d6_clip_and_manual_span(self):
         for case in self.spec["cases"]:
             clip_start = float(case["clip_start"])
             clip_duration = float(case["clip_duration"])
@@ -57,6 +57,25 @@ class Phase2EHumanRenderCloseoutFixtureTests(unittest.TestCase):
             self.assertGreaterEqual(manual_start, clip_start)
             self.assertLessEqual(manual_end, clip_start + clip_duration)
             self.assertIn(case["audio_source_id"], EXPECTED_SOURCES)
+
+    def test_render_windows_follow_exact_20_second_real_context_rule(self):
+        provenance = self.spec["provenance"]
+        self.assertEqual(provenance["render_context_before_seconds"], 20.0)
+        self.assertEqual(provenance["render_context_after_seconds"], 20.0)
+        diagnostic = provenance["first_heavy_run_diagnostic"]
+        self.assertEqual(diagnostic["run"], 33957081382)
+        self.assertEqual(diagnostic["blocker"], "max_removed_fraction_exceeded")
+        self.assertEqual(diagnostic["global_limit"], 0.05)
+
+        for case in self.spec["cases"]:
+            manual_start = float(case["reparandum_start"])
+            manual_end = float(case["reparandum_end"])
+            render_start = float(case["render_clip_start"])
+            render_duration = float(case["render_clip_duration"])
+            render_end = render_start + render_duration
+            self.assertAlmostEqual(render_start, manual_start - 20.0, places=6)
+            self.assertAlmostEqual(render_end, manual_end + 20.0, places=6)
+            self.assertGreaterEqual(render_duration, 40.0)
 
 
 if __name__ == "__main__":
