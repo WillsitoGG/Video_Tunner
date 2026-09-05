@@ -2,6 +2,11 @@ name: Phase 2E 12s-3s Pipeline Gate
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/triggers/phase2e-12s3s-pipeline
 
 concurrency:
   group: video-tunner-phase2e-12s3s-pipeline-${{ github.ref }}
