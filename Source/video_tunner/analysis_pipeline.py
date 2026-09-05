@@ -31,6 +31,10 @@ from .transcription import (
     write_transcript_json,
     write_transcript_txt,
 )
+from .transcription_profiles import (
+    CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY,
+    transcribe_audio_chunked_12s_3s,
+)
 from .vad import detect_speech
 
 MASTER_DURATION_TOLERANCE_SECONDS = 0.15
@@ -39,6 +43,7 @@ SINGLE_PASS_TRANSCRIPTION_STRATEGY = "single_pass"
 ALLOWED_TRANSCRIPTION_STRATEGIES = {
     SINGLE_PASS_TRANSCRIPTION_STRATEGY,
     CHUNKED_TRANSCRIPTION_STRATEGY,
+    CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY,
 }
 
 
@@ -127,6 +132,8 @@ def _transcribe_master_audio(
         transcriber = transcribe_audio
     elif transcription_strategy == CHUNKED_TRANSCRIPTION_STRATEGY:
         transcriber = transcribe_audio_chunked
+    elif transcription_strategy == CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY:
+        transcriber = transcribe_audio_chunked_12s_3s
     else:
         allowed = ", ".join(sorted(ALLOWED_TRANSCRIPTION_STRATEGIES))
         raise ValueError(
@@ -169,7 +176,7 @@ def analyze_spoken_video(
 
     The transcription strategy is an internal Phase 2E hardening gate. The
     product/CLI default remains single-pass unless later evidence explicitly
-    promotes the deterministic overlap strategy.
+    promotes a deterministic overlap strategy.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
