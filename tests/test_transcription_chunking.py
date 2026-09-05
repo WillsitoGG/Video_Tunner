@@ -35,6 +35,35 @@ class DeterministicChunkWindowTests(unittest.TestCase):
         for left, right in zip(windows, windows[1:]):
             self.assertEqual(left.ownership_end, right.ownership_start)
 
+    def test_12_3_ownership_tiles_timeline_with_more_central_context(self):
+        windows = build_transcription_chunk_windows(25.0, window_seconds=12.0, hop_seconds=3.0)
+        self.assertEqual(
+            [(item.start, item.end) for item in windows],
+            [
+                (0.0, 12.0),
+                (3.0, 15.0),
+                (6.0, 18.0),
+                (9.0, 21.0),
+                (12.0, 24.0),
+                (15.0, 25.0),
+                (18.0, 25.0),
+            ],
+        )
+        self.assertEqual(
+            [(item.ownership_start, item.ownership_end) for item in windows],
+            [
+                (0.0, 7.5),
+                (7.5, 10.5),
+                (10.5, 13.5),
+                (13.5, 16.5),
+                (16.5, 19.5),
+                (19.5, 22.5),
+                (22.5, 25.0),
+            ],
+        )
+        for left, right in zip(windows, windows[1:]):
+            self.assertEqual(left.ownership_end, right.ownership_start)
+
     def test_short_audio_is_one_owned_window(self):
         windows = build_transcription_chunk_windows(8.5)
         self.assertEqual(len(windows), 1)
