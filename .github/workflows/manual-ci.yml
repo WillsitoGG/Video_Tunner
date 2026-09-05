@@ -2,11 +2,6 @@ name: Manual CI
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2e-post-render-verification
-    paths:
-      - .github/triggers/phase2e-core-gate
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
