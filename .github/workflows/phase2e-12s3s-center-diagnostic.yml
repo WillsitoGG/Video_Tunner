@@ -2,11 +2,6 @@ name: Phase 2E 12s-3s Center Diagnostic
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2e-post-render-verification
-    paths:
-      - .github/triggers/phase2e-12s3s-center
 
 concurrency:
   group: video-tunner-phase2e-12s3s-center-${{ github.ref }}
