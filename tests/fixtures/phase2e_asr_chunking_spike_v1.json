@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "phase": "2E-ASR-deterministic-chunking-spike",
+  "purpose": "Test whether deterministic overlapping local ASR windows recover the same three known human-removable repetitions that are stable in short Phase 2D.6 clips but disappear in 40s context. Diagnostic only; no canonical transcription or product execution behavior is changed here.",
+  "source_fixture": "tests/fixtures/phase2e_human_render_closeout_ami_v1.json",
+  "source_ab_run": 33966743013,
+  "locked_case_ids": [
+    "ami-es2002b-d-repeat-157",
+    "ami-ts3005d-c-repeat-298",
+    "ami-es2002b-d-repeat-13"
+  ],
+  "locked_settings": {
+    "model": "large-v3-turbo",
+    "language": "en",
+    "device": "cpu",
+    "compute_type": "int8",
+    "word_timestamps": true,
+    "vad_filter": false,
+    "condition_on_previous_text": true,
+    "semantic_mode": "conservative",
+    "human_timing_tolerance_seconds": 0.75,
+    "grid_origin_seconds": 0.0
+  },
+  "profiles_in_preference_order": [
+    {
+      "id": "w16_h8",
+      "window_seconds": 16.0,
+      "hop_seconds": 8.0,
+      "overlap_fraction": 0.5
+    },
+    {
+      "id": "w12_h6",
+      "window_seconds": 12.0,
+      "hop_seconds": 6.0,
+      "overlap_fraction": 0.5
+    },
+    {
+      "id": "w10_h5",
+      "window_seconds": 10.0,
+      "hop_seconds": 5.0,
+      "overlap_fraction": 0.5
+    }
+  ],
+  "success_policy": {
+    "required_recovered_human_cases": 3,
+    "required_case_count": 3,
+    "profile_selection_rule": "Evaluate profiles in committed order and select the first profile that recovers all three human cases. Each profile uses a fixed absolute grid from t=0 and independent windows; labels are used only to score windows that the deterministic grid would have produced anyway.",
+    "decision_if_profile_passes": "DETERMINISTIC_CHUNKING_CANDIDATE_FOR_PIPELINE_HARDENING",
+    "decision_if_all_fail": "DETERMINISTIC_CHUNKING_REJECTED_OR_INSUFFICIENT",
+    "note": "Passing this spike does not authorize a production transcription change. It only justifies implementation/hardening of deterministic overlap plus deduplication. No semantic detector threshold, join/acoustic/eligibility/promotion guard, execution limit or 5% removed-fraction limit may be relaxed."
+  }
+}
