@@ -1,9 +1,6 @@
 name: Phase 2E Human Render Closeout
 
 on:
-  push:
-    branches:
-      - phase2e-post-render-verification
   workflow_dispatch:
 
 concurrency:
