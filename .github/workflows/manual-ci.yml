@@ -1,6 +1,9 @@
 name: Manual CI
 
 on:
+  push:
+    branches:
+      - phase2e-post-render-verification
   workflow_dispatch:
 
 concurrency:
