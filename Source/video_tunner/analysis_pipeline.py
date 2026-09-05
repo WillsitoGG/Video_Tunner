@@ -24,7 +24,9 @@ from .semantic_candidates import build_semantic_candidates
 from .semantic_decisions import build_semantic_decisions
 from .semantic_report import attach_semantic_decisions
 from .transcription import (
+    CHUNKED_TRANSCRIPTION_STRATEGY,
     transcribe_audio,
+    transcribe_audio_chunked,
     write_srt,
     write_transcript_json,
     write_transcript_txt,
@@ -33,6 +35,11 @@ from .vad import detect_speech
 
 MASTER_DURATION_TOLERANCE_SECONDS = 0.15
 READY_INGEST_STATUSES = {"ready", "ready_auto", "ready_manual"}
+SINGLE_PASS_TRANSCRIPTION_STRATEGY = "single_pass"
+ALLOWED_TRANSCRIPTION_STRATEGIES = {
+    SINGLE_PASS_TRANSCRIPTION_STRATEGY,
+    CHUNKED_TRANSCRIPTION_STRATEGY,
+}
 
 
 def _load_ingest_report(path: str | Path) -> dict[str, Any]:
@@ -107,6 +114,34 @@ def _append_semantic_candidates(
     candidates.sort(key=lambda item: (float(item["start"]), float(item["end"]), item["kind"]))
 
 
+def _transcribe_master_audio(
+    master_path: Path,
+    *,
+    transcription_strategy: str,
+    model_name: str,
+    language: str | None,
+    device: str,
+    compute_type: str,
+):
+    if transcription_strategy == SINGLE_PASS_TRANSCRIPTION_STRATEGY:
+        transcriber = transcribe_audio
+    elif transcription_strategy == CHUNKED_TRANSCRIPTION_STRATEGY:
+        transcriber = transcribe_audio_chunked
+    else:
+        allowed = ", ".join(sorted(ALLOWED_TRANSCRIPTION_STRATEGIES))
+        raise ValueError(
+            f"Estrategia de transcripción desconocida: {transcription_strategy!r}. "
+            f"Permitidas: {allowed}."
+        )
+    return transcriber(
+        master_path,
+        model_name=model_name,
+        language=language,
+        device=device,
+        compute_type=compute_type,
+    )
+
+
 def analyze_spoken_video(
     source: str | Path,
     output_dir: str | Path,
@@ -121,6 +156,7 @@ def analyze_spoken_video(
     manual_drift_ppm: float = 0.0,
     master_audio: str | Path | None = None,
     ingest_report_path: str | Path | None = None,
+    transcription_strategy: str = SINGLE_PASS_TRANSCRIPTION_STRATEGY,
 ) -> dict[str, Any]:
     """Resolve master audio and emit separate non-executable analysis layers.
 
@@ -130,9 +166,19 @@ def analyze_spoken_video(
     eligibility assessments and promotion assessments remain separate layers.
     Promotion assessments are review-only in Phase 2E.1: they are never approved,
     executable or converted into Edit Plan edits here.
+
+    The transcription strategy is an internal Phase 2E hardening gate. The
+    product/CLI default remains single-pass unless later evidence explicitly
+    promotes the deterministic overlap strategy.
     """
     if mode not in MODE_SETTINGS:
         raise ValueError(f"Modo desconocido: {mode}")
+    if transcription_strategy not in ALLOWED_TRANSCRIPTION_STRATEGIES:
+        allowed = ", ".join(sorted(ALLOWED_TRANSCRIPTION_STRATEGIES))
+        raise ValueError(
+            f"Estrategia de transcripción desconocida: {transcription_strategy!r}. "
+            f"Permitidas: {allowed}."
+        )
 
     source_path = Path(source)
     output_root = Path(output_dir)
@@ -185,8 +231,9 @@ def analyze_spoken_video(
         _validate_master_timeline(source_path, source_probe, master_path, master_probe)
         _validate_ingest_provenance(source_path, master_path, ingest_report)
 
-    transcript = transcribe_audio(
+    transcript = _transcribe_master_audio(
         master_path,
+        transcription_strategy=transcription_strategy,
         model_name=model_name,
         language=language,
         device=device,
