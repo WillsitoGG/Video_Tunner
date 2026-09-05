@@ -2,11 +2,6 @@ name: Phase 2E Chunked Pipeline Gate
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2e-post-render-verification
-    paths:
-      - .github/triggers/phase2e-chunked-pipeline-gate
 
 concurrency:
   group: video-tunner-phase2e-chunked-pipeline-${{ github.ref }}
