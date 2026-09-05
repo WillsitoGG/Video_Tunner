@@ -2,6 +2,9 @@ name: Phase 2E ASR Context A-B Spike
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2e-post-render-verification
 
 concurrency:
   group: video-tunner-phase2e-asr-context-ab-${{ github.ref }}
