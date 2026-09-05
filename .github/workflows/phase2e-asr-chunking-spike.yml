@@ -2,9 +2,6 @@ name: Phase 2E ASR Deterministic Chunking Spike
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2e-post-render-verification
 
 concurrency:
   group: video-tunner-phase2e-asr-chunking-${{ github.ref }}
