@@ -99,12 +99,17 @@ foreach ($case in @($spec.cases)) {
     $inputVideo = Join-Path $root "$id.mp4"
     $renderedVideo = Join-Path $root "${id}_rendered.mp4"
 
+    # The short ~9s Phase 2D.6 clips were detector fixtures, not execution-scale media.
+    # Phase 2E.5 uses a deterministic 20s-before/20s-after window of the same real
+    # speaker-specific AMI source. The pre-existing 5% global limit is not changed.
+    $renderClipStart = [double]$case.render_clip_start
+    $renderClipDuration = [double]$case.render_clip_duration
     & $ffmpeg -hide_banner -loglevel error -y `
-        -ss ([string]$case.clip_start) -t ([string]$case.clip_duration) -i $sourceWav `
+        -ss ([string]$renderClipStart) -t ([string]$renderClipDuration) -i $sourceWav `
         -ac 1 -ar 16000 -c:a pcm_s16le $clipWav
     if ($LASTEXITCODE -ne 0) { throw "No se pudo extraer $id." }
     $duration = [double](& $ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 $clipWav)
-    if ($duration -lt 5.0) { throw "Clip demasiado corto para ${id}: $duration" }
+    if ($duration -lt 40.0) { throw "Ventana real de render demasiado corta para ${id}: $duration" }
 
     & $ffmpeg -hide_banner -loglevel error -y `
         -f lavfi -i "color=c=black:s=320x240:r=25:d=$duration" `
@@ -154,6 +159,13 @@ foreach ($case in @($spec.cases)) {
 
     & $exe proposal build $analysisPath --approval $approvalPath --output $proposalPath | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Proposal falló para $id." }
+    $proposal = Get-Content $proposalPath -Raw | ConvertFrom-Json
+    if ([string]$proposal.status -ne "proposal_ready_for_global_review") {
+        throw "$id proposal no quedó lista: $($proposal.status)"
+    }
+    if ([double]$proposal.summary.removed_fraction -gt 0.05 + 1e-9) {
+        throw "$id proposal excede inesperadamente el límite 5% tras usar contexto real."
+    }
 
     & $exe execution authorize $analysisPath $proposalPath `
         --decision approve `
@@ -204,7 +216,10 @@ foreach ($case in @($spec.cases)) {
         audio_source_id = $sourceId
         human_label = [string]$case.human_label
         expected_removed_text = [string]$case.reparandum_text
+        render_clip_start = $renderClipStart
+        render_clip_duration = $renderClipDuration
         promotion_assessment_id = [string]$promotion.id
+        proposal_removed_fraction = [double]$proposal.summary.removed_fraction
         technical_pass = [bool]$technical.technical_pass
         technical_status = [string]$technical.status
         technical_report_sha256 = (Get-FileHash $technicalPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -219,6 +234,8 @@ foreach ($case in @($spec.cases)) {
 
     Write-Host "PHASE2E_HUMAN_RENDER_CASE=$id"
     Write-Host "PHASE2E_HUMAN_RENDER_TEXT=$($case.reparandum_text)"
+    Write-Host "PHASE2E_HUMAN_RENDER_SOURCE_DURATION=$duration"
+    Write-Host "PHASE2E_HUMAN_RENDER_REMOVED_FRACTION=$($proposal.summary.removed_fraction)"
     Write-Host "PHASE2E_HUMAN_RENDER_TECHNICAL_PASS=$($technical.technical_pass)"
     Write-Host "PHASE2E_HUMAN_RENDER_JOIN_STATUSES=$(@($technical.post_render_join_audits | ForEach-Object { $_.status }) -join ',')"
 }
@@ -237,6 +254,7 @@ $manifest = [ordered]@{
     license = [string]$spec.license
     corpus = "AMI Meeting Corpus"
     selection_locked_before_listening = $true
+    render_window_rule = [string]$spec.provenance.render_window_rule
     closeout_policy = $policy
     pre_human_gate = if ($preHumanGate) { "PASS" } else { "FAIL" }
     case_count = $manifestCases.Count
@@ -256,6 +274,10 @@ Video_Tunner — Phase 2E.5 Human Render Review Bundle
 Purpose
 -------
 Listen to exactly 3 precommitted real-human AMI semantic joins. The cases were selected because they already reached foundation_guards_pass in Phase 2D.6, before any Phase 2E.5 listening result.
+
+Execution-window note
+---------------------
+The original Phase 2D.6 ~9-10s clips remain preserved in the fixture as detector evidence. For Phase 2E.5 execution, every selected case uses the same deterministic rule: real speaker-specific AMI audio from 20 seconds before the manual reparandum through 20 seconds after it. This keeps the existing 5% global removed-fraction safety limit unchanged and avoids synthetic padding.
 
 Close-out policy (precommitted)
 -------------------------------
