@@ -1,0 +1,88 @@
+name: Phase 2E Chunked Pipeline Gate
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: video-tunner-phase2e-chunked-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE2E_HUMAN_FIXTURE: tests\fixtures\phase2e_human_render_closeout_ami_v1.json
+
+jobs:
+  windows-chunked-pipeline:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Preflight internal strategy and harness
+        shell: pwsh
+        run: |
+          python -m py_compile .\.github\scripts\run_phase2e_chunked_pipeline_gate.py
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m unittest tests.test_analysis_transcription_strategy tests.test_transcription_chunking -v
+          Write-Host "PHASE2E_CHUNKED_PIPELINE_PREFLIGHT=PASS"
+
+      - name: Download licensed AMI speaker-specific sources
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1 -Fixture $env:PHASE2E_HUMAN_FIXTURE
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Build analysis portable and frozen dependency set
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+
+      - name: Run 12s-6s local-grid full-pipeline gate
+        shell: pwsh
+        run: |
+          $modelRoot = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Source ModelRoot"
+          $modelDestination = Join-Path $modelRoot "whisper\large-v3-turbo"
+          Remove-Item $modelRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $modelDestination | Out-Null
+          Copy-Item (Join-Path $env:SPANISH_TARGET_MODEL_STAGE "*") $modelDestination -Recurse -Force
+
+          $env:VIDEO_TUNNER_MODEL_DIR = $modelRoot
+          $env:VIDEO_TUNNER_FFMPEG_DIR = Join-Path $PWD "dist\Video_Tunner\Tools\ffmpeg\bin"
+          Remove-Item Env:VIDEO_TUNNER_PORTABLE_STRICT -ErrorAction SilentlyContinue
+          $env:HF_HOME = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E HF Home"
+          $env:HUGGINGFACE_HUB_CACHE = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E HF Cache"
+          $env:HF_HUB_OFFLINE = "1"
+          $env:HF_HUB_DISABLE_XET = "1"
+          $env:PYTHONPATH = "$PWD\Source"
+
+          $output = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Chunked Pipeline Gate"
+          python .\.github\scripts\run_phase2e_chunked_pipeline_gate.py `
+            --fixture $env:PHASE2E_HUMAN_FIXTURE `
+            --ffmpeg (Join-Path $env:VIDEO_TUNNER_FFMPEG_DIR "ffmpeg.exe") `
+            --output $output
+
+      - name: Upload lightweight gate manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2e-chunked-pipeline-gate
+          path: ${{ runner.temp }}\Video Tunner Phase2E Chunked Pipeline Gate\manifest.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+
+      - name: Scope note
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Evidence gate only. Product CLI/default remains single-pass."
+          Write-Host "The 12s/6s grid starts at local input t=0 for each ~40s render-context fixture."
+          Write-Host "No detector, semantic, join, acoustic, eligibility, promotion or 5% global limit is relaxed."
+          Write-Host "No approval, execution authorization, materialized edit or render is created by this gate."
