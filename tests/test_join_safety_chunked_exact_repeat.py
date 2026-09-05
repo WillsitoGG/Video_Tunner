@@ -74,7 +74,7 @@ def _exact_repeat_candidate(words, start, size):
 class ChunkedExactRepeatJoinBoundaryTests(unittest.TestCase):
     def test_chunked_exact_adjacent_repeat_does_not_block_on_segment_boundary_alone(self):
         transcript, words = _transcript(
-            [["before", "what", "youve", "said"], ["what", "youve", "said", "after"]],
+            [["before", "alpha", "beta", "gamma"], ["alpha", "beta", "gamma", "after"]],
             strategy=CHUNKED_STRATEGY,
         )
         candidate = _exact_repeat_candidate(words, 1, 3)
@@ -90,7 +90,7 @@ class ChunkedExactRepeatJoinBoundaryTests(unittest.TestCase):
 
     def test_single_pass_exact_repeat_keeps_segment_boundary_blocker(self):
         transcript, words = _transcript(
-            [["before", "what", "youve", "said"], ["what", "youve", "said", "after"]],
+            [["before", "alpha", "beta", "gamma"], ["alpha", "beta", "gamma", "after"]],
             strategy="single_pass",
         )
         candidate = _exact_repeat_candidate(words, 1, 3)
@@ -103,11 +103,11 @@ class ChunkedExactRepeatJoinBoundaryTests(unittest.TestCase):
 
     def test_chunked_non_exact_candidate_keeps_segment_boundary_blocker(self):
         transcript, words = _transcript(
-            [["before", "what", "youve", "said"], ["what", "youve", "said", "after"]],
+            [["before", "alpha", "beta", "gamma"], ["alpha", "beta", "gamma", "after"]],
             strategy=CHUNKED_STRATEGY,
         )
         candidate = _exact_repeat_candidate(words, 1, 3)
-        candidate["evidence"]["second_occurrence_text"] = "what youve changed"
+        candidate["evidence"]["second_occurrence_text"] = "alpha beta changed"
         result = build_join_assessments(transcript, [candidate])[0]
         self.assertEqual(result["status"], "segment_boundary_risk")
         self.assertFalse(
@@ -116,7 +116,7 @@ class ChunkedExactRepeatJoinBoundaryTests(unittest.TestCase):
 
     def test_strong_punctuation_still_blocks_chunked_exact_repeat(self):
         transcript, words = _transcript(
-            [["before.", "what", "youve", "said"], ["what", "youve", "said", "after"]],
+            [["before.", "alpha", "beta", "gamma"], ["alpha", "beta", "gamma", "after"]],
             strategy=CHUNKED_STRATEGY,
         )
         candidate = _exact_repeat_candidate(words, 1, 3)
@@ -129,7 +129,7 @@ class ChunkedExactRepeatJoinBoundaryTests(unittest.TestCase):
 
     def test_critical_lexical_context_still_blocks_chunked_exact_repeat(self):
         transcript, words = _transcript(
-            [["not", "what", "youve", "said"], ["what", "youve", "said", "after"]],
+            [["not", "alpha", "beta", "gamma"], ["alpha", "beta", "gamma", "after"]],
             strategy=CHUNKED_STRATEGY,
         )
         candidate = _exact_repeat_candidate(words, 1, 3)
