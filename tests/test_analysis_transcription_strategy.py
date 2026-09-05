@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from video_tunner.analysis_pipeline import (
+    CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY,
     CHUNKED_TRANSCRIPTION_STRATEGY,
     SINGLE_PASS_TRANSCRIPTION_STRATEGY,
     _transcribe_master_audio,
@@ -25,7 +26,8 @@ class AnalysisTranscriptionStrategyTests(unittest.TestCase):
         sentinel = object()
         with (
             patch("video_tunner.analysis_pipeline.transcribe_audio", return_value=sentinel) as single,
-            patch("video_tunner.analysis_pipeline.transcribe_audio_chunked") as chunked,
+            patch("video_tunner.analysis_pipeline.transcribe_audio_chunked") as chunked_12_6,
+            patch("video_tunner.analysis_pipeline.transcribe_audio_chunked_12s_3s") as chunked_12_3,
         ):
             result = _transcribe_master_audio(
                 Path("master.wav"),
@@ -37,13 +39,15 @@ class AnalysisTranscriptionStrategyTests(unittest.TestCase):
             )
         self.assertIs(result, sentinel)
         single.assert_called_once()
-        chunked.assert_not_called()
+        chunked_12_6.assert_not_called()
+        chunked_12_3.assert_not_called()
 
-    def test_chunked_strategy_routes_only_to_12_6_transcriber(self):
+    def test_chunked_12_6_strategy_routes_only_to_12_6_transcriber(self):
         sentinel = object()
         with (
             patch("video_tunner.analysis_pipeline.transcribe_audio") as single,
-            patch("video_tunner.analysis_pipeline.transcribe_audio_chunked", return_value=sentinel) as chunked,
+            patch("video_tunner.analysis_pipeline.transcribe_audio_chunked", return_value=sentinel) as chunked_12_6,
+            patch("video_tunner.analysis_pipeline.transcribe_audio_chunked_12s_3s") as chunked_12_3,
         ):
             result = _transcribe_master_audio(
                 Path("master.wav"),
@@ -54,8 +58,32 @@ class AnalysisTranscriptionStrategyTests(unittest.TestCase):
                 compute_type="int8",
             )
         self.assertIs(result, sentinel)
-        chunked.assert_called_once()
+        chunked_12_6.assert_called_once()
         single.assert_not_called()
+        chunked_12_3.assert_not_called()
+
+    def test_chunked_12_3_strategy_routes_only_to_12_3_transcriber(self):
+        sentinel = object()
+        with (
+            patch("video_tunner.analysis_pipeline.transcribe_audio") as single,
+            patch("video_tunner.analysis_pipeline.transcribe_audio_chunked") as chunked_12_6,
+            patch(
+                "video_tunner.analysis_pipeline.transcribe_audio_chunked_12s_3s",
+                return_value=sentinel,
+            ) as chunked_12_3,
+        ):
+            result = _transcribe_master_audio(
+                Path("master.wav"),
+                transcription_strategy=CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY,
+                model_name="large-v3-turbo",
+                language="en",
+                device="cpu",
+                compute_type="int8",
+            )
+        self.assertIs(result, sentinel)
+        chunked_12_3.assert_called_once()
+        single.assert_not_called()
+        chunked_12_6.assert_not_called()
 
     def test_unknown_strategy_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "Estrategia de transcripción desconocida"):
