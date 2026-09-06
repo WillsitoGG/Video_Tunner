@@ -54,6 +54,20 @@ def _sha256(path: Path) -> str:
 def _segments_record(window: Any, segments: tuple[Any, ...]) -> dict[str, Any]:
     hypotheses = _repeat_hypotheses(window, segments)
     expected = [item for item in hypotheses if item.phrase == EXPECTED_PHRASE]
+    words: list[dict[str, Any]] = []
+    for segment in segments:
+        for word in segment.words:
+            global_start = window.start + float(word.start)
+            global_end = window.start + float(word.end)
+            words.append(
+                {
+                    "text": word.text,
+                    "start": round(global_start, 6),
+                    "end": round(global_end, 6),
+                    "midpoint": round((global_start + global_end) / 2.0, 6),
+                    "probability": word.probability,
+                }
+            )
     return {
         "index": window.index,
         "start": window.start,
@@ -61,6 +75,7 @@ def _segments_record(window: Any, segments: tuple[Any, ...]) -> dict[str, Any]:
         "ownership_start": window.ownership_start,
         "ownership_end": window.ownership_end,
         "transcript": " ".join(segment.text for segment in segments if segment.text).strip(),
+        "words": words,
         "expected_repeat_count": len(expected),
         "expected_repeats": [
             {
@@ -218,7 +233,7 @@ def main() -> int:
         )
 
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "record_type": "phase2e_case298_whisper_call_order_diagnostic",
         "case_id": CASE_ID,
         "codec_path": "AMI PCM -> exact pinned FFmpeg AAC MP4 -> product ingest FLAC master -> faster-whisper",
