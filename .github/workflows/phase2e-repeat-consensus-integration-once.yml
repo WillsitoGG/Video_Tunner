@@ -1,0 +1,26 @@
+name: Phase 2E Repeat Consensus Integration Once
+
+on:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/workflows/phase2e-repeat-consensus-integration-once.yml
+
+jobs:
+  windows-unit:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Syntax preflight
+        run: python -m py_compile .\Source\video_tunner\transcription_consensus.py .\Source\video_tunner\transcription_profiles.py .\tests\test_transcription_repeat_consensus.py .\tests\test_transcription_profiles.py
+      - name: Focused routing and merge regressions
+        run: python -m unittest tests.test_transcription_repeat_consensus tests.test_transcription_chunking tests.test_transcription_profiles tests.test_analysis_transcription_strategy -v
+      - name: Full lightweight unit suite
+        run: python -m unittest discover -s tests -v
