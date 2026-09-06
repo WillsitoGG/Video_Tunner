@@ -77,6 +77,18 @@ def _linked_record(
     return matches[0] if len(matches) == 1 else None
 
 
+def _candidate_record(
+    records: list[dict[str, Any]], candidate_id: str
+) -> dict[str, Any] | None:
+    """Resolve a candidate by its own record id, not by a downstream link field."""
+    matches = [
+        item
+        for item in records
+        if str(item.get("id") or "") == candidate_id
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def _acoustic_for_join(
     records: list[dict[str, Any]], join_id: str
 ) -> dict[str, Any] | None:
@@ -252,10 +264,11 @@ def _evaluate_case(
     end_delta = None
     timing_ok = False
     layer_chain_ok = False
+    chain_checks: dict[str, bool] = {}
 
     if promotion is not None:
         candidate_id = str(promotion.get("candidate_id") or "")
-        candidate = _linked_record(analysis.get("candidates") or [], candidate_id)
+        candidate = _candidate_record(analysis.get("candidates") or [], candidate_id)
         decision = _linked_record(
             analysis.get("semantic_decisions") or [], candidate_id
         )
@@ -278,30 +291,50 @@ def _evaluate_case(
                 start_delta <= TIMING_TOLERANCE_SECONDS
                 and end_delta <= TIMING_TOLERANCE_SECONDS
             )
-        layer_chain_ok = bool(
-            candidate
-            and candidate.get("kind") == case.get("expected_candidate_kind")
-            and _normalise_phrase(
-                (candidate.get("evidence") or {}).get("removed_text")
-            )
-            == expected_text
-            and decision
-            and decision.get("decision") == "PROPOSED_CUT"
-            and decision.get("guard_status") == "pass"
-            and join
-            and join.get("status") == "join_context_only"
-            and acoustic
-            and acoustic.get("status") in ACOUSTIC_GATE_PASS_STATUSES
-            and bool(acoustic.get("measurement_available"))
-            and eligibility
-            and eligibility.get("status") == "foundation_guards_pass"
-            and bool(
-                (eligibility.get("removed_text_validation") or {}).get("valid")
-            )
-            and bool(eligibility.get("future_promotion_candidate"))
-            and bool(promotion.get("promotion_review_candidate"))
-            and promotion.get("approval_state") == "required"
-        )
+        chain_checks = {
+            "candidate_linked": candidate is not None,
+            "candidate_kind_matches": bool(
+                candidate
+                and candidate.get("kind") == case.get("expected_candidate_kind")
+            ),
+            "candidate_removed_text_matches": bool(
+                candidate
+                and _normalise_phrase(
+                    (candidate.get("evidence") or {}).get("removed_text")
+                )
+                == expected_text
+            ),
+            "semantic_proposed_cut": bool(
+                decision and decision.get("decision") == "PROPOSED_CUT"
+            ),
+            "semantic_guard_pass": bool(
+                decision and decision.get("guard_status") == "pass"
+            ),
+            "join_context_only": bool(
+                join and join.get("status") == "join_context_only"
+            ),
+            "acoustic_status_pass": bool(
+                acoustic and acoustic.get("status") in ACOUSTIC_GATE_PASS_STATUSES
+            ),
+            "acoustic_measured": bool(
+                acoustic and acoustic.get("measurement_available")
+            ),
+            "eligibility_foundation_pass": bool(
+                eligibility and eligibility.get("status") == "foundation_guards_pass"
+            ),
+            "removed_text_valid": bool(
+                eligibility
+                and (eligibility.get("removed_text_validation") or {}).get("valid")
+            ),
+            "future_promotion_candidate": bool(
+                eligibility and eligibility.get("future_promotion_candidate")
+            ),
+            "promotion_review_candidate": bool(
+                promotion.get("promotion_review_candidate")
+            ),
+            "approval_required": promotion.get("approval_state") == "required",
+        }
+        layer_chain_ok = all(chain_checks.values())
 
     safety = _safety_violations(analysis)
     case_pass = bool(
@@ -342,6 +375,7 @@ def _evaluate_case(
         "end_delta_seconds": end_delta,
         "timing_ok": timing_ok,
         "layer_chain_ok": layer_chain_ok,
+        "chain_checks": chain_checks,
         "safety_violations": safety,
         "pass": case_pass,
     }
