@@ -2,6 +2,11 @@ name: Phase 2E 12s-3s Pipeline Gate
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/triggers/phase2e-12s3s-repeat-consensus-gate
 
 concurrency:
   group: video-tunner-phase2e-12s3s-pipeline-${{ github.ref }}
@@ -84,7 +89,8 @@ jobs:
         run: |
           Write-Host "Evidence gate only. Product CLI/default remains single-pass."
           Write-Host "Internal strategy: deterministic_overlap_12s_3s_repeat_consensus_v1."
-          Write-Host "Repeat consensus is restricted to exact adjacent repetitions of 3-7 tokens, requires two timing-aligned supporters straddling the temporal owner, and fails closed on single support, same-side support, timing disagreement, owner lexical disagreement, or an already-preserved owner repeat."
-          Write-Host "Consensus timing tolerance is 0.35 seconds and does not change detector thresholds."
+          Write-Host "Repeat consensus is restricted to exact adjacent repetitions of 3-7 tokens and requires two timing-aligned supporters straddling the temporal owner."
+          Write-Host "Collapsed-span recovery requires exactly one owner lexical copy spanning from the corroborated first occurrence start to the second occurrence end within the unchanged 0.35s tolerance. Only those exact owner WordTiming tokens are replaced; surrounding baseline context is preserved unchanged."
+          Write-Host "Consensus fails closed on single support, same-side support, timing disagreement, owner lexical disagreement, non-collapsed owner timing, cross-segment collapsed copies, or an already-preserved owner repeat."
           Write-Host "No detector, semantic, join, acoustic, eligibility, promotion or global limit is relaxed."
           Write-Host "No approval, execution authorization, materialized edit or render is created by this gate."
