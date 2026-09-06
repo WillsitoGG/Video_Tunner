@@ -3,12 +3,20 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable
 
 from .transcription import (
+    CHUNKED_TRANSCRIPTION_WINDOW_SECONDS,
+    WHISPER_SAMPLE_RATE,
+    TranscriptResult,
     TranscriptSegment,
     TranscriptionChunkWindow,
+    TranscriptionDependencyError,
     WordTiming,
+    _load_whisper_model,
+    _normalise_segments,
+    build_transcription_chunk_windows,
     merge_chunked_transcript_segments,
 )
 
@@ -298,14 +306,106 @@ def merge_chunked_transcript_segments_with_repeat_consensus(
                 (left, right),
                 key=lambda item: (_average_probability(item.words), -item.window_index),
             )
-            replacement = source.words
             patched = _replace_interval(
                 patched,
                 start=interval_start - timing_tolerance_seconds,
                 end=interval_end + timing_tolerance_seconds,
-                replacement=replacement,
+                replacement=source.words,
             )
             used_intervals.append((interval_start, interval_end))
             break
 
     return patched
+
+
+def transcribe_audio_chunked_with_repeat_consensus(
+    audio_wav: str | Path,
+    *,
+    model_name: str = "large-v3-turbo",
+    language: str | None = None,
+    device: str = "auto",
+    compute_type: str = "auto",
+    window_seconds: float = CHUNKED_TRANSCRIPTION_WINDOW_SECONDS,
+    hop_seconds: float,
+    strategy: str,
+) -> TranscriptResult:
+    """Run chunked Whisper and apply the Phase 2E repeat-consensus merge.
+
+    This intentionally mirrors the established chunked decoder while leaving the
+    generic ownership-only transcriber untouched. It is an internal evidence path
+    until the human gate is re-run successfully.
+    """
+    wav_path = Path(audio_wav)
+    if not wav_path.is_file():
+        raise FileNotFoundError(f"No existe el WAV de análisis: {wav_path}")
+
+    try:
+        from faster_whisper.audio import decode_audio
+    except ImportError as exc:
+        raise TranscriptionDependencyError(
+            "Falta faster-whisper/PyAV para decodificar el audio chunked."
+        ) from exc
+
+    model, resolved_device, resolved_compute = _load_whisper_model(
+        model_name,
+        device=device,
+        compute_type=compute_type,
+    )
+    audio = decode_audio(str(wav_path), sampling_rate=WHISPER_SAMPLE_RATE)
+    duration = float(len(audio)) / float(WHISPER_SAMPLE_RATE)
+    windows = build_transcription_chunk_windows(
+        duration,
+        window_seconds=window_seconds,
+        hop_seconds=hop_seconds,
+    )
+    if not windows:
+        return TranscriptResult(
+            language=language,
+            language_probability=None,
+            model=model_name,
+            device=resolved_device,
+            compute_type=resolved_compute,
+            segments=(),
+            strategy=strategy,
+            chunk_window_seconds=float(window_seconds),
+            chunk_hop_seconds=float(hop_seconds),
+            chunk_count=0,
+        )
+
+    chunk_results: list[tuple[TranscriptionChunkWindow, tuple[TranscriptSegment, ...]]] = []
+    detected_language = language
+    detected_probability: float | None = None
+    for window in windows:
+        start_sample = int(round(window.start * WHISPER_SAMPLE_RATE))
+        end_sample = int(round(window.end * WHISPER_SAMPLE_RATE))
+        chunk_audio = audio[start_sample:end_sample]
+        raw_segments, info = model.transcribe(
+            chunk_audio,
+            language=detected_language,
+            word_timestamps=True,
+            vad_filter=False,
+            condition_on_previous_text=True,
+        )
+        segments = _normalise_segments(raw_segments)
+        if detected_language is None:
+            detected_language = getattr(info, "language", None)
+            probability = getattr(info, "language_probability", None)
+            detected_probability = None if probability is None else float(probability)
+        elif detected_probability is None and language is None:
+            probability = getattr(info, "language_probability", None)
+            detected_probability = None if probability is None else float(probability)
+        chunk_results.append((window, segments))
+
+    merged = merge_chunked_transcript_segments_with_repeat_consensus(chunk_results)
+    return TranscriptResult(
+        language=detected_language,
+        language_probability=detected_probability,
+        model=model_name,
+        device=resolved_device,
+        compute_type=resolved_compute,
+        segments=merged,
+        strategy=strategy,
+        chunk_window_seconds=float(window_seconds),
+        chunk_hop_seconds=float(hop_seconds),
+        chunk_count=len(windows),
+    )
