@@ -1,0 +1,108 @@
+name: Phase 2E Case 298 Pipeline Once
+
+on:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/workflows/phase2e-case298-pipeline-once.yml
+
+concurrency:
+  group: video-tunner-phase2e-case298-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE2E_SOURCE_FIXTURE: tests\fixtures\phase2e_human_render_closeout_ami_v1.json
+  PHASE2E_FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip
+  PHASE2E_EXPECTED_FFMPEG_SHA256: 87c4729f3193f3ba562bada0330a98338c9a858d25b15fc98338a1364667348b
+
+jobs:
+  windows-case298-pipeline:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned analysis runtime
+        run: python -m pip install -e .[analysis]
+      - name: Build one-case fixture
+        shell: pwsh
+        run: |
+          $source = Get-Content $env:PHASE2E_SOURCE_FIXTURE -Raw | ConvertFrom-Json
+          $case = @($source.cases | Where-Object { $_.id -eq "ami-ts3005d-c-repeat-298" })
+          if ($case.Count -ne 1) { throw "Expected exactly one case 298" }
+          $source.cases = $case
+          $fixture = Join-Path $env:RUNNER_TEMP "phase2e-case298-fixture.json"
+          $source | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 $fixture
+          "PHASE2E_CASE298_FIXTURE=$fixture" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Acquire exact FFmpeg archive
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Case298 Pipeline FFmpeg"
+          $zip = Join-Path $root "ffmpeg.zip"
+          $extract = Join-Path $root "extract"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Invoke-WebRequest -Uri $env:PHASE2E_FFMPEG_URL -OutFile $zip
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "PHASE2E_CASE298_PIPELINE_FFMPEG_ARCHIVE_SHA256=$sha"
+          if ($sha -ne $env:PHASE2E_EXPECTED_FFMPEG_SHA256) { throw "FFmpeg archive SHA mismatch: $sha" }
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+          $ffmpeg = Get-ChildItem $extract -Filter ffmpeg.exe -Recurse | Select-Object -First 1
+          $ffprobe = Get-ChildItem $extract -Filter ffprobe.exe -Recurse | Select-Object -First 1
+          if (-not $ffmpeg -or -not $ffprobe) { throw "Exact FFmpeg archive missing tools" }
+          "PHASE2E_DIAGNOSTIC_FFMPEG=$($ffmpeg.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VIDEO_TUNNER_FFMPEG_DIR=$($ffmpeg.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Download licensed case 298 AMI source
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1 -Fixture $env:PHASE2E_CASE298_FIXTURE
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+      - name: Stage model for product resolver
+        shell: pwsh
+        run: |
+          $modelRoot = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Case298 ModelRoot"
+          $destination = Join-Path $modelRoot "whisper\large-v3-turbo"
+          New-Item -ItemType Directory -Force -Path $destination | Out-Null
+          Copy-Item (Join-Path $env:SPANISH_TARGET_MODEL_STAGE "*") $destination -Recurse -Force
+          "VIDEO_TUNNER_MODEL_DIR=$modelRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Run source pipeline for case 298
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          $env:HF_HUB_OFFLINE = "1"
+          $env:HF_HUB_DISABLE_XET = "1"
+          $output = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Case298 Pipeline"
+          python .\.github\scripts\run_phase2e_12s3s_pipeline_gate.py `
+            --fixture $env:PHASE2E_CASE298_FIXTURE `
+            --ffmpeg $env:PHASE2E_DIAGNOSTIC_FFMPEG `
+            --output $output
+          if ($LASTEXITCODE -ne 2) { throw "One-case harness must return 2 because global gate requires 3 cases" }
+          $manifest = Get-Content (Join-Path $output "manifest.json") -Raw | ConvertFrom-Json
+          if (@($manifest.cases).Count -ne 1) { throw "Expected one manifest case" }
+          $case = @($manifest.cases)[0]
+          if (-not $case.pass) { throw "Case 298 pipeline did not pass" }
+          if (@($case.safety_violations).Count -ne 0) { throw "Case 298 safety violations present" }
+          Write-Host "PHASE2E_CASE298_PIPELINE_CASE_PASS=1"
+          Write-Host "PHASE2E_CASE298_PIPELINE_PROMOTIONS=$($case.promotion_match_count)"
+          Write-Host "PHASE2E_CASE298_PIPELINE_TARGET=$($case.target_text)"
+      - name: Upload lightweight manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2e-case298-pipeline
+          path: ${{ runner.temp }}\Video Tunner Phase2E Case298 Pipeline\manifest.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+      - name: Scope note
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Focused human evidence only: case 298. Global 3/3 gate is intentionally not claimed."
+          Write-Host "Product default remains single-pass; 12s/3s repeat consensus remains internal evidence path."
+          Write-Host "No threshold, approval, execution authorization or render is changed."
