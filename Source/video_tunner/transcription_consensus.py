@@ -167,31 +167,42 @@ def _segment_from_words(words: tuple[WordTiming, ...]) -> TranscriptSegment:
     )
 
 
-def _replace_interval(
+def _replace_exact_word_sequence(
     segments: tuple[TranscriptSegment, ...],
     *,
-    start: float,
-    end: float,
+    target: tuple[WordTiming, ...],
     replacement: tuple[WordTiming, ...],
-) -> tuple[TranscriptSegment, ...]:
-    rebuilt: list[TranscriptSegment] = []
-    for segment in segments:
-        before = tuple(
-            word
-            for word in segment.words
-            if (word.start + word.end) / 2.0 < start - 1e-9
-        )
-        after = tuple(
-            word
-            for word in segment.words
-            if (word.start + word.end) / 2.0 > end + 1e-9
-        )
-        if before:
-            rebuilt.append(_segment_from_words(before))
-        if after:
-            rebuilt.append(_segment_from_words(after))
-    rebuilt.append(_segment_from_words(replacement))
-    rebuilt.sort(key=lambda item: (item.start, item.end, item.text))
+) -> tuple[TranscriptSegment, ...] | None:
+    """Replace one exact baseline word sequence without touching its context.
+
+    The target objects must be the exact WordTiming instances already present in
+    one baseline segment. Cross-segment or ambiguous matches fail closed.
+    """
+    if not target or not replacement:
+        return None
+
+    matches: list[tuple[int, int]] = []
+    target_size = len(target)
+    for segment_index, segment in enumerate(segments):
+        for word_index in range(0, len(segment.words) - target_size + 1):
+            candidate = segment.words[word_index : word_index + target_size]
+            if all(current is expected for current, expected in zip(candidate, target)):
+                matches.append((segment_index, word_index))
+
+    if len(matches) != 1:
+        return None
+
+    segment_index, word_index = matches[0]
+    rebuilt = list(segments)
+    original = rebuilt[segment_index]
+    words = (
+        original.words[:word_index]
+        + replacement
+        + original.words[word_index + target_size :]
+    )
+    if not words:
+        return None
+    rebuilt[segment_index] = _segment_from_words(words)
     return tuple(rebuilt)
 
 
@@ -202,12 +213,17 @@ def merge_chunked_transcript_segments_with_repeat_consensus(
 ) -> tuple[TranscriptSegment, ...]:
     """Conservatively recover exact repetitions lost by deterministic ownership.
 
-    The ordinary ownership merge remains the baseline. A replacement is allowed
-    only when matching exact 3-7 token repetitions are independently present in
-    one chunk before and one chunk after the temporal owner, their two occurrence
-    timings agree, the owner itself does not report that repetition, and the
-    baseline contains exactly one copy (and no other lexical material) across the
-    corroborated repeated interval. Otherwise this function returns the baseline
+    The ordinary ownership merge remains the baseline. A reconstruction is
+    allowed only when matching exact 3-7 token repetitions are independently
+    present in one chunk before and one chunk after the temporal owner, their two
+    occurrence timings agree, and the owner itself does not report that repeat.
+
+    The baseline must contain exactly one lexical copy whose first word starts
+    near the corroborated first occurrence and whose last word ends near the
+    corroborated second occurrence. That is treated as a narrowly evidenced
+    collapsed-span hypothesis. Only those exact baseline word objects are
+    replaced by the corroborated repeated words; every surrounding baseline word
+    is preserved unchanged. Otherwise this function returns the baseline
     unchanged for that region.
 
     This helper is Phase 2E hardening only. It does not authorize, approve or
@@ -294,24 +310,28 @@ def merge_chunked_transcript_segments_with_repeat_consensus(
             )
             if len(occurrences) != 1:
                 continue
-            normalised_baseline = tuple(
-                token
-                for word in baseline_words
-                if (token := _normalise_token(word.text))
-            )
-            if normalised_baseline != left.phrase:
+
+            occurrence_start, occurrence_end = occurrences[0]
+            collapsed_words = baseline_words[occurrence_start:occurrence_end]
+            if not collapsed_words:
+                continue
+            if abs(float(collapsed_words[0].start) - first_start) > timing_tolerance_seconds:
+                continue
+            if abs(float(collapsed_words[-1].end) - second_end) > timing_tolerance_seconds:
                 continue
 
             source = max(
                 (left, right),
                 key=lambda item: (_average_probability(item.words), -item.window_index),
             )
-            patched = _replace_interval(
+            rebuilt = _replace_exact_word_sequence(
                 patched,
-                start=interval_start - timing_tolerance_seconds,
-                end=interval_end + timing_tolerance_seconds,
+                target=collapsed_words,
                 replacement=source.words,
             )
+            if rebuilt is None:
+                continue
+            patched = rebuilt
             used_intervals.append((interval_start, interval_end))
             break
 
