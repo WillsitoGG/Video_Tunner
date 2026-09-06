@@ -27,9 +27,9 @@ jobs:
       - name: Preflight strategy and harness
         shell: pwsh
         run: |
-          python -m py_compile .\.github\scripts\run_phase2e_12s3s_pipeline_gate.py
+          python -m py_compile .\.github\scripts\run_phase2e_12s3s_pipeline_gate.py .\Source\video_tunner\transcription_consensus.py
           $env:PYTHONPATH = "$PWD\Source"
-          python -m unittest tests.test_analysis_transcription_strategy tests.test_transcription_profiles tests.test_transcription_chunking -v
+          python -m unittest tests.test_analysis_transcription_strategy tests.test_transcription_profiles tests.test_transcription_chunking tests.test_transcription_repeat_consensus tests.test_phase2e_12s3s_pipeline_gate_harness -v
           Write-Host "PHASE2E_12S3S_PIPELINE_PREFLIGHT=PASS"
 
       - name: Download licensed AMI speaker-specific sources
@@ -44,7 +44,7 @@ jobs:
         shell: pwsh
         run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
 
-      - name: Run 12s-3s full-pipeline human gate
+      - name: Run 12s-3s repeat-consensus full-pipeline human gate
         shell: pwsh
         run: |
           $modelRoot = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E 12s3s Source ModelRoot"
@@ -83,6 +83,8 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Evidence gate only. Product CLI/default remains single-pass."
-          Write-Host "12s/3s uses the existing deterministic ownership merge; no fuzzy reconciliation is added."
+          Write-Host "Internal strategy: deterministic_overlap_12s_3s_repeat_consensus_v1."
+          Write-Host "Repeat consensus is restricted to exact adjacent repetitions of 3-7 tokens, requires two timing-aligned supporters straddling the temporal owner, and fails closed on single support, same-side support, timing disagreement, owner lexical disagreement, or an already-preserved owner repeat."
+          Write-Host "Consensus timing tolerance is 0.35 seconds and does not change detector thresholds."
           Write-Host "No detector, semantic, join, acoustic, eligibility, promotion or global limit is relaxed."
           Write-Host "No approval, execution authorization, materialized edit or render is created by this gate."
