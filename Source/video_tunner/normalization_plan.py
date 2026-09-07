@@ -9,6 +9,8 @@ NORMALIZATION_PLAN_SCHEMA_VERSION = 1
 NORMALIZATION_PLAN_RECORD_TYPE = "normalization_plan_proposal"
 FFMPEG_TARGET_LRA_MIN = 1.0
 FFMPEG_TARGET_LRA_MAX = 50.0
+FFMPEG_MEASURED_I_SENTINEL = 0.0
+FFMPEG_MEASURED_THRESH_SENTINEL = -70.0
 
 
 def _valid_sha256(value: str) -> bool:
@@ -120,6 +122,22 @@ def build_normalization_plan_proposal(
                 "measured_lra": measured_lra,
                 "allowed_target_min": FFMPEG_TARGET_LRA_MIN,
                 "allowed_target_max": FFMPEG_TARGET_LRA_MAX,
+            }
+        )
+    if abs(measured_i - FFMPEG_MEASURED_I_SENTINEL) <= 1e-12:
+        blockers.append(
+            {
+                "code": "ffmpeg_linear_measured_i_sentinel",
+                "measured_i": measured_i,
+                "sentinel": FFMPEG_MEASURED_I_SENTINEL,
+            }
+        )
+    if abs(measured_thresh - FFMPEG_MEASURED_THRESH_SENTINEL) <= 1e-12:
+        blockers.append(
+            {
+                "code": "ffmpeg_linear_measured_thresh_sentinel",
+                "measured_thresh": measured_thresh,
+                "sentinel": FFMPEG_MEASURED_THRESH_SENTINEL,
             }
         )
     if predicted_tp > target_tp + 1e-9:
