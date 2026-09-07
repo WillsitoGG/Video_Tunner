@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "record_type": "denoiser_human_perceptual_ab_policy",
+  "policy_id": "phase3_denoiser_blinded_human_ab_v1",
+  "frozen_utc": "2026-09-07T17:10:00Z",
+  "purpose": "Precommitted blinded human perceptual comparison after objective denoiser evidence. Human evidence can advance a treatment to a later selection review but cannot itself authorize denoise, rendering, or auto-apply.",
+  "bindings": {
+    "corpus_id": "voicebank_demand_official_test_balanced_v1",
+    "objective_comparison_policy_id": "phase3_denoiser_candidate_comparison_v1",
+    "objective_comparison_run_id": 34145308485,
+    "objective_comparison_job_id": 101815955163,
+    "objective_comparison_run_head_sha": "1c181220f78acec62250ce724834a0073daeec39",
+    "objective_comparison_raw_json_sha256": "0b1215fcd26b709ce3c8d232a2144b74c70e3dc13ec3bd7ab706793948d37023",
+    "objective_comparison_artifact_id": 10027581922,
+    "deepfilternet_asset_sha256": "75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915"
+  },
+  "case_selection": {
+    "selection_frozen_before_human_listening": true,
+    "objective_metric_values_used_for_case_selection": false,
+    "human_preferences_used_for_case_selection": false,
+    "required_cases": 10,
+    "coverage": "one case for every speaker x noise cell (2 x 5), with balanced SNR extremes",
+    "speakers": ["p232", "p257"],
+    "noise_types": ["bus", "cafe", "living", "office", "psquare"],
+    "allowed_snr_db": [2.5, 17.5],
+    "required_low_snr_cases": 5,
+    "required_high_snr_cases": 5,
+    "algorithm": {
+      "seed": "phase3e-human-ab-case-selection-v1",
+      "cell_key": "speaker|noise",
+      "rank": "ascending sha256(seed + '|' + speaker + '|' + noise)",
+      "assignment": "first five ranked cells use 2.5 dB; remaining five use 17.5 dB"
+    },
+    "cases_in_selection_rank_order": [
+      {"id": "p257_013", "speaker": "p257", "noise": "living", "snr_db": 2.5},
+      {"id": "p257_017", "speaker": "p257", "noise": "office", "snr_db": 2.5},
+      {"id": "p232_019", "speaker": "p232", "noise": "office", "snr_db": 2.5},
+      {"id": "p257_009", "speaker": "p257", "noise": "cafe", "snr_db": 2.5},
+      {"id": "p257_022", "speaker": "p257", "noise": "psquare", "snr_db": 2.5},
+      {"id": "p232_020", "speaker": "p232", "noise": "psquare", "snr_db": 17.5},
+      {"id": "p232_006", "speaker": "p232", "noise": "cafe", "snr_db": 17.5},
+      {"id": "p257_001", "speaker": "p257", "noise": "bus", "snr_db": 17.5},
+      {"id": "p232_001", "speaker": "p232", "noise": "bus", "snr_db": 17.5},
+      {"id": "p232_011", "speaker": "p232", "noise": "living", "snr_db": 17.5}
+    ]
+  },
+  "pairwise_comparisons": [
+    {
+      "pair_id": "deepfilternet_vs_preserve",
+      "treatment_candidate_id": "deepfilternet_0_5_6_compensated_v1",
+      "control_candidate_id": "preserve_noisy_control_v1",
+      "blinding_seed": "phase3e-df-v-preserve-blind-v1",
+      "blinding_algorithm": "rank selected case ids by ascending sha256(seed + '|' + case_id); treatment is A for first five and B for remaining five",
+      "treatment_label_by_case": {
+        "p257_013": "B",
+        "p257_017": "A",
+        "p232_019": "A",
+        "p257_009": "A",
+        "p257_022": "B",
+        "p232_020": "A",
+        "p232_006": "B",
+        "p257_001": "B",
+        "p232_001": "A",
+        "p232_011": "B"
+      },
+      "required_treatment_as_a": 5,
+      "required_treatment_as_b": 5
+    },
+    {
+      "pair_id": "afftdn_vs_preserve",
+      "treatment_candidate_id": "ffmpeg_afftdn_fixed_v1",
+      "control_candidate_id": "preserve_noisy_control_v1",
+      "blinding_seed": "phase3e-aff-v-preserve-blind-v1",
+      "blinding_algorithm": "rank selected case ids by ascending sha256(seed + '|' + case_id); treatment is A for first five and B for remaining five",
+      "treatment_label_by_case": {
+        "p257_013": "B",
+        "p257_017": "A",
+        "p232_019": "A",
+        "p257_009": "B",
+        "p257_022": "A",
+        "p232_020": "B",
+        "p232_006": "B",
+        "p257_001": "A",
+        "p232_001": "A",
+        "p232_011": "B"
+      },
+      "required_treatment_as_a": 5,
+      "required_treatment_as_b": 5
+    }
+  ],
+  "listening_media_contract": {
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "codec": "pcm_s16le",
+    "preserve_clip": "exact frozen noisy source bytes",
+    "afftdn_clip": "exact frozen afftdn candidate filter rendered to 48 kHz mono PCM16",
+    "deepfilternet_clip": "exact pinned DeepFilterNet v0.5.6 --compensate-delay output, decoded to 48 kHz mono PCM16 and right-tail normalized to the original frame count",
+    "deepfilternet_raw_duration_delta_max_seconds": 0.05,
+    "deepfilternet_metric_timeline_policy_reused_for_listening": true,
+    "right_tail_normalization_only": true,
+    "alignment_search_allowed": false,
+    "time_shift_allowed": false,
+    "level_matching_allowed": false,
+    "loudness_normalization_allowed": false,
+    "post_hoc_case_exclusion_allowed": false
+  },
+  "review_form": {
+    "required_reviewed_pairs": 20,
+    "preference_values": ["A", "B", "NO_PREFERENCE"],
+    "per_clip_speech_integrity_values": ["PASS", "FAIL"],
+    "per_clip_artifact_values": ["PASS", "FAIL"],
+    "reason_required": true,
+    "instructions": [
+      "Listen to A and B before revealing the blinding key.",
+      "Preference means which version you would choose for the finished video, considering noise, speech naturalness and intelligibility together.",
+      "Speech integrity FAIL means a phoneme, word, consonant attack, ending, or intelligible speech content appears removed, clipped, or materially damaged.",
+      "Artifact FAIL means unacceptable metallic, musical-noise, warbling, pumping, gating, transient, or other processing artifact is audible.",
+      "Background noise remaining is not itself an artifact FAIL; it is reflected in preference.",
+      "NO_PREFERENCE is valid when neither version is meaningfully preferable."
+    ]
+  },
+  "per_treatment_advancement_gate": {
+    "evaluated_separately_for_each_pair_id": true,
+    "required_reviews": 10,
+    "minimum_treatment_preferences": 7,
+    "ties_count_as_treatment_preferences": false,
+    "maximum_treatment_speech_integrity_failures": 0,
+    "maximum_treatment_artifact_failures": 0,
+    "gate_pass_meaning": "eligible_for_later_candidate_selection_review_only",
+    "gate_fail_meaning": "treatment_not_advanced; preserve remains default",
+    "thresholds_frozen_before_human_listening": true
+  },
+  "capabilities": {
+    "human_review_can_choose_product_default": false,
+    "candidate_selection_authorized": false,
+    "denoiser_selected": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false,
+    "preserve_remains_product_default_until_separate_authorized_selection_work": true
+  }
+}
