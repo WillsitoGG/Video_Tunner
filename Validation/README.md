@@ -33,6 +33,7 @@ Fase 2E está cerrada como `CLOSE_OUT_READY`; `auto_apply=false`.
 - `phase3-audiovisual-quality-foundation.md` — 3.1 Quality Audit, baseline focal real, 3.2 Treatment Decision y 3.3 Normalization Profile Contract.
 - `phase3-focal-quality-baseline.json` — medición persistente exacta de los tres pares ORIGINAL/RENDERED ya escuchados en 2E.5.
 - `phase3-normalization-foundation.md` — 3.4 Explicit Normalization Approval + 3.5a–d plan/authorization/renderer/post-render technical verification.
+- `phase3-noise-audit-foundation.md` — 3.6a Noise Evidence Audit measurement-only.
 
 Runs principales:
 
@@ -48,6 +49,8 @@ Runs principales:
 34139056626  Phase 3.5c gated linear render — 25/25 + real FFmpeg E2E PASS
 34139502187  Phase 3.5d independent post-render verification — 16/16 + real FFmpeg E2E PASS
 34139639280  full regression through 3.5d — 337/337 + doctor PASS
+34141013261  Phase 3.6a noise evidence audit — 9/9 + real MP4/AAC E2E PASS
+34141115293  full regression through 3.6a — 346/346 + doctor PASS
 ```
 
 Baseline focal observado:
@@ -66,10 +69,11 @@ Interpretación acreditada hasta ahora:
 
 - no hay evidencia para normalización obligatoria como reparación del renderer en el corpus focal;
 - existe una vía `ebu_r128_programme` opt-in técnicamente validada y fail-closed;
-- el renderer de normalización crea un derivado, nunca sobrescribe el output 2E;
-- fallback dinámico de `loudnorm` está prohibido;
-- el post-render verifier vuelve a medir independently y verifica vídeo decodificado idéntico;
 - la normalización sigue pendiente de human perceptual close-out antes de generalizarla;
+- `noise_evidence_audit` puede medir energía speech/non-speech con timing evidence explícita y SHA vigente;
+- cobertura insuficiente se distingue de un problema de ruido;
+- digital silence no recibe un floor dBFS inventado;
+- ninguna métrica 3.6a selecciona ni autoriza denoise;
 - no hay evidencia para denoise por defecto;
 - no hay evidencia para join smoothing/crossfade por defecto;
 - `preserve` es default;
@@ -84,6 +88,7 @@ Una validación PASS acredita únicamente el alcance descrito en su documento. N
 - que un número observado se convierta en threshold;
 - que una medición autorice tratamiento;
 - que technical normalization PASS equivalga a human perceptual PASS;
+- que un dBFS medido implique necesidad de denoise;
 - denoise o smoothing automáticos;
 - validación final del ZIP portable en Windows limpio.
 
@@ -92,22 +97,16 @@ Cadena conceptual actual:
 ```text
 Phase 2E output PASS
 → audiovisual_quality_audit
-→ audiovisual_treatment_decision
-→ normalization_profile_decision
-→ normalization_approval
-→ normalization_plan_proposal
-→ normalization_execution_authorization
-→ normalization_render_result
-→ normalization_post_render_verification
-→ human perceptual normalization review (PENDING)
-```
-
-Siguiente cadena en construcción:
-
-```text
-Phase 2E output PASS
-→ noise evidence / audit (measurement-only)
-→ [todavía NO denoise treatment]
+   ├→ audiovisual_treatment_decision
+   │  → normalization_profile_decision
+   │  → normalization_approval
+   │  → normalization_plan_proposal
+   │  → normalization_execution_authorization
+   │  → normalization_render_result
+   │  → normalization_post_render_verification
+   │  → human perceptual normalization review (PENDING)
+   └→ noise_evidence_audit
+      → denoise evaluation corpus (NEXT)
 ```
 
 Invariantes:
@@ -116,6 +115,8 @@ Invariantes:
 Phase 3 favorable signal != rescue of failed Phase 2E
 measurement != treatment decision
 treatment decision != treatment authorization
+noise measurement != denoise decision
+denoise decision != denoise authorization
 profile selection != normalization authorization
 technical PASS != human perceptual PASS
 preserve = default
