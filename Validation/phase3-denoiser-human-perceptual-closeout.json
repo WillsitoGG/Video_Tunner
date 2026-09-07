@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "record_type": "phase3_denoiser_human_perceptual_closeout",
+  "phase": "3.6e",
+  "status": "CLOSED",
+  "policy_id": "phase3_denoiser_blinded_human_ab_v1",
+  "policy_sha256": "563a5cf043793880777403899c7b217ca125c1be0d7b0c07f0512b84087bdfbb",
+  "bundle_manifest_sha256": "47f7c6600bc5dccbeb7125ea1da9e2be07b5dd1900e80b6709557c05df627913",
+  "bundle_artifact": {
+    "run_id": 34148410617,
+    "artifact_id": 10028540419,
+    "zip_sha256": "dfe40dbfa1227794b995a9b36c66ac6a9c3cb9905a03041cc152b173824a26be"
+  },
+  "review_evidence": {
+    "public_review": "Validation/phase3-denoiser-human-ab-public-review.json",
+    "unblinded_review": "Validation/phase3-denoiser-human-ab-review.json",
+    "review_fingerprint": "e58998b4fd8b0c53592581a37ef6a5e77d2fe0347c0a6b0b8d4a09a681d112f9",
+    "perceptual_gate": "Validation/phase3-denoiser-human-perceptual-gate.json",
+    "reviewer": "Guille",
+    "human_listening_completed": true
+  },
+  "results": [
+    {
+      "candidate_id": "deepfilternet_0_5_6_compensated_v1",
+      "treatment_preferences": 10,
+      "preserve_preferences": 0,
+      "no_preference": 0,
+      "speech_integrity_failures": 0,
+      "artifact_failures": 0,
+      "perceptual_gate_pass": true,
+      "status": "ELIGIBLE_FOR_SELECTION_REVIEW"
+    },
+    {
+      "candidate_id": "ffmpeg_afftdn_fixed_v1",
+      "treatment_preferences": 3,
+      "preserve_preferences": 2,
+      "no_preference": 5,
+      "speech_integrity_failures": 0,
+      "artifact_failures": 0,
+      "perceptual_gate_pass": false,
+      "status": "NOT_ADVANCED_PRESERVE_DEFAULT"
+    }
+  ],
+  "final_validation": {
+    "run_id": 34150202283,
+    "job_id": 101830697393,
+    "head_sha": "31889c42ed408514eabbf43f17ed8d94c6b3074d",
+    "human_review_remap": "PASS",
+    "integrated_tests": "398/398 PASS",
+    "doctor": "PASS"
+  },
+  "interpretation": {
+    "phase3_6e_closed": true,
+    "deepfilternet_is_only_treatment_eligible_for_selection_review": true,
+    "afftdn_advanced": false,
+    "candidate_selection_authorized_by_this_closeout": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false,
+    "preserve_remains_product_default": true
+  }
+}
