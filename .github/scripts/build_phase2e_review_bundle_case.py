@@ -12,6 +12,31 @@ from video_tunner.post_render_verification import (
 )
 
 
+def configure_host_verifier_tools(portable_ffmpeg_dir: str | Path) -> Path:
+    """Bind host-side verification to the exact FFmpeg shipped in the tested portable.
+
+    The semantic analyze/render path runs in VIDEO_TUNNER_PORTABLE_STRICT mode. This
+    helper itself runs under the CI host Python, so inheriting that flag would make
+    video_tunner.tools resolve relative to the repository runtime instead of the
+    isolated portable. Fail closed unless both portable tools exist, then disable
+    strict mode only in this host verifier process and point tool resolution at the
+    already-verified portable FFmpeg directory.
+    """
+    tool_dir = Path(portable_ffmpeg_dir).resolve()
+    suffix = ".exe" if os.name == "nt" else ""
+    required = (tool_dir / f"ffmpeg{suffix}", tool_dir / f"ffprobe{suffix}")
+    missing = [str(path) for path in required if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "El verificador host requiere ffmpeg y ffprobe del portable exacto; faltan: "
+            + ", ".join(missing)
+        )
+
+    os.environ.pop("VIDEO_TUNNER_PORTABLE_STRICT", None)
+    os.environ["VIDEO_TUNNER_FFMPEG_DIR"] = str(tool_dir)
+    return tool_dir
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True)
@@ -25,7 +50,7 @@ def main() -> int:
     parser.add_argument("--portable-ffmpeg-dir", required=True)
     args = parser.parse_args()
 
-    os.environ["VIDEO_TUNNER_FFMPEG_DIR"] = str(Path(args.portable_ffmpeg_dir).resolve())
+    configure_host_verifier_tools(args.portable_ffmpeg_dir)
 
     analysis = load_json_object(args.analysis)
     proposal = load_json_object(args.proposal)
