@@ -1,98 +1,99 @@
 # Validation
 
-Esta carpeta conserva únicamente evidencia técnica y humana ligera, reproducible y auditable: hashes, manifiestos de versiones, provenance, decisiones y resúmenes de validación cuando proceda.
+Esta carpeta conserva únicamente evidencia técnica y humana ligera, reproducible y auditable: hashes, provenance, decisiones y resúmenes de validación.
 
 No usarla para almacenar vídeos, ZIPs de CI, logs voluminosos, modelos ni outputs temporales.
 
 ## Evidencia principal vigente
 
+### Portable / ingest / analysis
+
 - `portable-foundation-spike.md` — portable core.
 - `portable-analysis-spike.md` — portable ML/análisis.
 - `sync-foundation-spike.md` / `sync-hardening.md` — ingesta dual y sync.
 - `spanish-large-v3-turbo-plan.md` — target Spanish.
+
+### Fase 2
+
 - `phase2-semantic-candidates.md` — Semantic Candidates v1.
 - `phase2-semantic-protection.md` — Semantic Decisions + Protection v1.
 - `phase2c-semantic-validation.md` / `phase2c-audio-backed-validation.md` — validación semántica real.
-- `phase2d-correction-scope.md` — 2D.1.
-- `phase2d-contextual-fillers.md` — 2D.2.
-- `phase2d-join-safety.md` — 2D.3.1.
-- `phase2d-acoustic-join.md` / `phase2d-human-acoustic-evidence.md` — 2D.3.2/2D.3.3.
-- `phase2d-combined-eligibility.md` — 2D.4.
-- `phase2d-human-combined-eligibility.md` — 2D.5.
-- `phase2d-human-positive-closeout.md` — 2D.6 final.
-- `phase2e-promotion-foundation.md` — 2E.1 final; analysis schema v9.
-- `phase2e-explicit-approval-contract.md` — 2E.2 final; individual approval schema v1.
-- `phase2e-approved-plan-proposal.md` — 2E.3 final; bounded proposal schema v1.
-- `phase2e-execution-authorization.md` — **2E.4 final; global authorization + Semantic Edit Plan + real FFmpeg render gate PASS.**
-- `phase2e-post-render-closeout.md` — **2E.5 final; technical 3/3 + human perceptual 3/3; `CLOSE_OUT_READY`.**
-- `phase2e-human-closeout/` — decisiones humanas, reviews por caso, decisión agregada y manifest final con hashes.
+- `phase2d-correction-scope.md`, `phase2d-contextual-fillers.md`, `phase2d-join-safety.md`, `phase2d-acoustic-join.md`, `phase2d-human-acoustic-evidence.md`, `phase2d-combined-eligibility.md`, `phase2d-human-combined-eligibility.md`, `phase2d-human-positive-closeout.md` — Fase 2D.
+- `phase2e-promotion-foundation.md` — 2E.1.
+- `phase2e-explicit-approval-contract.md` — 2E.2.
+- `phase2e-approved-plan-proposal.md` — 2E.3.
+- `phase2e-execution-authorization.md` — 2E.4.
+- `phase2e-post-render-closeout.md` — 2E.5 technical + human closeout.
+- `phase2e-human-closeout/` — decisiones/reviews/hash manifest de 2E.5.
+
+Fase 2E está cerrada como `CLOSE_OUT_READY`; `auto_apply=false`.
+
+### Fase 3 — audiovisual quality / audit
+
+- `phase3-audiovisual-quality-foundation.md` — resumen de 3.1 Quality Audit, baseline focal real, 3.2 Treatment Decision y 3.3 Normalization Profile Contract.
+- `phase3-focal-quality-baseline.json` — medición persistente exacta de los tres pares ORIGINAL/RENDERED ya escuchados en 2E.5.
+
+Runs principales:
+
+```text
+34124957783  Phase 3.1 focused + real FFmpeg E2E — 8/8 PASS
+34125110506  Phase 3.1 full regression — 283/283 + doctor PASS
+34134893725  focal baseline exact 2E.5 bundle — PASS
+34135210344  Phase 3.2 bypass-first treatment — 14/14 PASS
+34135437824  Phase 3.3 normalization profile — 13/13 PASS
+```
+
+Baseline focal observado:
+
+```text
+cases = 3
+sources = 2
+human perceptual PASS = 3/3
+max observed |Δ integrated loudness| = 0.40 LU
+max observed |Δ true peak| = 0.04 dB
+```
+
+**0.40 LU y 0.04 dB son observaciones de la muestra, no thresholds de producto.**
+
+Interpretación acreditada hasta ahora:
+
+- no hay evidencia para normalización obligatoria como reparación del renderer en este corpus;
+- no hay evidencia para denoise por defecto;
+- no hay evidencia para join smoothing/crossfade por defecto;
+- `preserve` es default;
+- cualquier riesgo medido sólo abre revisión;
+- `ebu_r128_programme` es opt-in/review-only, no default;
+- normalización ejecutable aún no está autorizada;
+- `auto_apply=false`.
 
 ## Regla de interpretación
 
-Una validación PASS acredita únicamente el alcance descrito en su documento. El cierre de Fase 2E no implica por sí solo:
+Una validación PASS acredita únicamente el alcance descrito en su documento. No implica por sí sola:
 
 - release publicable;
-- seguridad perceptual general fuera del corpus evaluado;
-- calidad natural de todos los joins posibles;
-- auto-apply semántico;
-- generalización de métricas fuera de la muestra;
+- generalización de seguridad/calidad fuera del corpus;
+- que un número observado se convierta en threshold;
+- que una medición autorice tratamiento;
+- normalización, denoise o smoothing automáticos;
 - validación final del ZIP portable en Windows limpio.
 
-Tras el cierre 2E.5:
+Cadena conceptual actual:
 
 ```text
-analysis.json                         schema v9
-promotion_approval.json               schema v1
-approved_edit_plan_proposal.json      schema v1
-semantic_execution_authorization.json schema v1
-semantic_edit_plan.json               schema v1
-semantic_render_verification          schema v1
-semantic_render_human_review          schema v1
-phase2e_closeout_decision              schema v1
+Phase 2E output PASS
+→ audiovisual_quality_audit
+→ audiovisual_treatment_decision
+→ normalization_profile_decision
+→ [próximo: explicit normalization approval]
 ```
 
+Invariantes:
+
 ```text
-individual approval != global authorization
-proposal != executable Edit Plan
-generic render rejects proposal
-generic render rejects semantic Edit Plan
-semantic render requires full-chain + source-SHA revalidation
-semantic Edit Plan executable only through semantic render gate
-technical post-render PASS != human perceptual PASS
-human review binds exact technical report/output/plan/join evidence
-stale evidence = INVALID_EVIDENCE
+Phase 3 favorable signal != rescue of failed Phase 2E
+measurement != treatment decision
+treatment decision != treatment authorization
+profile selection != normalization authorization
+preserve = default
 auto_apply = false
 ```
-
-Final 2E.4 evidence:
-
-```text
-33909424933  201/201 PASS + doctor
-33909625346  202/202 PASS + doctor + real FFmpeg semantic E2E
-```
-
-Final 2E.5 evidence:
-
-```text
-34119952855  SUCCESS
-278 tests PASS (13 host-only skips)
-portable/provenance PASS
-3 cases / 2 sources / 3 technical PASS
-157 -> acoustic_context_only
-298 -> acoustic_context_only
-13  -> low_energy_boundary_context
-3/3 human perceptual PASS
-0 human FAIL
-0 invalid/stale reviews
-CLOSE_OUT_READY
-```
-
-Finalization hashes:
-
-```text
-source bundle manifest SHA256  d0b12929ede07c1c5a56b074008d0903a868a7cf61e5ce10801c2b682f164ed0
-human decisions SHA256         867a33c87ec2154d08558a67d503535d4527cb99af07ac65458507fe73288e04
-closeout decision SHA256       2cc5ae013cdcbfc53efc376d5db4f2f2f53d5a8848c019820dee6899b88c188a
-```
-
-**Fase 2E está cerrada como `CLOSE_OUT_READY`.** El siguiente bloque del roadmap es Fase 3 — calidad audiovisual/auditoría.
