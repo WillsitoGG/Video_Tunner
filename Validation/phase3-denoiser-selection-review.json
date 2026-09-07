@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "record_type": "denoiser_selection_review",
+  "policy_id": "phase3_denoiser_selection_review_v1",
+  "phase": "3.6f",
+  "status": "SELECTED_FOR_INTEGRATION_REVIEW",
+  "selection_completed": true,
+  "human_eligible_candidates": [
+    "deepfilternet_0_5_6_compensated_v1"
+  ],
+  "candidate_evaluations": [
+    {
+      "candidate_id": "deepfilternet_0_5_6_compensated_v1",
+      "noisy_case_count": 40,
+      "mean_delta_vs_preserve": {
+        "si_sdr_db": 9.870134122749999,
+        "stoi": 0.0111296755
+      },
+      "positive_case_counts": {
+        "si_sdr_db": 40,
+        "stoi": 27
+      },
+      "maximum_observed_absolute_raw_duration_delta_seconds": 0.03,
+      "clean_control_descriptive": {
+        "case_count": 40,
+        "stoi_mean": 0.99542798,
+        "normalized_rmse_mean": 0.03238068,
+        "numeric_acceptance_threshold_applied": false
+      },
+      "objective_aggregate_gate_pass": true,
+      "selection_eligible": true
+    }
+  ],
+  "selection_eligible_candidates": [
+    "deepfilternet_0_5_6_compensated_v1"
+  ],
+  "selected_candidate_id": "deepfilternet_0_5_6_compensated_v1",
+  "interpretation": {
+    "selected_candidate_is_for_integration_review_only": true,
+    "candidate_selection_review_complete": true,
+    "product_default": "preserve",
+    "product_default_changed": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false
+  },
+  "provenance": {
+    "evidence_source": "github_actions_artifact",
+    "workflow_run_id": 34150663772,
+    "workflow_job_id": 101832099685,
+    "run_head_sha": "f07d7b195af1c27c94cb8fba7e267fc20fb19a50",
+    "artifact_id": 10029234401,
+    "artifact_name": "phase3-denoiser-selection-review",
+    "artifact_digest": "sha256:0d55e6b9246d6a510639a6c7dd934d132928774f4836181d611a1bcf935dcddc",
+    "artifact_zip_sha256": "0d55e6b9246d6a510639a6c7dd934d132928774f4836181d611a1bcf935dcddc",
+    "raw_selection_json_sha256": "2c9595994d3210bd963c3601832ad46707a4c106a0f0cf97bc713bf97143c539",
+    "raw_selection_json_size_bytes": 1833,
+    "note": "The selection fields above are copied from the exact successful Phase 3.6f artifact. Provenance was appended after the run and does not change the selection decision."
+  }
+}
