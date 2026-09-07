@@ -36,8 +36,8 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 2E.2 — Explicit Approval Contract: ✅
 - Fase 2E.3 — Approved Edit Plan Proposal + Global Limits: ✅
 - Fase 2E.4 — Execution Authorization / Semantic Render Gate: ✅
-- Fase 2E — Promotion to Edit Plan: 🟡 **en curso**
-- Fase 2E.5 — Semantic Render Verification / Close-out: 🟡 **siguiente**
+- Fase 2E.5 — Semantic Render Verification / Close-out: 🟡 **technical pre-human gate PASS; escucha humana 0/3 pendiente**
+- Fase 2E — Promotion to Edit Plan: 🟡 **en curso hasta 3/3 PASS perceptual humano válido**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -71,7 +71,11 @@ semantic render gate
   ↓
 FFmpeg render
   ↓
-future post-render verification/audit
+semantic_render_verification
+  ↓
+human_render_review
+  ↓
+phase2e_closeout_decision
 ```
 
 Invariantes:
@@ -86,6 +90,9 @@ proposal_ready_for_global_review != render authorization
 proposed_edits[] != edits[]
 global APPROVE != auto_apply
 semantic_edit_plan requires semantic render gate
+technical post-render PASS != human perceptual PASS
+one human FAIL keeps Phase 2E open
+stale/altered evidence = INVALID_EVIDENCE
 auto_apply = false
 ```
 
@@ -97,6 +104,8 @@ auto_apply = false
 - Target Spanish `33656235038`: WER `1.64%`, RTF `0.4854`, word timestamps PASS, automatic edits 0.
 
 Modelo objetivo: **`large-v3-turbo`**.
+
+La estrategia de transcripción de producto sigue siendo `single_pass` por defecto. La estrategia `deterministic_overlap_12s_3s_repeat_consensus_v1` está expuesta como opt-in explícito y es la estrategia validada para el gate humano 2E.5; estrategias no validadas no se exponen por CLI.
 
 ## Artifacts actuales
 
@@ -173,6 +182,16 @@ executable = true
 auto_apply = false
 ```
 
+### Post-render verification + human close-out
+
+```text
+semantic_render_verification          schema v1
+semantic_render_human_review          schema v1
+phase2e_closeout_decision              schema v1
+```
+
+La verificación técnica post-render comprueba provenance, original/output, duración, streams y acústica de joins. La review humana queda ligada al SHA del technical report, SHA del output, plan fingerprint y `join_id`.
+
 ## Semantic render gate
 
 El comando genérico `render` **rechaza** tanto proposals como Semantic Edit Plans. La única vía semántica ejecutable es `execution render`, que justo antes de FFmpeg revalida:
@@ -207,6 +226,8 @@ video-tunner execution render INPUT ANALYSIS PROPOSAL AUTHORIZATION PLAN OUTPUT
 33908500929  2E.3 renderer isolation — 186/186 PASS + doctor
 33909424933  2E.4 authorization/render-gate core — 201/201 PASS + doctor
 33909625346  2E.4 real FFmpeg semantic render E2E — 202/202 PASS + doctor
+34119952855  2E.5 technical close-out — 278 tests + portable/provenance + 3/3 real AMI technical renders PASS
+34121684853  2E.5 offline human-finalizer contract — PASS
 ```
 
 ### E2E real 2E.4
@@ -223,30 +244,43 @@ analysis
 → FFmpeg
 ```
 
-El test final:
-
-- materializa exactamente un edit de `0.4 s`;
-- renderiza únicamente ese tramo autorizado;
-- confirma que el SHA-256 del original no cambia;
-- confirma duración de salida esperada con tolerancia `±0.15 s`;
-- conserva 1 stream de vídeo + 1 de audio;
-- mantiene `auto_apply=false`.
-
-Esta evidencia valida la ruta técnica/gobernanza; **no** demuestra todavía calidad perceptual humana general de los joins renderizados.
+El test final materializa exactamente un edit de `0.4 s`, preserva el SHA-256 del original, confirma la duración esperada dentro de `±0.15 s`, conserva 1 stream de vídeo + 1 de audio y mantiene `auto_apply=false`.
 
 Detalle: `Validation/phase2e-execution-authorization.md`.
 
-## Siguiente trabajo — Fase 2E.5
+### Technical pre-human close-out 2E.5
 
-**Semantic Render Verification / Close-out**:
+Run `34119952855` sobre el corpus AMI precomprometido:
 
-1. post-render structural verification;
-2. expected vs actual duration accounting;
-3. comprobar streams y output provenance;
-4. audit local alrededor de cada join renderizado;
-5. evidencia perceptual/humana sobre joins semánticos reales;
-6. informe completo analysis → approvals → proposal → authorization → plan → output;
-7. decisión explícita de cierre de Fase 2E antes de pasar a capas audiovisuales posteriores.
+```text
+cases = 3
+sources = 2
+technical PASS = 3/3
+human perceptual reviews = 0/3 PENDING
+```
+
+Resultados:
+
+```text
+157  PASS  acoustic_context_only
+298  PASS  acoustic_context_only
+13   PASS  low_energy_boundary_context
+```
+
+El bundle de escucha contiene únicamente los pares ORIGINAL/RENDERED y JSON ligero. `.github/scripts/finalize_phase2e_human_closeout.py` permite convertir después las decisiones humanas explícitas en reviews auditables y `phase2e_closeout_decision` sin volver a ejecutar ASR ni render.
+
+Esta evidencia **no** demuestra todavía calidad perceptual humana: la escucha real de Guille es el último gate.
+
+Detalle: `Validation/phase2e-post-render-closeout.md`.
+
+## Trabajo inmediato — terminar Fase 2E.5
+
+1. Guille escucha los tres pares ORIGINAL/RENDERED;
+2. registrar PASS/FAIL + motivo real para cada join;
+3. ejecutar el finalizador offline contra el bundle técnico inmutable;
+4. exigir `CLOSE_OUT_READY` para cerrar 2E; un único FAIL mantiene la fase abierta;
+5. actualizar evidencia final, limpiar tooling diagnóstico restante y preparar integración a `main`;
+6. sólo después iniciar Fase 3.
 
 ## Principios
 
@@ -257,7 +291,7 @@ Detalle: `Validation/phase2e-execution-authorization.md`.
 - conservador por defecto;
 - ante duda: KEEP/REVIEW;
 - GitHub como source of truth;
-- CI deliberada y sin artifacts pesados ordinarios;
+- CI deliberada y workflows pesados manual-only;
 - no GitHub Release sin autorización expresa de Guille.
 
 Consulta `AGENTS.md`, `ROADMAP.md`, `RELEASE_STATUS.md`, `UPSTREAM_SOURCES.md` y `Validation/`.
