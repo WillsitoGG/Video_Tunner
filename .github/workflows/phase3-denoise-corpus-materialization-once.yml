@@ -1,0 +1,38 @@
+name: Phase 3 Denoise Corpus Materialization Once
+
+on:
+  push:
+    branches:
+      - phase3-audiovisual-quality-audit
+    paths:
+      - .github/workflows/phase3-denoise-corpus-materialization-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-corpus:
+    runs-on: windows-2025
+    timeout-minutes: 18
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate frozen corpus fixture before download
+        run: python -m unittest tests.test_phase3_denoise_evaluation_corpus_fixture -v
+      - name: Materialize only the frozen 40-pair corpus from checksum-verified archives
+        run: python .github/scripts/validate_phase3_denoise_corpus.py
+      - name: Upload lightweight materialization manifest only
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-denoise-corpus-materialization
+          path: phase3-denoise-corpus-materialization.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "Corpus selection was frozen before denoiser comparison: 2 speakers x 5 noise types x 4 SNR levels = 40 paired cases. Audio is temporary only. No denoiser, renderer, treatment authorization or auto_apply is introduced."
