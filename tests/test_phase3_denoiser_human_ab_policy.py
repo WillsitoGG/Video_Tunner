@@ -75,11 +75,23 @@ class Phase3DenoiserHumanABPolicyTests(unittest.TestCase):
         for pair in pairs.values():
             self.assertEqual(pair["control_candidate_id"], "preserve_noisy_control_v1")
 
+    def test_public_bundle_contract_hides_pair_and_treatment_identity(self):
+        blind = self.policy["blinding_contract"]
+        self.assertFalse(blind["public_bundle_exposes_candidate_names"])
+        self.assertFalse(blind["public_bundle_exposes_treatment_label_mapping"])
+        self.assertEqual(blind["public_bundle_pair_labels"], ["comparison_1", "comparison_2"])
+        self.assertTrue(blind["blinding_key_stays_in_repository_policy_until_human_decisions_are_complete"])
+        public_labels = [pair["public_pair_label"] for pair in self.policy["pairwise_comparisons"]]
+        self.assertEqual(public_labels, ["comparison_1", "comparison_2"])
+        self.assertEqual(len(set(public_labels)), 2)
+
     def test_listening_media_contract_forbids_metric_or_timeline_optimization(self):
         media = self.policy["listening_media_contract"]
         self.assertEqual(media["sample_rate_hz"], 48000)
         self.assertEqual(media["channels"], 1)
         self.assertEqual(media["codec"], "pcm_s16le")
+        self.assertTrue(media["clean_reference_included_once_per_case"])
+        self.assertIn("not a selectable candidate", media["clean_reference_purpose"])
         self.assertEqual(media["deepfilternet_raw_duration_delta_max_seconds"], 0.05)
         self.assertTrue(media["right_tail_normalization_only"])
         self.assertFalse(media["alignment_search_allowed"])
