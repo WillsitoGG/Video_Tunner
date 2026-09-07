@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "record_type": "denoiser_human_ab_bundle_technical_evidence",
+  "status": "BLINDED_BUNDLE_READY_FOR_HUMAN_REVIEW",
+  "valid": true,
+  "policy_id": "phase3_denoiser_blinded_human_ab_v1",
+  "policy_sha256": "563a5cf043793880777403899c7b217ca125c1be0d7b0c07f0512b84087bdfbb",
+  "bundle_manifest_sha256": "47f7c6600bc5dccbeb7125ea1da9e2be07b5dd1900e80b6709557c05df627913",
+  "provenance": {
+    "workflow_run_id": 34148410617,
+    "workflow_job_id": 101825301447,
+    "run_head_sha": "c25cd6df16554b0966b5b2b3266361ac9ec9c24e",
+    "artifact_id": 10028540419,
+    "artifact_name": "phase3-denoiser-human-ab-review-bundle",
+    "artifact_zip_sha256": "dfe40dbfa1227794b995a9b36c66ac6a9c3cb9905a03041cc152b173824a26be",
+    "artifact_size_bytes": 16401543,
+    "created_utc": "2026-09-07T17:40:49Z"
+  },
+  "public_bundle_contract": {
+    "public_file_count": 53,
+    "wav_file_count": 50,
+    "case_count": 10,
+    "comparison_count": 20,
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "codec": "pcm_s16le",
+    "all_manifest_wav_sha256_verified": true,
+    "all_manifest_frame_counts_verified": true,
+    "same_frame_count_within_each_case": true,
+    "candidate_identity_leaks_detected": 0,
+    "private_case_id_leaks_detected": 0,
+    "blinding_key_included": false
+  },
+  "human_state": {
+    "human_listening_completed": false,
+    "human_review_status": "PENDING_HUMAN_REVIEW",
+    "human_perceptual_gate_evaluated": false
+  },
+  "capabilities": {
+    "candidate_selection_authorized": false,
+    "denoiser_selected": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false
+  },
+  "note": "Technical evidence only. The public listening artifact was independently re-inspected after download and matched the workflow-reported ZIP and manifest hashes. Human perceptual decisions are intentionally absent."
+}
