@@ -1,0 +1,43 @@
+name: Phase 3 Normalization Render Once
+
+on:
+  push:
+    branches:
+      - phase3-audiovisual-quality-audit
+    paths:
+      - .github/workflows/phase3-normalization-render-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows-normalization-render:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Ensure FFmpeg
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --no-progress -y
+          }
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
+      - name: Validate Phase 3.5c unit and real FFmpeg E2E
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m py_compile .\Source\video_tunner\normalization_plan.py .\Source\video_tunner\normalization_execution_authorization.py .\Source\video_tunner\normalization_render.py
+          python -m unittest tests.test_normalization_plan tests.test_normalization_execution_authorization tests.test_normalization_render tests.test_normalization_render_e2e_ffmpeg -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "PHASE3_NORMALIZATION_RENDER=PASS"
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "Real normalization renderer is explicit opt-in and gated only. preserve remains product default. Dynamic loudnorm fallback, denoise, join smoothing and auto_apply remain forbidden. Technical and human post-render verification are still separate and required."
