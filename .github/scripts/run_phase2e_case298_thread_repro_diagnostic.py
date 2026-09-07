@@ -31,7 +31,9 @@ WINDOW_SECONDS = 12.0
 HOP_SECONDS = 3.0
 FOCUS_INDICES = (4, 5, 6)
 EXPECTED_PHRASE = ("and", "then", "you", "can")
-EXPECTED_FFMPEG_ARCHIVE_SHA256 = "87c4729f3193f3ba562bada0330a98338c9a858d25b15fc98338a1364667348b"
+EXPECTED_FFMPEG_ARCHIVE_SHA256 = "a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f"
+REFERENCE_PRIOR_MUTABLE_ARCHIVE_SHA256 = "87c4729f3193f3ba562bada0330a98338c9a858d25b15fc98338a1364667348b"
+EXPECTED_FFMPEG_VERSION_TOKEN = "n9.0.1-26-g5c8e7e2433"
 RUNS_PER_ARM = 3
 
 
@@ -153,12 +155,20 @@ def main() -> int:
     parser.add_argument("--model-stage", required=True)
     parser.add_argument("--ffmpeg", required=True)
     parser.add_argument("--ffmpeg-archive-sha256", required=True)
+    parser.add_argument("--ffmpeg-version-line", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     ffmpeg_archive_sha = str(args.ffmpeg_archive_sha256).strip().lower()
     if ffmpeg_archive_sha != EXPECTED_FFMPEG_ARCHIVE_SHA256:
-        raise RuntimeError("Unexpected FFmpeg archive SHA")
+        raise RuntimeError(
+            f"Unexpected immutable FFmpeg archive SHA: {ffmpeg_archive_sha} != {EXPECTED_FFMPEG_ARCHIVE_SHA256}"
+        )
+    ffmpeg_version_line = str(args.ffmpeg_version_line).strip()
+    if EXPECTED_FFMPEG_VERSION_TOKEN not in ffmpeg_version_line:
+        raise RuntimeError(
+            f"Unexpected FFmpeg build: {ffmpeg_version_line}; expected token {EXPECTED_FFMPEG_VERSION_TOKEN}"
+        )
 
     fixture = json.loads(Path(args.fixture).read_text(encoding="utf-8"))
     case = next(item for item in fixture.get("cases") or [] if item.get("id") == CASE_ID)
@@ -229,8 +239,18 @@ def main() -> int:
         "schema_version": 1,
         "record_type": "phase2e_case298_cpu_thread_reproducibility_diagnostic",
         "case_id": CASE_ID,
-        "codec_path": "AMI PCM -> exact pinned FFmpeg AAC MP4 -> product ingest FLAC master -> faster-whisper",
-        "ffmpeg_archive_sha256": ffmpeg_archive_sha,
+        "codec_path": "AMI PCM -> immutable-version FFmpeg AAC MP4 -> product ingest FLAC master -> faster-whisper",
+        "ffmpeg_provenance": {
+            "immutable_release_tag": "autobuild-2026-09-05-13-10",
+            "immutable_asset": "ffmpeg-n9.0.1-26-g5c8e7e2433-win64-gpl-9.0.zip",
+            "immutable_archive_sha256": ffmpeg_archive_sha,
+            "version_line": ffmpeg_version_line,
+            "reference_prior_mutable_latest_archive_sha256": REFERENCE_PRIOR_MUTABLE_ARCHIVE_SHA256,
+            "note": (
+                "The prior human gates downloaded a mutable latest-named ZIP whose archive bytes had a different SHA. "
+                "This diagnostic uses the immutable release asset for the same contained FFmpeg build token; archive SHA equality with the prior mutable ZIP is neither claimed nor expected."
+            ),
+        },
         "master_sha256": _sha256(master),
         "master_duration_seconds": round(duration, 6),
         "model": "large-v3-turbo",
