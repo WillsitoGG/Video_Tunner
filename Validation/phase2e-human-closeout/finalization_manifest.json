@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "record_type": "phase2e_human_closeout_finalization",
+  "source_bundle": {
+    "manifest_sha256": "d0b12929ede07c1c5a56b074008d0903a868a7cf61e5ce10801c2b682f164ed0",
+    "human_decisions_sha256": "867a33c87ec2154d08558a67d503535d4527cb99af07ac65458507fe73288e04"
+  },
+  "case_review_sha256": {
+    "ami-es2002b-d-repeat-157": "dc1215715c493849ab8e458ef78b01a06b0c2f5c314521923862eeae3757ba46",
+    "ami-ts3005d-c-repeat-298": "4bf78d934c039aac329a7bd96a1752ac5545ee59ec4a536fea55e6fa1163d02e",
+    "ami-es2002b-d-repeat-13": "3234bf79509bec6920a347912014deae5ea77c96043721d9d5f5299d56aad74d"
+  },
+  "closeout_decision_sha256": "2cc5ae013cdcbfc53efc376d5db4f2f2f53d5a8848c019820dee6899b88c188a",
+  "status": "CLOSE_OUT_READY",
+  "phase2e_closeout_ready": true,
+  "auto_apply": false
+}
