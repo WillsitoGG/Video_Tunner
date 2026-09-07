@@ -1,0 +1,35 @@
+name: Phase 3 Normalization Plan Once
+
+on:
+  push:
+    branches:
+      - phase3-audiovisual-quality-audit
+    paths:
+      - .github/workflows/phase3-normalization-plan-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows-normalization-plan:
+    runs-on: windows-2025
+    timeout-minutes: 6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate Phase 3.4 and 3.5a contracts
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m py_compile .\Source\video_tunner\normalization_approval.py .\Source\video_tunner\normalization_plan.py
+          python -m unittest tests.test_normalization_approval tests.test_normalization_plan -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "PHASE3_NORMALIZATION_PLAN_PROPOSAL=PASS"
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "Linear-only proposal. LRA policy preserves measured LRA; dynamic fallback is forbidden. Parameters remain non-executable and no renderer is authorized."
