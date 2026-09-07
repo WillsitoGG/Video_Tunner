@@ -172,3 +172,63 @@ def build_normalization_plan_proposal(
         "executable": False,
         "auto_apply": False,
     }
+
+
+def validate_normalization_plan_proposal(
+    quality_audit: dict[str, Any],
+    profile_decision: dict[str, Any],
+    approval: dict[str, Any],
+    plan: dict[str, Any],
+    *,
+    quality_audit_sha256: str,
+    profile_decision_sha256: str,
+    approval_sha256: str,
+) -> dict[str, Any]:
+    """Rebuild and compare the exact 3.5a proposal against current upstream evidence."""
+    base = {
+        "valid": False,
+        "ready": False,
+        "parameters_executable": False,
+        "normalization_render_authorization": False,
+        "executable": False,
+        "auto_apply": False,
+    }
+    if not isinstance(plan, dict):
+        return base | {"status": "invalid_record", "reason": "plan_not_object"}
+    if plan.get("schema_version") != NORMALIZATION_PLAN_SCHEMA_VERSION:
+        return base | {"status": "invalid_record", "reason": "unsupported_schema_version"}
+    if plan.get("record_type") != NORMALIZATION_PLAN_RECORD_TYPE:
+        return base | {"status": "invalid_record", "reason": "invalid_record_type"}
+    forbidden_true = (
+        "parameters_executable",
+        "normalization_authorized",
+        "normalization_render_authorization",
+        "executable",
+        "auto_apply",
+    )
+    if any(bool(plan.get(key)) for key in forbidden_true):
+        return base | {"status": "invalid_record", "reason": "unexpected_execution_capability"}
+    try:
+        expected = build_normalization_plan_proposal(
+            quality_audit,
+            profile_decision,
+            approval,
+            quality_audit_sha256=quality_audit_sha256,
+            profile_decision_sha256=profile_decision_sha256,
+            approval_sha256=approval_sha256,
+        )
+    except ValueError as exc:
+        return base | {"status": "stale_or_invalid_upstream", "reason": str(exc)}
+    if plan != expected:
+        return base | {"status": "stale_or_tampered_plan", "reason": "plan_no_longer_matches_exact_upstream_rebuild"}
+    ready = expected.get("status") == "linear_normalization_plan_proposal_ready" and bool(expected.get("ready_for_render_gate_design"))
+    if not ready or expected.get("blockers") not in ([], None) or not expected.get("parameters_defined"):
+        return base | {"status": "valid_blocked", "reason": "plan_not_ready_for_execution_authorization", "valid": True}
+    return base | {
+        "status": "valid_ready",
+        "reason": None,
+        "valid": True,
+        "ready": True,
+        "quality_output_sha256": expected["bindings"]["quality_output_sha256"],
+        "profile_name": expected["bindings"]["profile_name"],
+    }
