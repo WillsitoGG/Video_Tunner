@@ -10,6 +10,7 @@ if (-not $ModelStage -or -not (Test-Path $ModelStage)) { throw "No existe stagin
 if (-not (Test-Path $PortableSource)) { throw "No existe portable de análisis: $PortableSource" }
 
 $spec = Get-Content $Fixture -Raw | ConvertFrom-Json
+$transcriptionStrategy = "deterministic_overlap_12s_3s_repeat_consensus_v1"
 $isolated = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Human Render Portable"
 $caseRoot = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Human Render Cases"
 $bundleRoot = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Human Review Bundle"
@@ -121,15 +122,22 @@ foreach ($case in @($spec.cases)) {
         --language en `
         --device cpu `
         --compute-type int8 `
+        --transcription-strategy $transcriptionStrategy `
         --output-dir $analysisOutput 2>&1 | Out-String)
     Write-Host $analyzeStdout
     if ($LASTEXITCODE -ne 0) { throw "Analyze falló para $id." }
 
     $analysisPath = Join-Path $analysisOutput "${id}_analysis.json"
+    $transcriptPath = Join-Path $analysisOutput "${id}_transcript.json"
     if (-not (Test-Path $analysisPath)) { throw "Falta analysis.json para $id." }
+    if (-not (Test-Path $transcriptPath)) { throw "Falta transcript.json para $id." }
     $analysis = Get-Content $analysisPath -Raw | ConvertFrom-Json
+    $transcript = Get-Content $transcriptPath -Raw | ConvertFrom-Json
     if ([int]$analysis.schema_version -lt 9) { throw "$id analysis schema < 9" }
     if ([int]$analysis.summary.automatic_edits -ne 0) { throw "$id produjo automatic_edits antes de autorización." }
+    if ([string]$transcript.strategy.name -ne $transcriptionStrategy) {
+        throw "$id no usó la estrategia de transcripción validada: $($transcript.strategy.name)"
+    }
 
     $expectedText = Normalize-Phrase ([string]$case.reparandum_text)
     $promotionMatches = @($analysis.promotion_assessments | Where-Object {
@@ -216,6 +224,7 @@ foreach ($case in @($spec.cases)) {
         audio_source_id = $sourceId
         human_label = [string]$case.human_label
         expected_removed_text = [string]$case.reparandum_text
+        transcription_strategy = $transcriptionStrategy
         render_clip_start = $renderClipStart
         render_clip_duration = $renderClipDuration
         promotion_assessment_id = [string]$promotion.id
@@ -234,6 +243,7 @@ foreach ($case in @($spec.cases)) {
 
     Write-Host "PHASE2E_HUMAN_RENDER_CASE=$id"
     Write-Host "PHASE2E_HUMAN_RENDER_TEXT=$($case.reparandum_text)"
+    Write-Host "PHASE2E_HUMAN_RENDER_TRANSCRIPTION_STRATEGY=$transcriptionStrategy"
     Write-Host "PHASE2E_HUMAN_RENDER_SOURCE_DURATION=$duration"
     Write-Host "PHASE2E_HUMAN_RENDER_REMOVED_FRACTION=$($proposal.summary.removed_fraction)"
     Write-Host "PHASE2E_HUMAN_RENDER_TECHNICAL_PASS=$($technical.technical_pass)"
@@ -253,6 +263,7 @@ $manifest = [ordered]@{
     source_fixture = [IO.Path]::GetFileName($Fixture)
     license = [string]$spec.license
     corpus = "AMI Meeting Corpus"
+    transcription_strategy = $transcriptionStrategy
     selection_locked_before_listening = $true
     render_window_rule = [string]$spec.provenance.render_window_rule
     closeout_policy = $policy
@@ -274,6 +285,10 @@ Video_Tunner — Phase 2E.5 Human Render Review Bundle
 Purpose
 -------
 Listen to exactly 3 precommitted real-human AMI semantic joins. The cases were selected because they already reached foundation_guards_pass in Phase 2D.6, before any Phase 2E.5 listening result.
+
+Transcription strategy
+----------------------
+The portable analyzes these close-out cases with the explicitly selected deterministic_overlap_12s_3s_repeat_consensus_v1 strategy validated by the immutable 3/3 Phase 2E gate. The product default remains single_pass.
 
 Execution-window note
 ---------------------
