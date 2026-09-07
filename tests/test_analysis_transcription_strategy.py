@@ -18,9 +18,34 @@ class AnalysisTranscriptionStrategyTests(unittest.TestCase):
         parameter = inspect.signature(analyze_spoken_video).parameters["transcription_strategy"]
         self.assertEqual(parameter.default, SINGLE_PASS_TRANSCRIPTION_STRATEGY)
 
-    def test_cli_does_not_expose_unvalidated_strategy(self):
+    def test_cli_default_remains_single_pass(self):
         args = build_parser().parse_args(["analyze", "video.mp4"])
-        self.assertFalse(hasattr(args, "transcription_strategy"))
+        self.assertEqual(args.transcription_strategy, SINGLE_PASS_TRANSCRIPTION_STRATEGY)
+
+    def test_cli_exposes_validated_12s3s_strategy_as_explicit_opt_in(self):
+        args = build_parser().parse_args(
+            [
+                "analyze",
+                "video.mp4",
+                "--transcription-strategy",
+                CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY,
+            ]
+        )
+        self.assertEqual(
+            args.transcription_strategy,
+            CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY,
+        )
+
+    def test_cli_does_not_expose_unvalidated_12s6s_strategy(self):
+        with self.assertRaises(SystemExit):
+            build_parser().parse_args(
+                [
+                    "analyze",
+                    "video.mp4",
+                    "--transcription-strategy",
+                    CHUNKED_TRANSCRIPTION_STRATEGY,
+                ]
+            )
 
     def test_single_pass_routes_only_to_existing_transcriber(self):
         sentinel = object()
