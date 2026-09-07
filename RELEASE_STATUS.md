@@ -13,8 +13,8 @@
 - Fase 2E.2: **COMPLETADA — Explicit Approval Contract / approval schema v1**
 - Fase 2E.3: **COMPLETADA — Approved Edit Plan Proposal / proposal schema v1**
 - Fase 2E.4: **COMPLETADA — Execution Authorization / Semantic Render Gate**
-- Fase 2E: **EN CURSO**
-- Fase 2E.5: **SIGUIENTE — Semantic Render Verification / Close-out**
+- Fase 2E.5: **TECHNICAL PRE-HUMAN GATE PASS — 3/3 renders + post-render verification; escucha humana pendiente**
+- Fase 2E: **EN CURSO — no cerrar hasta 3/3 PASS perceptual humano válido**
 
 ## Evidencia principal
 
@@ -30,7 +30,21 @@ Phase 2E.3 proposal foundation   33900544072  PASS — 185/185 + doctor
 Phase 2E.3 renderer isolation    33908500929  PASS — 186/186 + doctor
 Phase 2E.4 execution core        33909424933  PASS — 201/201 + doctor
 Phase 2E.4 real semantic E2E     33909625346  PASS — 202/202 + doctor
+Phase 2E.5 technical close-out   34119952855  PASS — 278 tests + portable/provenance + 3/3 technical renders
 ```
+
+Phase 2E.5 aggregate actual:
+
+```text
+PHASE2E_HUMAN_RENDER_PRE_HUMAN_GATE=PASS
+PHASE2E_HUMAN_RENDER_CASES=3
+PHASE2E_HUMAN_RENDER_SOURCES=2
+PHASE2E_HUMAN_RENDER_TECHNICAL_PASS=3
+PHASE2E_HUMAN_PERCEPTUAL_PENDING=3
+PHASE2E_CLOSE_OUT_DECISION=PENDING_HUMAN_LISTENING
+```
+
+La evidencia técnica 2E.5 **no equivale** a una prueba manual realizada por Guille.
 
 ## Artifact chain
 
@@ -40,9 +54,12 @@ promotion_approval.json               schema v1
 approved_edit_plan_proposal.json      schema v1
 semantic_execution_authorization.json schema v1
 semantic_edit_plan.json               schema v1
+semantic_render_verification          schema v1
+semantic_render_human_review          schema v1  (pendiente de evidencia real)
+phase2e_closeout_decision              schema v1  (pendiente de evidencia real)
 ```
 
-## Safety 2E.4
+## Safety 2E.4–2E.5
 
 ```text
 promotion approval APPROVE != global execution authorization
@@ -52,6 +69,9 @@ semantic plan uses edits[] only after valid global authorization
 generic render rejects proposals
 generic render rejects semantic Edit Plans
 semantic render revalidates exact full chain + source SHA immediately before FFmpeg
+post-render technical PASS != human perceptual PASS
+one human FAIL keeps Phase 2E open
+stale/altered human evidence = INVALID_EVIDENCE, not quality PASS/FAIL
 auto_apply = false
 ```
 
@@ -75,9 +95,9 @@ executable = true
 auto_apply = false
 ```
 
-## Real FFmpeg gate
+## Real FFmpeg gates
 
-Final `33909625346`:
+Final 2E.4 `33909625346`:
 
 ```text
 202/202 tests PASS en 7.782 s
@@ -87,13 +107,31 @@ real semantic FFmpeg E2E PASS
 
 El E2E construye una cadena completa autorizada sobre un MP4 real de 10 s, materializa un único edit de 0.4 s, verifica que el SHA-256 del original queda intacto y que el output conserva audio+vídeo con duración esperada dentro de ±0.15 s.
 
-Esta evidencia no implica todavía calidad perceptual humana general de joins renderizados.
+Phase 2E.5 `34119952855`:
 
-Evidencia: `Validation/phase2e-execution-authorization.md`.
+```text
+278 tests PASS (13 host-only skips)
+portable analysis build PASS
+immutable FFmpeg provenance PASS
+3/3 precommitted AMI cases render PASS
+3/3 post-render technical verification PASS
+2 distinct speaker-specific AMI sources
+human perceptual reviews completed: 0/3
+```
+
+Per-case technical status:
+
+```text
+157  PASS  acoustic_context_only
+298  PASS  acoustic_context_only
+13   PASS  low_energy_boundary_context
+```
+
+Evidencia: `Validation/phase2e-execution-authorization.md` y `Validation/phase2e-post-render-closeout.md`.
 
 ## Pendiente antes de Release
 
-- Fase 2E.5: post-render verification + human/perceptual semantic join close-out;
+- Fase 2E.5: **escucha humana real 3/3 y agregación auditable del close-out**;
 - Fase 3 calidad audiovisual/audit;
 - Fase 4 UX;
 - Fase 5 Release Hardening + licencias/notices + Windows limpio real;
