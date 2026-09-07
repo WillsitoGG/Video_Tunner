@@ -54,7 +54,7 @@
     "artifact_digest": "sha256:0d55e6b9246d6a510639a6c7dd934d132928774f4836181d611a1bcf935dcddc",
     "artifact_zip_sha256": "0d55e6b9246d6a510639a6c7dd934d132928774f4836181d611a1bcf935dcddc",
     "raw_selection_json_sha256": "2c9595994d3210bd963c3601832ad46707a4c106a0f0cf97bc713bf97143c539",
-    "raw_selection_json_size_bytes": 1833,
+    "raw_selection_json_size_bytes": 1482,
     "note": "The selection fields above are copied from the exact successful Phase 3.6f artifact. Provenance was appended after the run and does not change the selection decision."
   }
 }
