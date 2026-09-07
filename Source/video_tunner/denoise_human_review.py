@@ -60,6 +60,46 @@ def _expected_decision_keys(policy: dict[str, Any]) -> set[tuple[str, str]]:
     return {(case_id, comparison) for case_id in case_ids for comparison in comparisons}
 
 
+def remap_public_review_to_private(*, public_review: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
+    """Convert the blinded public case labels back to the frozen private ids.
+
+    Only case_id values are remapped. Preferences, A/B quality judgments and
+    reasons are copied verbatim. Unknown/duplicate public labels fail closed.
+    """
+    selected = policy["case_selection"]["cases_in_selection_rank_order"]
+    public_to_private = {f"case_{index:02d}": case["id"] for index, case in enumerate(selected, start=1)}
+    allowed_comparisons = {pair["public_pair_label"] for pair in policy["pairwise_comparisons"]}
+    expected_public = {
+        (public_case, comparison)
+        for public_case in public_to_private
+        for comparison in allowed_comparisons
+    }
+
+    decisions = public_review.get("decisions")
+    if not isinstance(decisions, list) or len(decisions) != len(expected_public):
+        raise ValueError("Public human denoiser review no contiene exactamente las decisiones ciegas esperadas.")
+
+    seen: set[tuple[str, str]] = set()
+    remapped: list[dict[str, Any]] = []
+    for decision in decisions:
+        public_case = decision.get("case_id")
+        comparison = decision.get("comparison")
+        key = (public_case, comparison)
+        if key not in expected_public or key in seen:
+            raise ValueError(f"Public human denoiser review contiene decisión desconocida/duplicada: {key!r}")
+        seen.add(key)
+        copied = dict(decision)
+        copied["case_id"] = public_to_private[public_case]
+        remapped.append(copied)
+    if seen != expected_public:
+        raise ValueError("Public human denoiser review no cubre exactamente el bundle ciego congelado.")
+
+    private_review = dict(public_review)
+    private_review["decisions"] = remapped
+    private_review.pop("note", None)
+    return private_review
+
+
 def validate_completed_review(
     *,
     review: dict[str, Any],
