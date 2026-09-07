@@ -56,3 +56,4 @@ jobs:
         run: |
           Write-Host "Lightweight preflight only: no model download, FFmpeg build, analysis or render."
           Write-Host "single_pass remains default; deterministic_overlap_12s_3s_repeat_consensus_v1 is explicit opt-in."
+          Write-Host "PHASE2E_CLOSEOUT_PREFLIGHT_TRIGGER=1"
