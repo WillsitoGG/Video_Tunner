@@ -30,8 +30,9 @@ Fase 2E está cerrada como `CLOSE_OUT_READY`; `auto_apply=false`.
 
 ### Fase 3 — audiovisual quality / audit
 
-- `phase3-audiovisual-quality-foundation.md` — resumen de 3.1 Quality Audit, baseline focal real, 3.2 Treatment Decision y 3.3 Normalization Profile Contract.
+- `phase3-audiovisual-quality-foundation.md` — 3.1 Quality Audit, baseline focal real, 3.2 Treatment Decision y 3.3 Normalization Profile Contract.
 - `phase3-focal-quality-baseline.json` — medición persistente exacta de los tres pares ORIGINAL/RENDERED ya escuchados en 2E.5.
+- `phase3-normalization-foundation.md` — 3.4 Explicit Normalization Approval + 3.5a–d plan/authorization/renderer/post-render technical verification.
 
 Runs principales:
 
@@ -41,6 +42,12 @@ Runs principales:
 34134893725  focal baseline exact 2E.5 bundle — PASS
 34135210344  Phase 3.2 bypass-first treatment — 14/14 PASS
 34135437824  Phase 3.3 normalization profile — 13/13 PASS
+34136124997  Phase 3.4 explicit normalization approval — 15/15 PASS
+34136621557  Phase 3.5a plan proposal base gate — 15/15 PASS
+34138226442  Phase 3.5b execution authorization — 15/15 PASS
+34139056626  Phase 3.5c gated linear render — 25/25 + real FFmpeg E2E PASS
+34139502187  Phase 3.5d independent post-render verification — 16/16 + real FFmpeg E2E PASS
+34139639280  full regression through 3.5d — 337/337 + doctor PASS
 ```
 
 Baseline focal observado:
@@ -57,13 +64,15 @@ max observed |Δ true peak| = 0.04 dB
 
 Interpretación acreditada hasta ahora:
 
-- no hay evidencia para normalización obligatoria como reparación del renderer en este corpus;
+- no hay evidencia para normalización obligatoria como reparación del renderer en el corpus focal;
+- existe una vía `ebu_r128_programme` opt-in técnicamente validada y fail-closed;
+- el renderer de normalización crea un derivado, nunca sobrescribe el output 2E;
+- fallback dinámico de `loudnorm` está prohibido;
+- el post-render verifier vuelve a medir independently y verifica vídeo decodificado idéntico;
+- la normalización sigue pendiente de human perceptual close-out antes de generalizarla;
 - no hay evidencia para denoise por defecto;
 - no hay evidencia para join smoothing/crossfade por defecto;
 - `preserve` es default;
-- cualquier riesgo medido sólo abre revisión;
-- `ebu_r128_programme` es opt-in/review-only, no default;
-- normalización ejecutable aún no está autorizada;
 - `auto_apply=false`.
 
 ## Regla de interpretación
@@ -74,7 +83,8 @@ Una validación PASS acredita únicamente el alcance descrito en su documento. N
 - generalización de seguridad/calidad fuera del corpus;
 - que un número observado se convierta en threshold;
 - que una medición autorice tratamiento;
-- normalización, denoise o smoothing automáticos;
+- que technical normalization PASS equivalga a human perceptual PASS;
+- denoise o smoothing automáticos;
 - validación final del ZIP portable en Windows limpio.
 
 Cadena conceptual actual:
@@ -84,7 +94,20 @@ Phase 2E output PASS
 → audiovisual_quality_audit
 → audiovisual_treatment_decision
 → normalization_profile_decision
-→ [próximo: explicit normalization approval]
+→ normalization_approval
+→ normalization_plan_proposal
+→ normalization_execution_authorization
+→ normalization_render_result
+→ normalization_post_render_verification
+→ human perceptual normalization review (PENDING)
+```
+
+Siguiente cadena en construcción:
+
+```text
+Phase 2E output PASS
+→ noise evidence / audit (measurement-only)
+→ [todavía NO denoise treatment]
 ```
 
 Invariantes:
@@ -94,6 +117,7 @@ Phase 3 favorable signal != rescue of failed Phase 2E
 measurement != treatment decision
 treatment decision != treatment authorization
 profile selection != normalization authorization
+technical PASS != human perceptual PASS
 preserve = default
 auto_apply = false
 ```
