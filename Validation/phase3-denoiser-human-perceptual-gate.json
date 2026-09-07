@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "record_type": "denoiser_human_perceptual_gate",
+  "policy_id": "phase3_denoiser_blinded_human_ab_v1",
+  "policy_sha256": "563a5cf043793880777403899c7b217ca125c1be0d7b0c07f0512b84087bdfbb",
+  "bundle_manifest_sha256": "47f7c6600bc5dccbeb7125ea1da9e2be07b5dd1900e80b6709557c05df627913",
+  "review_fingerprint": "e58998b4fd8b0c53592581a37ef6a5e77d2fe0347c0a6b0b8d4a09a681d112f9",
+  "pair_results": [
+    {
+      "pair_id": "deepfilternet_vs_preserve",
+      "public_pair_label": "comparison_1",
+      "treatment_candidate_id": "deepfilternet_0_5_6_compensated_v1",
+      "control_candidate_id": "preserve_noisy_control_v1",
+      "review_count": 10,
+      "treatment_preferences": 10,
+      "preserve_preferences": 0,
+      "no_preference": 0,
+      "treatment_speech_integrity_failures": 0,
+      "treatment_artifact_failures": 0,
+      "perceptual_gate_pass": true,
+      "status": "ELIGIBLE_FOR_SELECTION_REVIEW",
+      "cases": [
+        {"case_id":"p257_013","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere B."},
+        {"case_id":"p257_017","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere A."},
+        {"case_id":"p232_019","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere A."},
+        {"case_id":"p257_009","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere A."},
+        {"case_id":"p257_022","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere B."},
+        {"case_id":"p232_020","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere A."},
+        {"case_id":"p232_006","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere B."},
+        {"case_id":"p257_001","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere B."},
+        {"case_id":"p232_001","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere A."},
+        {"case_id":"p232_011","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere B."}
+      ]
+    },
+    {
+      "pair_id": "afftdn_vs_preserve",
+      "public_pair_label": "comparison_2",
+      "treatment_candidate_id": "ffmpeg_afftdn_fixed_v1",
+      "control_candidate_id": "preserve_noisy_control_v1",
+      "review_count": 10,
+      "treatment_preferences": 3,
+      "preserve_preferences": 2,
+      "no_preference": 5,
+      "treatment_speech_integrity_failures": 0,
+      "treatment_artifact_failures": 0,
+      "perceptual_gate_pass": false,
+      "status": "NOT_ADVANCED_PRESERVE_DEFAULT",
+      "cases": [
+        {"case_id":"p257_013","preference_class":"NO_PREFERENCE","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"Ambas versiones le suenan igual."},
+        {"case_id":"p257_017","preference_class":"NO_PREFERENCE","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"Ambas versiones le suenan igual."},
+        {"case_id":"p232_019","preference_class":"PRESERVE","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere B."},
+        {"case_id":"p257_009","preference_class":"NO_PREFERENCE","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"Ambas versiones le suenan igual."},
+        {"case_id":"p257_022","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere A."},
+        {"case_id":"p232_020","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere B."},
+        {"case_id":"p232_006","preference_class":"TREATMENT","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere B."},
+        {"case_id":"p257_001","preference_class":"NO_PREFERENCE","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"Ambas versiones le suenan igual."},
+        {"case_id":"p232_001","preference_class":"NO_PREFERENCE","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"Ambas versiones le suenan igual."},
+        {"case_id":"p232_011","preference_class":"PRESERVE","treatment_speech_integrity":"PASS","treatment_artifact":"PASS","reason":"El revisor prefiere A."}
+      ]
+    }
+  ],
+  "interpretation": {
+    "human_perceptual_evidence_complete": true,
+    "gate_pass_only_means_eligible_for_later_candidate_selection_review": true,
+    "candidate_selection_authorized": false,
+    "denoiser_selected": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false,
+    "preserve_remains_product_default": true
+  }
+}
