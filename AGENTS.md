@@ -14,24 +14,28 @@ Obligatorio:
 4. Whisper, VAD y acoustic join usan exactamente el mismo master acreditado;
 5. auto-sync sólo con evidencia suficiente; override/manual fallback;
 6. original siempre intacto;
-7. `candidate != scope != assessment != semantic decision != eligibility != promotion != approval != proposal != execution authorization != semantic edit plan != rendered output != post-render verification != human review`;
-8. `PROPOSED_CUT != executable CUT`;
-9. `foundation_guards_pass != safe cut`;
-10. `promotion_review_candidate != approval`;
-11. `valid_approved promotion approval != global execution authorization`;
-12. `proposal_ready_for_global_review != render authorization`;
-13. `proposed_edits[] != edits[]`;
-14. global APPROVE nunca implica `auto_apply`;
-15. `semantic_edit_plan` sólo puede renderizarse por semantic render gate;
-16. cualquier cambio de analysis/proposal/authorization/plan/source invalida la cadena correspondiente;
-17. technical post-render PASS nunca sustituye human perceptual PASS;
-18. evidencia humana stale/alterada = `INVALID_EVIDENCE`;
-19. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
-20. ante duda: `KEEP / REVIEW`;
-21. conservador por defecto.
+7. cada artifact/capability es independiente y stale-safe;
+8. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
+9. `measurement != treatment decision != treatment authorization`;
+10. `profile selection != normalization authorization`;
+11. `preserve` audiovisual es default;
+12. ningún risk finding auto-selecciona tratamiento;
+13. ante duda: KEEP/REVIEW;
+14. `auto_apply=false`;
+15. no release sin autorización expresa de Guille.
+
+Cadena actual:
 
 ```text
-sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join → acoustic → semantic → eligibility → promotion → individual approval → bounded proposal → global execution authorization → semantic Edit Plan → semantic render gate → FFmpeg → post-render verification → human review → corpus closeout
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD
+→ candidates/scopes/fillers/join/acoustic/semantic/eligibility
+→ promotion → individual approval → bounded proposal
+→ global execution authorization → semantic Edit Plan
+→ semantic render gate → FFmpeg
+→ post-render technical verification → human review → 2E closeout
+→ audiovisual quality audit
+→ audiovisual treatment decision
+→ normalization profile decision
 ```
 
 ## 2. Estado
@@ -41,16 +45,19 @@ Versión `0.1.0-dev`.
 Completado:
 
 - Fase 2D cerrada como foundation/evidence;
-- Fase 2E.1 — Promotion Policy Foundation / analysis schema v9;
-- Fase 2E.2 — Explicit Approval Contract / approval schema v1;
-- Fase 2E.3 — Approved Edit Plan Proposal + Global Limits / proposal schema v1;
-- Fase 2E.4 — Execution Authorization / Semantic Render Gate;
-- **Fase 2E.5 — Post-render Verification / Human Close-out — COMPLETADA**;
-- **Fase 2E — `CLOSE_OUT_READY`**.
+- Fase 2E completa — `CLOSE_OUT_READY`;
+- Fase 3.1 — Audiovisual Quality Audit v1 foundation;
+- Fase 3 focal real sobre los 3 joins humanos 2E.5;
+- Fase 3.2 — Bypass-first Treatment Decision foundation;
+- Fase 3.3 — Normalization Profile Contract foundation/review-only.
 
-Auto-apply semántico sigue deshabilitado. El cierre 2E no autoriza release.
+No completado:
 
-Siguiente bloque: **Fase 3 — calidad audiovisual / auditoría**.
+- normalización ejecutable;
+- denoise;
+- join smoothing/crossfade;
+- Fase 3 closeout;
+- UX/release.
 
 ## 3. Evidencia principal
 
@@ -60,32 +67,26 @@ Siguiente bloque: **Fase 3 — calidad audiovisual / auditoría**.
 33639009841  Sync hardening PASS
 33656235038  Target Spanish PASS — WER 1.64%, RTF 0.4854
 33894995584  2D.6 Human positive close-out — CLOSE_OUT_READY
-33899201093  2E.1 — 166/166 + doctor PASS
-33899857378  2E.2 — 174/174 + doctor PASS
-33900544072  2E.3 proposal — 185/185 + doctor PASS
-33908500929  2E.3 renderer isolation — 186/186 + doctor PASS
-33909424933  2E.4 core — 201/201 + doctor PASS
-33909625346  2E.4 real FFmpeg E2E — 202/202 + doctor PASS
-34119952855  2E.5 technical close-out — 278 tests + portable/provenance + 3/3 technical renders PASS
-34121684853  2E.5 offline human-finalizer contract PASS
+33909625346  2E.4 real FFmpeg semantic render E2E PASS
+34119952855  2E.5 technical close-out — 3/3 real AMI technical PASS / 2 sources
+human review  2E.5 — 3/3 human perceptual PASS / CLOSE_OUT_READY
+34124101770  final clean Phase 2E — 275/275 + doctor PASS
+34124957783  Phase 3.1 quality audit — 8/8 + real FFmpeg E2E PASS
+34125110506  Phase 3.1 full regression — 283/283 + doctor PASS
+34134893725  Phase 3 focal baseline — 3 cases / 2 sources PASS
+34135210344  Phase 3.2 treatment foundation — 14/14 PASS
+34135437824  Phase 3.3 normalization profile — 13/13 PASS
 ```
 
-Final human close-out:
+Focal baseline observed only:
 
 ```text
-cases = 3
-sources = 2
-valid human reviews = 3
-human perceptual PASS = 3
-human FAIL = 0
-invalid/stale reviews = 0
-status = CLOSE_OUT_READY
-auto_apply = false
+max |Δ integrated loudness| = 0.40 LU
+max |Δ true peak| = 0.04 dB
+human PASS = 3/3
 ```
 
-Evidencia permanente: `Validation/phase2e-post-render-closeout.md` y `Validation/phase2e-human-closeout/`.
-
-No generalizar métricas fuera del corpus evaluado.
+Estos valores NO son thresholds generales. No generalizar fuera del corpus.
 
 ## 4. Stack fijado
 
@@ -100,7 +101,7 @@ PyInstaller 6.22.2
 
 VAD: faster-whisper + `silero_vad_v6.onnx`. Modelo objetivo: `large-v3-turbo`.
 
-`single_pass` sigue siendo default del producto. `deterministic_overlap_12s_3s_repeat_consensus_v1` está expuesta como opt-in explícito y fue la estrategia validada en 2E.5. No exponer estrategias no validadas por CLI.
+`single_pass` sigue siendo default de transcripción. `deterministic_overlap_12s_3s_repeat_consensus_v1` es opt-in explícito y fue validada para 2E.5. No exponer estrategias no validadas.
 
 ## 5. Schemas / artifacts
 
@@ -113,147 +114,119 @@ semantic_edit_plan.json               schema v1
 semantic_render_verification          schema v1
 semantic_render_human_review          schema v1
 phase2e_closeout_decision              schema v1
+audiovisual_quality_audit              schema v1
+audiovisual_treatment_decision         schema v1
+normalization_profile_decision         schema v1
 ```
 
-No mutar `analysis.json` para approvals, proposal, authorization, plan, verification o human review.
+No mutar artifacts upstream para registrar decisiones downstream.
 
-## 6. Promotion + approvals
+## 6. Fase 2E — reglas que siguen vigentes
 
-Sólo `possible_repetition` está respaldada actualmente por evidencia humana positiva para promotion/semantic execution.
+- approval individual != autorización global;
+- proposal nunca es ejecutable;
+- Semantic Edit Plan sólo se renderiza mediante semantic render gate;
+- source SHA + analysis/proposal/authorization/plan deben revalidarse;
+- technical post-render PASS != human perceptual PASS;
+- stale evidence = INVALID_EVIDENCE;
+- `auto_apply=false`.
 
-Un approval individual `valid_approved` sigue sin ser autorización global.
+Final evidence: `Validation/phase2e-post-render-closeout.md` y `Validation/phase2e-human-closeout/`.
 
-## 7. Proposal 2E.3
+## 7. Fase 3.1 — Quality Audit
 
-Límites precomprometidos e iguales para `conservative/aggressive`:
+`Source/video_tunner/audiovisual_quality.py`:
+
+- sólo acepta un output 2E técnicamente PASS y SHA vigente;
+- FFmpeg `loudnorm` se usa únicamente como medidor;
+- se leen input integrated LUFS, input true peak y LRA;
+- no se genera media normalizado;
+- risk v1: true peak > 0 dBTP;
+- ningún finding crea capability.
+
+## 8. Baseline real de Fase 3
+
+`Validation/phase3-focal-quality-baseline.json` procede del mismo bundle ORIGINAL/RENDERED escuchado por Guille en 2E.5.
+
+La evidencia actual NO justifica:
+
+- normalización obligatoria como reparación del renderer;
+- denoise por defecto;
+- crossfade/join smoothing por defecto.
+
+Default: preservar el render validado.
+
+## 9. Fase 3.2 — Treatment Decision
 
 ```text
-max_semantic_edits    = 10
-max_removed_seconds   = 30.0
-max_removed_fraction  = 0.05
+no risks → bypass_preserve_render
+risk → treatment_review_required
 ```
 
-Una proposal válida sigue:
+Siempre:
 
 ```text
-status = proposal_ready_for_global_review
-proposed_edits[]
-requires_global_review = true
-globally_approved = false
-render_authorization = false
+parameters_defined = false
+mandatory_treatment = false
 executable = false
+treatment_authorized = false
 auto_apply = false
 ```
 
-Cualquier approval stale/rejected/invalid, duplicado, overlap, target inválido/out-of-timeline o límite global excedido bloquea la proposal completa.
+Nunca convertir automáticamente un riesgo en parámetros de filtro.
 
-## 8. Fase 2E.4 — Global execution authorization
+## 10. Fase 3.3 — Normalization Profile Contract
 
-Artefacto `semantic_execution_authorization.json` schema v1.
-
-APPROVE válido:
+Default:
 
 ```text
-authorized = true
-edit_plan_materialization_authorized = true
-semantic_render_authorization = true
-proposal_render_authorization = false
-executable = false
+preserve
+```
+
+Perfil opt-in/review-only:
+
+```text
+ebu_r128_programme
+-23 LUFS
+max true peak -1 dBTP
+EBU R 128 v5.0 (November 2023)
+measurement basis ITU-R BS.1770-5 (November 2023)
+```
+
+No usar un supuesto “YouTube -14 LUFS” como default ni como estándar universal.
+
+Selección EBU R128 todavía implica:
+
+```text
+explicit_opt_in_required = true
+human_approval_required = true
+normalization_authorized = false
+parameters_executable = false
+render_authorized = false
 auto_apply = false
 ```
 
-La proposal nunca se vuelve renderizable.
+No elegir silenciosamente un target LRA sólo porque FFmpeg `loudnorm` requiera un parámetro LRA para tratamiento.
 
-## 9. Semantic Edit Plan
+## 11. Próximo trabajo — Fase 3.4
 
-Artefacto `semantic_edit_plan.json` schema v1. Sólo se materializa desde `valid_authorized` y conserva source SHA, analysis/proposal/authorization SHA, evidence fingerprint, edits exactos y plan fingerprint.
+Implementar un **normalization approval artifact** separado y stale-safe:
 
-```text
-globally_authorized = true
-requires_semantic_render_gate = true
-executable = true
-auto_apply = false
-```
+- APPROVE / REJECT explícito;
+- actor + reason obligatorios;
+- binding exacto al output SHA y al normalization profile decision actual;
+- stale/tamper fail-closed;
+- approval NO debe renderizar ni crear `auto_apply`;
+- `preserve` no necesita approval para no procesar.
 
-Cualquier cambio invalida la cadena.
+Después: diseñar 3.5 preview/derivative render con output 2E intacto y post-treatment audit.
 
-## 10. Semantic render gate
-
-El renderer genérico rechaza proposals y `semantic_edit_plan`. La vía pública correcta es:
-
-```text
-video-tunner execution render INPUT ANALYSIS PROPOSAL AUTHORIZATION PLAN OUTPUT
-```
-
-Antes de FFmpeg debe revalidar plan, authorization, hashes/fingerprints y source SHA real. No eliminar ni puentear esta revalidación.
-
-## 11. CLI / transcription strategy
-
-Execution:
-
-```text
-execution authorize
-execution validate
-execution materialize
-execution plan-validate
-execution render-check
-execution render
-```
-
-El `render` legacy no acepta Semantic Edit Plans.
-
-`analyze` mantiene `single_pass` como default; 12s/3s sólo se activa mediante `--transcription-strategy` explícito.
-
-## 12. E2E real 2E.4
-
-Run `33909625346`: MP4 real 10 s A/V, cadena completa autorizada, un edit de 0.4 s, original SHA preservado, duración esperada ±0.15 s, 1 stream vídeo + 1 audio, 202/202 PASS + doctor.
-
-Detalle: `Validation/phase2e-execution-authorization.md`.
-
-## 13. Fase 2E.5 — cierre final
-
-Technical gate `34119952855`:
-
-```text
-3 cases / 2 sources
-3/3 technical PASS
-157 -> acoustic_context_only
-298 -> acoustic_context_only
-13  -> low_energy_boundary_context
-```
-
-Human gate final:
-
-```text
-3/3 valid human PASS
-0 FAIL
-0 invalid/stale reviews
-CLOSE_OUT_READY
-```
-
-El finalizador offline liga cada review al SHA del technical report, SHA del output, plan fingerprint y `join_id`; no vuelve a ejecutar Whisper ni FFmpeg y no sustituye el juicio humano.
-
-Final hashes:
-
-```text
-source bundle manifest SHA256  d0b12929ede07c1c5a56b074008d0903a868a7cf61e5ce10801c2b682f164ed0
-human decisions SHA256         867a33c87ec2154d08558a67d503535d4527cb99af07ac65458507fe73288e04
-closeout decision SHA256       2cc5ae013cdcbfc53efc376d5db4f2f2f53d5a8848c019820dee6899b88c188a
-```
-
-Detalle: `Validation/phase2e-post-render-closeout.md` y `Validation/phase2e-human-closeout/`.
-
-## 14. GitHub / CI / Release
+## 12. GitHub / CI / Release
 
 - GitHub source of truth;
 - CI deliberada;
+- workflows one-shot se eliminan tras uso;
 - workflows pesados manual-only normalmente;
-- triggers one-shot se eliminan tras uso;
-- no modelos/vídeos/ZIPs artifacts ordinarios;
+- no subir modelos/vídeos/ZIPs como artifacts ordinarios;
+- mantener README, AGENTS, ROADMAP, RELEASE_STATUS y Validation sincronizados;
 - no Release sin autorización expresa de Guille.
-
-## 15. Docs / siguiente trabajo
-
-Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.
-
-Trabajo inmediato tras integrar 2E: iniciar **Fase 3 — calidad audiovisual / auditoría**, sin habilitar `auto_apply` y sin anticipar UX/release hardening.
