@@ -47,6 +47,7 @@
   "pairwise_comparisons": [
     {
       "pair_id": "deepfilternet_vs_preserve",
+      "public_pair_label": "comparison_1",
       "treatment_candidate_id": "deepfilternet_0_5_6_compensated_v1",
       "control_candidate_id": "preserve_noisy_control_v1",
       "blinding_seed": "phase3e-df-v-preserve-blind-v1",
@@ -68,6 +69,7 @@
     },
     {
       "pair_id": "afftdn_vs_preserve",
+      "public_pair_label": "comparison_2",
       "treatment_candidate_id": "ffmpeg_afftdn_fixed_v1",
       "control_candidate_id": "preserve_noisy_control_v1",
       "blinding_seed": "phase3e-aff-v-preserve-blind-v1",
@@ -88,10 +90,18 @@
       "required_treatment_as_b": 5
     }
   ],
+  "blinding_contract": {
+    "public_bundle_exposes_candidate_names": false,
+    "public_bundle_exposes_treatment_label_mapping": false,
+    "public_bundle_pair_labels": ["comparison_1", "comparison_2"],
+    "blinding_key_stays_in_repository_policy_until_human_decisions_are_complete": true
+  },
   "listening_media_contract": {
     "sample_rate_hz": 48000,
     "channels": 1,
     "codec": "pcm_s16le",
+    "clean_reference_included_once_per_case": true,
+    "clean_reference_purpose": "speech-integrity reference only; it is not a selectable candidate",
     "preserve_clip": "exact frozen noisy source bytes",
     "afftdn_clip": "exact frozen afftdn candidate filter rendered to 48 kHz mono PCM16",
     "deepfilternet_clip": "exact pinned DeepFilterNet v0.5.6 --compensate-delay output, decoded to 48 kHz mono PCM16 and right-tail normalized to the original frame count",
@@ -111,12 +121,13 @@
     "per_clip_artifact_values": ["PASS", "FAIL"],
     "reason_required": true,
     "instructions": [
-      "Listen to A and B before revealing the blinding key.",
+      "Use clean_reference.wav only to understand the intended speech and to detect damaged or missing speech; do not choose it as A/B preference.",
+      "Listen to both A and B before revealing the blinding key.",
       "Preference means which version you would choose for the finished video, considering noise, speech naturalness and intelligibility together.",
-      "Speech integrity FAIL means a phoneme, word, consonant attack, ending, or intelligible speech content appears removed, clipped, or materially damaged.",
+      "Speech integrity FAIL means a phoneme, word, consonant attack, ending, or intelligible speech content appears removed, clipped, or materially damaged relative to clean_reference.wav.",
       "Artifact FAIL means unacceptable metallic, musical-noise, warbling, pumping, gating, transient, or other processing artifact is audible.",
       "Background noise remaining is not itself an artifact FAIL; it is reflected in preference.",
-      "NO_PREFERENCE is valid when neither version is meaningfully preferable."
+      "NO_PREFERENCE is valid when neither A nor B is meaningfully preferable."
     ]
   },
   "per_treatment_advancement_gate": {
