@@ -39,3 +39,4 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Focused unit validation only. No model download, FFmpeg build, render, threshold or safety-guard change."
+          Write-Host "PHASE2E_CONSENSUS_BOUNDARY_UNIT_TRIGGER=1"
