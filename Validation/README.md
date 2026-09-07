@@ -24,6 +24,7 @@ No usarla para almacenar vídeos, ZIPs de CI, logs voluminosos, modelos ni outpu
 - `phase2e-explicit-approval-contract.md` — 2E.2 final; individual approval schema v1.
 - `phase2e-approved-plan-proposal.md` — 2E.3 final; bounded proposal schema v1.
 - `phase2e-execution-authorization.md` — **2E.4 final; global authorization + Semantic Edit Plan + real FFmpeg render gate PASS.**
+- `phase2e-post-render-closeout.md` — **2E.5 technical pre-human gate PASS; 3/3 real AMI renders + post-render verification; human listening still PENDING.**
 
 ## Regla de interpretación
 
@@ -36,7 +37,7 @@ Una validación PASS acredita únicamente el alcance descrito en su documento. N
 - auto-apply semántico;
 - generalización de métricas fuera del corpus evaluado.
 
-Tras 2E.4:
+Tras el technical pre-human gate 2E.5:
 
 ```text
 analysis.json                         schema v9
@@ -44,6 +45,9 @@ promotion_approval.json               schema v1
 approved_edit_plan_proposal.json      schema v1
 semantic_execution_authorization.json schema v1
 semantic_edit_plan.json               schema v1
+semantic_render_verification          schema v1
+semantic_render_human_review          schema v1  (requiere juicio humano real)
+phase2e_closeout_decision              schema v1  (requiere corpus humano completo)
 ```
 
 ```text
@@ -53,6 +57,10 @@ generic render rejects proposal
 generic render rejects semantic Edit Plan
 semantic render requires full-chain + source-SHA revalidation
 semantic Edit Plan executable only through semantic render gate
+technical post-render PASS != human perceptual PASS
+human review must bind exact technical report/output/plan/join evidence
+one human FAIL keeps Phase 2E open
+stale evidence = INVALID_EVIDENCE
 auto_apply = false
 ```
 
@@ -63,4 +71,17 @@ Final 2E.4 evidence:
 33909625346  202/202 PASS + doctor + real FFmpeg semantic E2E
 ```
 
-La verificación post-render perceptual/estructural de cierre pertenece a Fase 2E.5.
+Technical pre-human 2E.5 evidence:
+
+```text
+34119952855  SUCCESS
+278 tests PASS (13 host-only skips)
+portable/provenance PASS
+3 cases / 2 sources / 3 technical PASS
+157 -> acoustic_context_only
+298 -> acoustic_context_only
+13  -> low_energy_boundary_context
+human perceptual reviews -> 0/3, PENDING
+```
+
+La escucha humana real de esos tres pares ORIGINAL/RENDERED es el último gate de Fase 2E.5. Hasta entonces, **Phase 2E permanece abierta**.
