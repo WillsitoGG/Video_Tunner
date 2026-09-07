@@ -80,16 +80,19 @@ def approval(profile=None, *, decision="APPROVE"):
 
 
 class NormalizationPlanProposalTests(unittest.TestCase):
-    def test_feasible_linear_plan_preserves_measured_lra_without_render_capability(self):
+    def _build(self, audit):
         profile = profile_decision()
-        plan = build_normalization_plan_proposal(
-            quality_audit(),
+        return build_normalization_plan_proposal(
+            audit,
             profile,
             approval(profile),
             quality_audit_sha256=QUALITY_SHA,
             profile_decision_sha256=PROFILE_SHA,
             approval_sha256=APPROVAL_SHA,
         )
+
+    def test_feasible_linear_plan_preserves_measured_lra_without_render_capability(self):
+        plan = self._build(quality_audit())
         self.assertEqual(plan["status"], "linear_normalization_plan_proposal_ready")
         self.assertTrue(plan["ready_for_render_gate_design"])
         self.assertEqual(plan["targets"]["target_i"], -23.0)
@@ -105,15 +108,7 @@ class NormalizationPlanProposalTests(unittest.TestCase):
         self.assertFalse(plan["auto_apply"])
 
     def test_true_peak_constraint_blocks_instead_of_allowing_dynamic_fallback(self):
-        profile = profile_decision()
-        plan = build_normalization_plan_proposal(
-            quality_audit(integrated=-30.0, true_peak=-2.0),
-            profile,
-            approval(profile),
-            quality_audit_sha256=QUALITY_SHA,
-            profile_decision_sha256=PROFILE_SHA,
-            approval_sha256=APPROVAL_SHA,
-        )
+        plan = self._build(quality_audit(integrated=-30.0, true_peak=-2.0))
         self.assertEqual(plan["status"], "normalization_plan_blocked")
         self.assertFalse(plan["ready_for_render_gate_design"])
         self.assertIn("linear_true_peak_constraint_failed", [item["code"] for item in plan["blockers"]])
@@ -121,20 +116,22 @@ class NormalizationPlanProposalTests(unittest.TestCase):
         self.assertFalse(plan["normalization_authorized"])
 
     def test_lra_outside_ffmpeg_target_range_blocks(self):
-        profile = profile_decision()
-        plan = build_normalization_plan_proposal(
-            quality_audit(lra=0.5),
-            profile,
-            approval(profile),
-            quality_audit_sha256=QUALITY_SHA,
-            profile_decision_sha256=PROFILE_SHA,
-            approval_sha256=APPROVAL_SHA,
-        )
+        plan = self._build(quality_audit(lra=0.5))
         self.assertEqual(plan["status"], "normalization_plan_blocked")
         self.assertIn(
             "measured_lra_outside_ffmpeg_linear_target_range",
             [item["code"] for item in plan["blockers"]],
         )
+
+    def test_ffmpeg_measured_i_sentinel_blocks_linear_plan(self):
+        plan = self._build(quality_audit(integrated=0.0, true_peak=-30.0))
+        self.assertEqual(plan["status"], "normalization_plan_blocked")
+        self.assertIn("ffmpeg_linear_measured_i_sentinel", [item["code"] for item in plan["blockers"]])
+
+    def test_ffmpeg_measured_thresh_sentinel_blocks_linear_plan(self):
+        plan = self._build(quality_audit(threshold=-70.0))
+        self.assertEqual(plan["status"], "normalization_plan_blocked")
+        self.assertIn("ffmpeg_linear_measured_thresh_sentinel", [item["code"] for item in plan["blockers"]])
 
     def test_rejected_approval_cannot_build_plan(self):
         profile = profile_decision()
