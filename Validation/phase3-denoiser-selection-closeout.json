@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "record_type": "phase3_denoiser_selection_closeout",
+  "phase": "3.6f",
+  "status": "CLOSED",
+  "selection_policy_id": "phase3_denoiser_selection_review_v1",
+  "selection_review": "Validation/phase3-denoiser-selection-review.json",
+  "selected_candidate_id": "deepfilternet_0_5_6_compensated_v1",
+  "selection_status": "SELECTED_FOR_INTEGRATION_REVIEW",
+  "selection_basis": {
+    "human_gate": {
+      "preferences_for_treatment": 10,
+      "preferences_for_preserve": 0,
+      "no_preference": 0,
+      "speech_integrity_failures": 0,
+      "artifact_failures": 0,
+      "status": "ELIGIBLE_FOR_SELECTION_REVIEW"
+    },
+    "objective_all_40_cases": {
+      "mean_si_sdr_delta_vs_preserve_db": 9.870134122749999,
+      "mean_stoi_delta_vs_preserve": 0.0111296755,
+      "positive_si_sdr_cases": 40,
+      "positive_stoi_cases": 27,
+      "maximum_absolute_raw_duration_delta_seconds": 0.03
+    },
+    "clean_control_descriptive": {
+      "case_count": 40,
+      "stoi_mean": 0.99542798,
+      "normalized_rmse_mean": 0.03238068,
+      "numeric_acceptance_threshold_applied": false
+    }
+  },
+  "selection_artifact": {
+    "run_id": 34150663772,
+    "job_id": 101832099685,
+    "run_head_sha": "f07d7b195af1c27c94cb8fba7e267fc20fb19a50",
+    "artifact_id": 10029234401,
+    "artifact_zip_sha256": "0d55e6b9246d6a510639a6c7dd934d132928774f4836181d611a1bcf935dcddc",
+    "raw_selection_json_sha256": "2c9595994d3210bd963c3601832ad46707a4c106a0f0cf97bc713bf97143c539"
+  },
+  "final_validation": {
+    "run_id": 34150832960,
+    "job_id": 101832592126,
+    "head_sha": "b6ca2e91404463ddc75b6fa53c834047be852ad5",
+    "focused_selection_and_binder_tests": "12/12 PASS",
+    "integrated_tests": "410/410 PASS",
+    "doctor": "PASS",
+    "non_executable_selection_state_reconfirmed": true
+  },
+  "interpretation": {
+    "phase3_6f_closed": true,
+    "deepfilternet_selected_for_integration_review": true,
+    "afftdn_not_selected": true,
+    "product_default": "preserve",
+    "product_default_changed": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false,
+    "next_phase": "3.6g_portable_integration_design_and_gated_implementation"
+  }
+}
