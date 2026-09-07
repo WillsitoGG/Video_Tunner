@@ -8,151 +8,192 @@
 - Originales intactos y decisiones auditables/reversibles.
 - Ante baja confianza: REVIEW/manual, no adivinar.
 - CI pesada sólo cuando aporta evidencia nueva; workflows pesados manual-only.
+- `preserve` audiovisual por defecto.
+- `auto_apply=false`.
 
 ## Fases completadas
 
-### Fase 0 — Bootstrap
-CLI, FFmpeg/ffprobe, probe, Cleaner de silencios, Edit Plan, render y tests.
+### Fase 0–1C
+Bootstrap, technology harvest, portable foundation, ingesta dual/sync y transcripción/VAD completados según evidencia registrada.
 
-### Fase 0.5 — Technology Harvest
-Repo propio, no fork. Upstreams sólo como referencias/integraciones trazables.
+### Fase 2A–2D
+Semantic candidates/protection/validation, correction scope, fillers, join safety, acoustic join y eligibility completados. Fase 2D cerrada como foundation/evidence.
 
-### Fase 1A — Portable Foundation
-Core `33600174568` PASS; ML frozen `33621357438` PASS.
+### Fase 2E — Promotion to Edit Plan — COMPLETADA
 
-### Fase 1B — Ingesta dual + sincronización A/V
-Master FLAC, offset +/-, drift, confidence/residual/coverage, manual override y `review_required`. Hardening `33639009841` PASS.
-
-### Fase 1C — Transcripción + VAD sobre master
-Target Spanish `33656235038`: WER `1.64%`, RTF `0.4854`, automatic edits 0.
-
-### Fase 2A–2C
-Semantic candidates, semantic protection y validación real completadas según evidencia registrada.
-
-### Fase 2D — Scope + fillers + join safety + eligibility
-**COMPLETADA COMO FOUNDATION/EVIDENCE.** Cierre humano `33894995584`: `CLOSE_OUT_READY`, 0 capacidad ejecutable.
-
-## Fase 2E — Promotion to Edit Plan — COMPLETADA
-
-### 2E.1 — Promotion Policy Foundation
-`analysis.json` schema v9 con `promotion_assessments[]`. Final `33899201093`: 166/166 + doctor PASS.
-
-### 2E.2 — Explicit Approval Contract
-`promotion_approval.json` schema v1 separado, stale-safe y auditable. Final `33899857378`: 174/174 + doctor PASS.
-
-### 2E.3 — Approved Edit Plan Proposal + Global Limits
-`approved_edit_plan_proposal.json` schema v1, `proposed_edits[]`, no ejecutable.
+Cadena final:
 
 ```text
-max_semantic_edits    = 10
-max_removed_seconds   = 30.0
-max_removed_fraction  = 0.05
-```
-
-Renderer rechaza proposals explícitamente. Final `33908500929`: 186/186 + doctor PASS.
-
-### 2E.4 — Execution Authorization / Semantic Render Gate
-Cadena explícita:
-
-```text
-individual approval
+promotion
+→ individual approval
 → bounded proposal
 → global execution authorization
 → semantic Edit Plan
 → semantic render gate
 → FFmpeg
+→ technical post-render verification
+→ human perceptual review
+→ corpus closeout
 ```
 
-La autorización liga analysis + proposal exactos por SHA/fingerprint. El Semantic Edit Plan sólo se materializa desde `valid_authorized`, conserva provenance exacta y exige semantic render gate. `auto_apply=false`.
+Final:
 
 ```text
-33909424933  201/201 PASS + doctor
-33909625346  202/202 PASS + doctor + real FFmpeg E2E
-```
-
-Detalle: `Validation/phase2e-execution-authorization.md`.
-
-### 2E.5 — Semantic Render Verification / Human Close-out — COMPLETADA
-
-Implementado:
-
-1. `semantic_render_verification` separado;
-2. source/output SHA + protección frente a overwrite;
-3. streams y duración esperada vs real;
-4. auditoría acústica de cada join renderizado;
-5. provenance completa analysis → approval → proposal → authorization → plan → output;
-6. bundle ligero ORIGINAL/RENDERED;
-7. `semantic_render_human_review` stale-safe;
-8. `phase2e_closeout_decision` con thresholds precomprometidos;
-9. finalizador offline que no repite ASR ni render.
-
-Technical gate:
-
-```text
-34119952855  SUCCESS
-278 tests PASS (13 host-only skips)
-portable build PASS
-immutable FFmpeg provenance PASS
-3 cases / 2 sources
-3/3 semantic renders PASS
-3/3 post-render technical verification PASS
-```
-
-Human gate final:
-
-```text
-3/3 valid human perceptual PASS
-0 human FAIL
-0 invalid/stale reviews
+34119952855  3/3 real AMI technical PASS / 2 sources
+human review 3/3 PASS / 0 FAIL
 status = CLOSE_OUT_READY
-phase2e_closeout_ready = true
 auto_apply = false
+34124101770  275/275 + doctor PASS en rama limpia
 ```
-
-Casos:
-
-```text
-157  technical PASS  human PASS  acoustic_context_only
-298  technical PASS  human PASS  acoustic_context_only
-13   technical PASS  human PASS  low_energy_boundary_context
-```
-
-`single_pass` sigue siendo default del producto. `deterministic_overlap_12s_3s_repeat_consensus_v1` es opt-in explícito y la estrategia validada para este close-out.
 
 Detalle: `Validation/phase2e-post-render-closeout.md` y `Validation/phase2e-human-closeout/`.
 
-## Fase 3 — Calidad audiovisual / auditoría — SIGUIENTE
+## Fase 3 — Calidad audiovisual / auditoría — EN CURSO
 
-Objetivo: elevar la calidad audiovisual del output ya autorizado/renderizado sin debilitar la semántica ni la auditabilidad.
+Objetivo: elevar y auditar la calidad audiovisual del output ya autorizado/renderizado sin debilitar la semántica, provenance ni reversibilidad.
 
-Ámbitos previstos:
+### 3.1 — Audiovisual Quality Audit v1 — COMPLETADA COMO FOUNDATION
 
-1. join treatment audiovisual conservador;
-2. normalización controlada;
-3. denoise controlado cuando aporte valor medible;
-4. auditoría avanzada de joins y continuidad A/V;
-5. informe end-to-end de calidad;
-6. preservar originales, provenance y reversibilidad;
-7. mantener `auto_apply=false` hasta nueva evidencia específica.
+Artifact `audiovisual_quality_audit` schema v1.
 
-No anticipar UX ni release hardening dentro de esta fase.
+- exige upstream `technical_post_render_pass` vigente;
+- liga technical report/source/output por SHA;
+- mide integrated LUFS, true peak y LRA con FFmpeg en análisis-only;
+- no modifica media;
+- Phase 3 nunca rescata un fallo de Phase 2E;
+- `treatment_authorized=false`, `auto_apply=false`.
+
+```text
+34124957783  8/8 focused + real FFmpeg E2E PASS
+34125110506  283/283 full regression + doctor PASS
+```
+
+### 3.1b — Baseline focal real — COMPLETADA
+
+Run `34134893725` sobre exactamente los 3 pares ORIGINAL/RENDERED ya escuchados en 2E.5:
+
+```text
+cases = 3
+sources = 2
+human PASS = 3/3
+max observed |Δ integrated loudness| = 0.40 LU
+max observed |Δ true peak| = 0.04 dB
+treatment_authorized = false
+```
+
+Estos valores son observados, **no thresholds generales**.
+
+Conclusión limitada de la muestra: no existe evidencia para exigir como default normalización, denoise ni join smoothing/crossfade.
+
+Detalle: `Validation/phase3-focal-quality-baseline.json`.
+
+### 3.2 — Bypass-first Treatment Decision — COMPLETADA COMO FOUNDATION
+
+Artifact `audiovisual_treatment_decision` schema v1.
+
+```text
+sin risk finding → bypass_preserve_render
+con risk finding → treatment_review_required
+```
+
+Un riesgo sólo solicita evaluación; no define parámetros ni autoriza procesamiento.
+
+```text
+normalization = not_authorized
+denoise = not_authorized
+join_smoothing = not_authorized
+executable = false
+treatment_authorized = false
+auto_apply = false
+```
+
+Run `34135210344`: 14/14 PASS.
+
+### 3.3 — Normalization Profile Contract — COMPLETADA COMO FOUNDATION REVIEW-ONLY
+
+Perfil default:
+
+```text
+preserve
+```
+
+Perfil standards-based disponible sólo para opt-in/review:
+
+```text
+ebu_r128_programme
+-23 LUFS
+max true peak -1 dBTP
+EBU R 128 v5.0 (November 2023)
+measurement basis ITU-R BS.1770-5 (November 2023)
+```
+
+No constituye target universal de web/YouTube. Incluso seleccionado explícitamente:
+
+```text
+human_approval_required = true
+normalization_authorized = false
+parameters_executable = false
+render_authorized = false
+auto_apply = false
+```
+
+Run `34135437824`: 13/13 PASS.
+
+Detalle de 3.1–3.3: `Validation/phase3-audiovisual-quality-foundation.md`.
+
+### 3.4 — Explicit Normalization Approval — SIGUIENTE
+
+Objetivo inmediato: artifact stale-safe separado que permita APPROVE/REJECT de un perfil de normalización no-preserve sin convertir la selección de perfil en permiso de render.
+
+Debe ligar al menos:
+
+```text
+quality output SHA
+quality audit evidence
+bypass/review treatment decision
+normalization profile decision
+actor + reason
+```
+
+APPROVE de 3.4 podrá autorizar como máximo la preparación del siguiente gate; no `auto_apply`, no semantic edits y no overwrite del output 2E.
+
+### 3.5 — Normalization Preview / Derivative Render — DESPUÉS DE 3.4
+
+Sólo después de cerrar 3.4:
+
+1. definir parámetros ejecutables de forma explícita y auditable;
+2. no inventar un LRA target porque FFmpeg lo requiera;
+3. crear derivado, nunca sobrescribir output 2E;
+4. verificar SHA/provenance;
+5. post-treatment technical audit;
+6. comparación perceptual humana antes de generalizar.
+
+### 3.6+ — Advanced A/V audit / denoise / join treatment
+
+- ampliar continuidad A/V y quality report end-to-end;
+- denoise sólo con corpus/evidencia que demuestre valor;
+- smoothing/crossfade sólo si existe evidencia perceptual de mejora respecto al join directo;
+- no introducir procesamiento por defecto porque “parezca profesional”.
 
 ## Fase 4 — UX mínima
-Seleccionar vídeo, audio externo opcional, sync, analizar, revisar, aprobar/rechazar, preparar proposal, autorizar globalmente, renderizar y abrir outputs.
+
+Seleccionar vídeo, audio externo opcional, sync, analizar, revisar, aprobar/rechazar, autorizar, renderizar y abrir outputs. Sólo después de cerrar Fase 3.
 
 ## Fase 5 — Portable Release Hardening
+
 Build Windows limpia, ZIP final, digests, manifest, licencias/notices, estrategia final de modelos y zero-install/offline.
 
 ## Fase 6 — Extras
+
 Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Cleaner fiable.
 
 ## Orden inmediato
 
-1. limpiar tooling diagnóstico 2E que ya no deba permanecer;
-2. revisar diff completo de `phase2e-post-render-verification` contra `main`;
-3. ejecutar gate final ligero/regresión adecuada si procede;
-4. integrar Fase 2E cerrada en `main`;
-5. abrir rama limpia para Fase 3;
-6. comenzar calidad audiovisual/auditoría sin habilitar `auto_apply`.
+1. cerrar documentación/evidencia de 3.1–3.3;
+2. implementar 3.4 Explicit Normalization Approval Contract;
+3. validar stale/tamper/reject/approve sin capacidad de render directa;
+4. ejecutar regresión completa;
+5. sólo entonces diseñar 3.5 preview/derivative normalization;
+6. mantener denoise y join smoothing bloqueados hasta evidencia específica.
 
 No relajar thresholds post hoc y no publicar Release sin autorización expresa de Guille.
