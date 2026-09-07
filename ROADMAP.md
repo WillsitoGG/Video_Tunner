@@ -139,40 +139,115 @@ auto_apply = false
 
 Run `34135437824`: 13/13 PASS.
 
-Detalle de 3.1–3.3: `Validation/phase3-audiovisual-quality-foundation.md`.
+### 3.4 — Explicit Normalization Approval — COMPLETADA COMO FOUNDATION
 
-### 3.4 — Explicit Normalization Approval — SIGUIENTE
+Run `34136124997`: 15/15 PASS.
 
-Objetivo inmediato: artifact stale-safe separado que permita APPROVE/REJECT de un perfil de normalización no-preserve sin convertir la selección de perfil en permiso de render.
+Artifact stale-safe con APPROVE/REJECT explícito, actor + reason obligatorios y binding al output/profile evidence actual.
 
-Debe ligar al menos:
+APPROVE autoriza como máximo preparar el siguiente plan:
 
 ```text
-quality output SHA
-quality audit evidence
-bypass/review treatment decision
-normalization profile decision
-actor + reason
+normalization_plan_preparation_authorized = true
+normalization_render_authorization = false
+parameters_executable = false
+executable = false
+auto_apply = false
 ```
 
-APPROVE de 3.4 podrá autorizar como máximo la preparación del siguiente gate; no `auto_apply`, no semantic edits y no overwrite del output 2E.
+### 3.5a — Linear Normalization Plan Proposal — COMPLETADA COMO FOUNDATION
 
-### 3.5 — Normalization Preview / Derivative Render — DESPUÉS DE 3.4
+Run base `34136621557`: 15/15 PASS. Hardening incluido en los gates posteriores.
 
-Sólo después de cerrar 3.4:
+Política:
 
-1. definir parámetros ejecutables de forma explícita y auditable;
-2. no inventar un LRA target porque FFmpeg lo requiera;
-3. crear derivado, nunca sobrescribir output 2E;
-4. verificar SHA/provenance;
-5. post-treatment technical audit;
-6. comparación perceptual humana antes de generalizar.
+```text
+target_lra = measured_lra
+lra_policy = preserve_measured_lra
+dynamic_fallback_allowed = false
+```
 
-### 3.6+ — Advanced A/V audit / denoise / join treatment
+El plan bloquea mediciones no finitas/sentinela, LRA incompatible y cualquier gain lineal que rompería el max true peak. Un plan ready sigue siendo no ejecutable.
 
-- ampliar continuidad A/V y quality report end-to-end;
-- denoise sólo con corpus/evidencia que demuestre valor;
-- smoothing/crossfade sólo si existe evidencia perceptual de mejora respecto al join directo;
+### 3.5b — Normalization Execution Authorization — COMPLETADA COMO FOUNDATION
+
+Run `34138226442`: 15/15 PASS.
+
+Rebuild exacto de plan + cadena stale/tamper-aware antes de conceder únicamente:
+
+```text
+normalization_render_authorization = true
+plan_render_authorization = false
+parameters_executable = false
+executable = false
+auto_apply = false
+```
+
+### 3.5c — Gated Linear Normalization Renderer — COMPLETADA TÉCNICAMENTE
+
+Run `34139056626`: 25/25 PASS, incluido E2E FFmpeg real.
+
+- crea derivado, nunca sobrescribe output 2E;
+- vídeo por stream copy;
+- audio sólo mediante `loudnorm` lineal autorizado;
+- `normalization_type != linear` → output eliminado + fail-closed;
+- source SHA revalidado antes/después;
+- render result no puede autoproclamarse technical/human PASS.
+
+### 3.5d — Independent Post-render Verification — COMPLETADA TÉCNICAMENTE
+
+Run `34139502187`: 16/16 PASS, incluido E2E real.
+
+Gate precomprometido:
+
+```text
+Programme Loudness target        -23 LUFS
+Programme Loudness tolerance     ±0.5 LU
+Maximum True Peak                -1 dBTP
+Duration tolerance               ±0.15 s
+Video streams                    1
+Audio streams                    1
+normalization_type               linear
+Decoded video SHA-256            source == output
+```
+
+Distingue `invalid_evidence` de `technical_normalization_fail`.
+
+Regresión integrada posterior:
+
+```text
+34139639280  337/337 tests PASS + doctor PASS
+```
+
+Estado correcto de 3.5:
+
+```text
+technical foundation = PASS
+human perceptual close-out = PENDING
+product default = preserve
+auto_apply = false
+```
+
+Detalle: `Validation/phase3-normalization-foundation.md`.
+
+### 3.6 — Denoise Evidence / Noise Audit — SIGUIENTE
+
+Primero **measurement-only**, no un filtro.
+
+Objetivo inmediato:
+
+1. medir evidencia de ruido sobre audio acreditado sin modificar media;
+2. separar cuando sea posible ventanas speech/non-speech usando evidencia temporal existente;
+3. registrar métricas reproducibles y provenance por SHA;
+4. no convertir una métrica de ruido en recomendación automática de denoise;
+5. si la evidencia es insuficiente o las ventanas no son fiables, devolver REVIEW/insufficient evidence;
+6. construir corpus con ruido real + controles limpios antes de evaluar filtros;
+7. mantener `denoise_authorized=false` y `auto_apply=false`.
+
+### 3.7+ — Denoise treatment / join treatment
+
+- denoise sólo después de corpus/evidencia y comparación perceptual que demuestre valor;
+- smoothing/crossfade sólo si existe evidencia A/B perceptual de mejora respecto al join directo;
 - no introducir procesamiento por defecto porque “parezca profesional”.
 
 ## Fase 4 — UX mínima
@@ -189,11 +264,11 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. cerrar documentación/evidencia de 3.1–3.3;
-2. implementar 3.4 Explicit Normalization Approval Contract;
-3. validar stale/tamper/reject/approve sin capacidad de render directa;
-4. ejecutar regresión completa;
-5. sólo entonces diseñar 3.5 preview/derivative normalization;
-6. mantener denoise y join smoothing bloqueados hasta evidencia específica.
+1. cerrar 3.6a Noise Audit measurement-only;
+2. validarlo con tests focales + FFmpeg real/sintético cuando aporte evidencia;
+3. construir/seleccionar corpus de ruido real y controles limpios antes de denoise ejecutable;
+4. mantener 3.5 como opt-in technical foundation mientras su human perceptual close-out siga pendiente;
+5. no habilitar denoise ni join smoothing sin evidencia específica;
+6. ejecutar regresión completa tras cada bloque que cambie contratos de Fase 3.
 
 No relajar thresholds post hoc y no publicar Release sin autorización expresa de Guille.
