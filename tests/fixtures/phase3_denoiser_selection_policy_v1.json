@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "record_type": "denoiser_selection_policy",
+  "policy_id": "phase3_denoiser_selection_review_v1",
+  "phase": "3.6f",
+  "frozen_after_evidence_before_selection": true,
+  "bindings": {
+    "objective_comparison_policy_id": "phase3_denoiser_candidates_v1",
+    "objective_comparison_run_id": 34145308485,
+    "objective_comparison_raw_json_sha256": "0b1215fcd26b709ce3c8d232a2144b74c70e3dc13ec3bd7ab706793948d37023",
+    "human_policy_id": "phase3_denoiser_blinded_human_ab_v1",
+    "human_policy_sha256": "563a5cf043793880777403899c7b217ca125c1be0d7b0c07f0512b84087bdfbb",
+    "bundle_manifest_sha256": "47f7c6600bc5dccbeb7125ea1da9e2be07b5dd1900e80b6709557c05df627913",
+    "human_review_fingerprint": "e58998b4fd8b0c53592581a37ef6a5e77d2fe0347c0a6b0b8d4a09a681d112f9",
+    "human_closeout_validation_run_id": 34150202283
+  },
+  "eligibility": {
+    "human_gate_pass_required": true,
+    "human_status_required": "ELIGIBLE_FOR_SELECTION_REVIEW",
+    "required_noisy_cases": 40,
+    "objective_mean_si_sdr_delta_vs_preserve_must_be_positive": true,
+    "objective_mean_stoi_delta_vs_preserve_must_be_positive": true,
+    "post_hoc_case_exclusion_allowed": false,
+    "alignment_search_allowed": false,
+    "time_shift_allowed": false,
+    "level_matching_allowed": false,
+    "maximum_absolute_raw_duration_delta_seconds": 0.05,
+    "objective_clean_control_used_as_descriptive_safety_evidence_without_post_hoc_numeric_threshold": true
+  },
+  "decision_rule": {
+    "zero_eligible_candidates": "NO_SELECTION_PRESERVE_DEFAULT",
+    "exactly_one_eligible_candidate": "SELECT_FOR_INTEGRATION_REVIEW",
+    "multiple_eligible_candidates": "BLOCKED_MULTIPLE_ELIGIBLE_REQUIRES_MANUAL_SELECTION"
+  },
+  "capabilities": {
+    "selection_can_choose_candidate_for_integration_review": true,
+    "selection_can_change_product_default": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false,
+    "preserve_remains_product_default_until_separate_integration_and_execution_authorization": true
+  }
+}
