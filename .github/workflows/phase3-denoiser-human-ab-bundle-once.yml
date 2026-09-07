@@ -82,3 +82,4 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Phase 3.6e listening bundle only. Public artifact contains 10 clean references and 20 blinded A/B pairs. It contains no candidate identities or A/B key. No candidate selection, denoise authorization, renderer authorization or auto_apply is created."
+          Write-Host "PHASE3_36E_REVIEW_GATE_UNIT_TESTS=REQUIRED"
