@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "record_type": "phase3_focal_quality_baseline",
+  "source_phase2e_run_id": 34119952855,
+  "source_bundle_manifest_sha256": "d0b12929ede07c1c5a56b074008d0903a868a7cf61e5ce10801c2b682f164ed0",
+  "case_count": 3,
+  "distinct_audio_sources": 2,
+  "cases": [
+    {
+      "id": "ami-es2002b-d-repeat-157",
+      "audio_source_id": "ES2002b-D",
+      "technical_report_sha256": "2891cbcc2024b434020d3e77b28c0982a14f1db6828643a657a5b5d8bd4bab39",
+      "human_review_sha256": "eba8414845cbca142881095efd41fe5dc7bad68c9676edbc8c1d69fc03787f3c",
+      "human_perceptual_pass": true,
+      "join_status": "acoustic_context_only",
+      "join_metrics": {
+        "measurement_available": true,
+        "sample_rate": 16000,
+        "left_samples": 1280,
+        "right_samples": 1280,
+        "left_rms_dbfs": -33.3387,
+        "right_rms_dbfs": -42.1397,
+        "rms_delta_db": 8.801,
+        "left_edge_rms_dbfs": -34.9583,
+        "right_edge_rms_dbfs": -78.8413,
+        "left_peak": 0.071564,
+        "right_peak": 0.034698,
+        "boundary_sample_jump": 0.005737,
+        "boundary_jump_ratio": 0.080171
+      },
+      "original_review_audio": {
+        "integrated_lufs": -41.64,
+        "true_peak_dbtp": -18.83,
+        "loudness_range_lu": 17.6,
+        "threshold_lufs": -52.51
+      },
+      "rendered_review_audio": {
+        "integrated_lufs": -42.04,
+        "true_peak_dbtp": -18.83,
+        "loudness_range_lu": 16.1,
+        "threshold_lufs": -52.94
+      },
+      "delta": {
+        "integrated_loudness_delta_lu": -0.4,
+        "true_peak_delta_db": 0.0,
+        "loudness_range_delta_lu": -1.5
+      }
+    },
+    {
+      "id": "ami-ts3005d-c-repeat-298",
+      "audio_source_id": "TS3005d-C",
+      "technical_report_sha256": "99c45c1a6519838e6b19fb6833ec7b78c226e482a640830609e50802d7f411dc",
+      "human_review_sha256": "5e9d2cefdb8ac017d0b50dc2b9b2fa5a32ac3885458e7fa457c99e26ef77332f",
+      "human_perceptual_pass": true,
+      "join_status": "acoustic_context_only",
+      "join_metrics": {
+        "measurement_available": true,
+        "sample_rate": 16000,
+        "left_samples": 1280,
+        "right_samples": 1280,
+        "left_rms_dbfs": -30.0419,
+        "right_rms_dbfs": -33.525,
+        "rms_delta_db": 3.4831,
+        "left_edge_rms_dbfs": -32.8711,
+        "right_edge_rms_dbfs": -79.1246,
+        "left_peak": 0.123718,
+        "right_peak": 0.083405,
+        "boundary_sample_jump": 0.035309,
+        "boundary_jump_ratio": 0.285397
+      },
+      "original_review_audio": {
+        "integrated_lufs": -32.12,
+        "true_peak_dbtp": -10.8,
+        "loudness_range_lu": 9.7,
+        "threshold_lufs": -44.65
+      },
+      "rendered_review_audio": {
+        "integrated_lufs": -32.29,
+        "true_peak_dbtp": -10.8,
+        "loudness_range_lu": 9.8,
+        "threshold_lufs": -44.89
+      },
+      "delta": {
+        "integrated_loudness_delta_lu": -0.17,
+        "true_peak_delta_db": 0.0,
+        "loudness_range_delta_lu": 0.1
+      }
+    },
+    {
+      "id": "ami-es2002b-d-repeat-13",
+      "audio_source_id": "ES2002b-D",
+      "technical_report_sha256": "a548f397c7968235a9a3ddb7bd3e6af1d6025286c390be9c34de9e168b74715c",
+      "human_review_sha256": "4407b9aca37af682941c810f02cdcf9f69f03184d0b472c4a522f83654bcf715",
+      "human_perceptual_pass": true,
+      "join_status": "low_energy_boundary_context",
+      "join_metrics": {
+        "measurement_available": true,
+        "sample_rate": 16000,
+        "left_samples": 1280,
+        "right_samples": 1280,
+        "left_rms_dbfs": -43.8733,
+        "right_rms_dbfs": -56.1443,
+        "rms_delta_db": 12.271,
+        "left_edge_rms_dbfs": -63.2143,
+        "right_edge_rms_dbfs": -56.8404,
+        "left_peak": 0.028107,
+        "right_peak": 0.007629,
+        "boundary_sample_jump": 0.004486,
+        "boundary_jump_ratio": 0.159609
+      },
+      "original_review_audio": {
+        "integrated_lufs": -45.4,
+        "true_peak_dbtp": -23.83,
+        "loudness_range_lu": 12.4,
+        "threshold_lufs": -56.36
+      },
+      "rendered_review_audio": {
+        "integrated_lufs": -45.67,
+        "true_peak_dbtp": -23.87,
+        "loudness_range_lu": 11.9,
+        "threshold_lufs": -56.65
+      },
+      "delta": {
+        "integrated_loudness_delta_lu": -0.27,
+        "true_peak_delta_db": -0.04,
+        "loudness_range_delta_lu": -0.5
+      }
+    }
+  ],
+  "observed_summary": {
+    "max_abs_integrated_loudness_delta_lu": 0.4,
+    "max_abs_true_peak_delta_db": 0.04,
+    "human_perceptual_pass_count": 3
+  },
+  "evidence_interpretation": {
+    "renderer_induced_mandatory_normalization_supported": false,
+    "default_join_smoothing_supported": false,
+    "denoise_policy_supported": false,
+    "reason": "The three precommitted real joins already pass technical and human perceptual review, and the focal ORIGINAL/RENDERED measurements show only small observed loudness/true-peak deltas. This corpus therefore does not justify adding treatment by default."
+  },
+  "treatment_authorized": false,
+  "auto_apply": false
+}
