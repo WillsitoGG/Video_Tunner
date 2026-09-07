@@ -10,6 +10,7 @@ from video_tunner.audiovisual_treatment import build_audiovisual_treatment_decis
 from video_tunner.normalization_approval import build_normalization_approval
 from video_tunner.normalization_execution_authorization import build_normalization_execution_authorization
 from video_tunner.normalization_plan import build_normalization_plan_proposal
+from video_tunner.normalization_post_render_verification import build_normalization_post_render_verification
 from video_tunner.normalization_profiles import build_normalization_profile_decision
 from video_tunner.normalization_render import render_normalized_media
 from video_tunner.tools import ToolNotFoundError, resolve_tool
@@ -72,7 +73,7 @@ class NormalizationRenderEndToEndTests(unittest.TestCase):
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return sha256_path(path)
 
-    def test_full_authorized_chain_renders_linear_ebu_profile_without_auto_apply(self):
+    def test_full_authorized_chain_renders_and_technically_verifies_linear_ebu_profile(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             source = root / "phase2e_output.mp4"
@@ -206,6 +207,32 @@ class NormalizationRenderEndToEndTests(unittest.TestCase):
             self.assertFalse(result["technical_pass"])
             self.assertFalse(result["human_pass"])
             self.assertFalse(result["auto_apply"])
+
+            result_sha = self._write_json(root / "render_result.json", result)
+            verification = build_normalization_post_render_verification(
+                source,
+                output,
+                quality,
+                profile,
+                approval,
+                plan,
+                authorization,
+                result,
+                quality_audit_sha256=quality_sha,
+                profile_decision_sha256=profile_sha,
+                approval_sha256=approval_sha,
+                plan_sha256=plan_sha,
+                authorization_sha256=authorization_sha,
+                render_result_sha256=result_sha,
+            )
+            self.assertEqual(verification["status"], "technical_normalization_pass")
+            self.assertTrue(verification["valid_evidence"])
+            self.assertTrue(verification["technical_pass"])
+            self.assertEqual(verification["source"]["decoded_video_sha256"], verification["output"]["decoded_video_sha256"])
+            self.assertEqual(verification["blockers"], [])
+            self.assertTrue(verification["human_perceptual_review_required"])
+            self.assertFalse(verification["human_pass"])
+            self.assertFalse(verification["auto_apply"])
 
 
 if __name__ == "__main__":
