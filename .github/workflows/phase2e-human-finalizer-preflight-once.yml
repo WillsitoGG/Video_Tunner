@@ -1,0 +1,34 @@
+name: Phase 2E Human Finalizer Preflight Once
+
+on:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/workflows/phase2e-human-finalizer-preflight-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  finalizer-contract:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate offline human closeout finalizer
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m py_compile .\.github\scripts\finalize_phase2e_human_closeout.py .\tests\test_phase2e_human_closeout_finalizer.py
+          python -m unittest tests.test_phase2e_human_closeout_finalizer tests.test_human_render_review tests.test_phase2e_closeout -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "PHASE2E_HUMAN_FINALIZER_PREFLIGHT=PASS"
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "Offline contract test only: no AMI download, model download, portable build, FFmpeg render or human judgment."
