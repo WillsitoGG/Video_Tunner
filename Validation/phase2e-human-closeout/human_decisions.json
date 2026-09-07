@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "record_type": "phase2e_human_render_decisions",
+  "actor": "human-reviewer",
+  "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparisons for all three locked cases.",
+  "cases": [
+    {
+      "id": "ami-es2002b-d-repeat-157",
+      "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparison for this case.",
+      "join_decisions": [
+        {
+          "join_id": "post-render-join-0001",
+          "decision": "PASS",
+          "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparison for this case."
+        }
+      ]
+    },
+    {
+      "id": "ami-ts3005d-c-repeat-298",
+      "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparison for this case.",
+      "join_decisions": [
+        {
+          "join_id": "post-render-join-0001",
+          "decision": "PASS",
+          "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparison for this case."
+        }
+      ]
+    },
+    {
+      "id": "ami-es2002b-d-repeat-13",
+      "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparison for this case.",
+      "join_decisions": [
+        {
+          "join_id": "post-render-join-0001",
+          "decision": "PASS",
+          "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparison for this case."
+        }
+      ]
+    }
+  ]
+}
