@@ -28,3 +28,8 @@ jobs:
           python -m unittest tests.test_phase2e_review_bundle_tooling tests.test_tools_portable tests.test_post_render_verification -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host "PHASE2E_HOST_VERIFIER_PREFLIGHT=PASS"
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "Host verifier only; no model download, portable build, analysis or render."
+          Write-Host "PHASE2E_HOST_VERIFIER_PREFLIGHT_TRIGGER=1"
