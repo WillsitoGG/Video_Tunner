@@ -1,0 +1,58 @@
+name: Phase 2E Closeout Preflight Once
+
+on:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/workflows/phase2e-closeout-preflight-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-tunner-phase2e-closeout-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-preflight:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate CLI, consensus and closeout scripts
+        shell: pwsh
+        run: |
+          foreach ($path in @(
+            ".\.github\scripts\run_phase2e_human_render_closeout.ps1",
+            ".\.github\scripts\build_portable_windows.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              $errors | ForEach-Object { Write-Error "$path :: $($_.Message)" }
+              throw "PowerShell parser errors: $path"
+            }
+          }
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m py_compile .\Source\video_tunner\cli.py .\Source\video_tunner\transcription_consensus.py
+          python -m unittest tests.test_analysis_transcription_strategy tests.test_transcription_repeat_consensus tests.test_phase2e_human_render_closeout_fixture tests.test_human_render_review tests.test_phase2e_closeout -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "PHASE2E_CLOSEOUT_PREFLIGHT=PASS"
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "Lightweight preflight only: no model download, FFmpeg build, analysis or render."
+          Write-Host "single_pass remains default; deterministic_overlap_12s_3s_repeat_consensus_v1 is explicit opt-in."
