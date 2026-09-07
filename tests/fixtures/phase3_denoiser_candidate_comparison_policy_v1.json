@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "record_type": "denoiser_candidate_comparison_policy",
+  "policy_id": "phase3_denoiser_candidates_v1",
+  "frozen_utc": "2026-09-07T16:45:00Z",
+  "purpose": "Precommitted descriptive comparison of a no-op control and two fixed denoiser candidates. Objective results cannot select or authorize a denoiser.",
+  "bindings": {
+    "corpus_id": "voicebank_demand_official_test_balanced_v1",
+    "corpus_fixture_sha256": "49e742ce7912d008ee5ef3cc3bd5a31b4c9f117125aa2a811b2a6bd00acb1c03",
+    "objective_metric_policy_id": "paired_clean_noisy_sisdr_stoi_v1",
+    "objective_metric_policy_sha256": "914e015140c933d201ca9e61d8d54c2a97579a44d748e8a5c3fb99c38da791b1",
+    "raw_noisy_baseline_sha256": "0c11cf701618d461cd1144a817edc77f75225333b306f91310a972475cb183fe",
+    "required_cases": 40
+  },
+  "candidates": [
+    {
+      "id": "preserve_noisy_control_v1",
+      "kind": "control",
+      "implementation": "identity",
+      "input": "noisy",
+      "parameters": {},
+      "treatment": false,
+      "clean_control_required": false
+    },
+    {
+      "id": "ffmpeg_afftdn_fixed_v1",
+      "kind": "classical_denoiser",
+      "implementation": "ffmpeg_afftdn",
+      "ffmpeg_version_contract": "9.0.1",
+      "filter": "afftdn=nr=12:nf=-50:nt=w:tn=0:tr=0",
+      "parameter_source": "Precommitted fixed values matching FFmpeg 9.0.1 defaults for noise_reduction/noise_floor/noise_type with adaptive tracking explicitly disabled.",
+      "input": "noisy",
+      "treatment": true,
+      "clean_control_required": true
+    },
+    {
+      "id": "deepfilternet_0_5_6_compensated_v1",
+      "kind": "neural_denoiser",
+      "implementation": "deep-filter",
+      "version": "0.5.6",
+      "asset_url": "https://github.com/Rikorose/DeepFilterNet/releases/download/v0.5.6/deep-filter-0.5.6-x86_64-pc-windows-msvc.exe",
+      "asset_sha256": "75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915",
+      "asset_size_bytes": 26912256,
+      "arguments": ["--compensate-delay", "--output-dir", "<output_dir>", "<input_wav>"],
+      "explicit_model_argument": false,
+      "smoke_test_run_id": 34144574712,
+      "smoke_test_input_seconds": 3.0,
+      "smoke_test_output_seconds": 2.97,
+      "input": "noisy",
+      "treatment": true,
+      "clean_control_required": true
+    }
+  ],
+  "media_contract": {
+    "input_pcm": "pcm_s16le",
+    "input_channels": 1,
+    "input_sample_rate_hz": 48000,
+    "candidate_output_channels": 1,
+    "candidate_output_sample_rate_hz": 48000,
+    "raw_duration_delta_max_seconds": 0.05,
+    "metric_timeline_normalization": {
+      "required": true,
+      "method": "right_pad_or_right_trim_only",
+      "target_frame_count": "clean_reference_frame_count",
+      "alignment_search_allowed": false,
+      "time_shift_allowed": false,
+      "level_matching_allowed": false,
+      "padding_value": 0.0,
+      "rationale": "Keep the original time origin fixed and expose any small tail loss/gain instead of optimizing alignment post hoc."
+    }
+  },
+  "noisy_evaluation": {
+    "reference": "paired_clean",
+    "metrics": ["si_sdr_db", "stoi"],
+    "per_case_delta_against_preserve_required": true,
+    "aggregate_by": ["overall", "speaker", "noise", "snr_db"],
+    "post_hoc_case_exclusion_allowed": false
+  },
+  "clean_preservation_evaluation": {
+    "required_for_treatment_candidates": true,
+    "input": "paired_clean",
+    "reference": "same_clean_input",
+    "metrics": ["stoi", "normalized_rmse"],
+    "normalized_rmse_definition": "sqrt(sum((treated-clean)^2)/sum(clean^2)) after the same right-tail frame normalization; lower is better.",
+    "preserve_control_identity": "byte/source identity is the clean no-op reference and is not redundantly re-rendered.",
+    "post_hoc_case_exclusion_allowed": false
+  },
+  "reporting_policy": {
+    "descriptive_ordering_allowed": true,
+    "winner_label_allowed": false,
+    "acceptance_thresholds_defined": false,
+    "candidate_selection_authorized": false,
+    "denoiser_selected": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "human_perceptual_ab_required_before_any_selection_or_authorization": true,
+    "auto_apply": false
+  }
+}
