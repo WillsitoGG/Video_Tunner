@@ -25,11 +25,10 @@ Obligatorio:
 15. `semantic_edit_plan` sólo puede renderizarse por semantic render gate;
 16. cualquier cambio de analysis/proposal/authorization/plan/source invalida la cadena correspondiente;
 17. technical post-render PASS nunca sustituye human perceptual PASS;
-18. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
-19. un único human FAIL en el corpus 2E.5 mantiene Fase 2E abierta;
-20. evidencia humana stale/alterada = `INVALID_EVIDENCE`, no PASS/FAIL de calidad;
-21. ante duda: `KEEP / REVIEW`;
-22. conservador por defecto.
+18. evidencia humana stale/alterada = `INVALID_EVIDENCE`;
+19. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
+20. ante duda: `KEEP / REVIEW`;
+21. conservador por defecto.
 
 ```text
 sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join → acoustic → semantic → eligibility → promotion → individual approval → bounded proposal → global execution authorization → semantic Edit Plan → semantic render gate → FFmpeg → post-render verification → human review → corpus closeout
@@ -46,11 +45,12 @@ Completado:
 - Fase 2E.2 — Explicit Approval Contract / approval schema v1;
 - Fase 2E.3 — Approved Edit Plan Proposal + Global Limits / proposal schema v1;
 - Fase 2E.4 — Execution Authorization / Semantic Render Gate;
-- **Fase 2E.5 technical pre-human gate — 3/3 AMI renders + post-render verification PASS**.
+- **Fase 2E.5 — Post-render Verification / Human Close-out — COMPLETADA**;
+- **Fase 2E — `CLOSE_OUT_READY`**.
 
-Pendiente para cerrar 2E.5 y Fase 2E: **escucha humana real 3/3 + agregación auditable**.
+Auto-apply semántico sigue deshabilitado. El cierre 2E no autoriza release.
 
-Auto-apply semántico sigue deshabilitado.
+Siguiente bloque: **Fase 3 — calidad audiovisual / auditoría**.
 
 ## 3. Evidencia principal
 
@@ -59,18 +59,33 @@ Auto-apply semántico sigue deshabilitado.
 33621357438  Portable ML PASS
 33639009841  Sync hardening PASS
 33656235038  Target Spanish PASS — WER 1.64%, RTF 0.4854
-33894995584  Human positive close-out — CLOSE_OUT_READY
+33894995584  2D.6 Human positive close-out — CLOSE_OUT_READY
 33899201093  2E.1 — 166/166 + doctor PASS
 33899857378  2E.2 — 174/174 + doctor PASS
 33900544072  2E.3 proposal — 185/185 + doctor PASS
 33908500929  2E.3 renderer isolation — 186/186 + doctor PASS
-33909424933  2E.4 core — 201/201 in 7.310 s + doctor PASS
-33909625346  2E.4 real FFmpeg E2E — 202/202 in 7.782 s + doctor PASS
+33909424933  2E.4 core — 201/201 + doctor PASS
+33909625346  2E.4 real FFmpeg E2E — 202/202 + doctor PASS
 34119952855  2E.5 technical close-out — 278 tests + portable/provenance + 3/3 technical renders PASS
 34121684853  2E.5 offline human-finalizer contract PASS
 ```
 
-No generalizar métricas de corpus fuera de su muestra. `34119952855` no es evidencia humana perceptual: `human_perceptual_reviews_completed = 0/3`.
+Final human close-out:
+
+```text
+cases = 3
+sources = 2
+valid human reviews = 3
+human perceptual PASS = 3
+human FAIL = 0
+invalid/stale reviews = 0
+status = CLOSE_OUT_READY
+auto_apply = false
+```
+
+Evidencia permanente: `Validation/phase2e-post-render-closeout.md` y `Validation/phase2e-human-closeout/`.
+
+No generalizar métricas fuera del corpus evaluado.
 
 ## 4. Stack fijado
 
@@ -85,7 +100,7 @@ PyInstaller 6.22.2
 
 VAD: faster-whisper + `silero_vad_v6.onnx`. Modelo objetivo: `large-v3-turbo`.
 
-Para el close-out 2E.5 se usa explícitamente `deterministic_overlap_12s_3s_repeat_consensus_v1`. `single_pass` sigue siendo default del producto. No exponer estrategias no validadas por CLI.
+`single_pass` sigue siendo default del producto. `deterministic_overlap_12s_3s_repeat_consensus_v1` está expuesta como opt-in explícito y fue la estrategia validada en 2E.5. No exponer estrategias no validadas por CLI.
 
 ## 5. Schemas / artifacts
 
@@ -134,34 +149,7 @@ Cualquier approval stale/rejected/invalid, duplicado, overlap, target inválido/
 
 ## 8. Fase 2E.4 — Global execution authorization
 
-Artefacto:
-
-```text
-semantic_execution_authorization.json
-schema_version = 1
-record_type = semantic_execution_authorization
-```
-
-Requisitos:
-
-1. proposal vigente y `proposal_ready_for_global_review`;
-2. analysis SHA-256 exacto;
-3. proposal SHA-256 exacto;
-4. proposal execution snapshot/fingerprint exactos;
-5. actor + reason + timestamp;
-6. decisión global explícita APPROVE/REJECT.
-
-Estados principales:
-
-```text
-valid_authorized
-valid_rejected
-stale_analysis
-stale_proposal
-stale_evidence
-stale_or_invalid_proposal
-invalid_record
-```
+Artefacto `semantic_execution_authorization.json` schema v1.
 
 APPROVE válido:
 
@@ -178,30 +166,7 @@ La proposal nunca se vuelve renderizable.
 
 ## 9. Semantic Edit Plan
 
-Artefacto:
-
-```text
-semantic_edit_plan.json
-schema_version = 1
-record_type = semantic_edit_plan
-```
-
-Sólo se materializa desde `valid_authorized`.
-
-Debe conservar:
-
-- source file/duration/SHA-256;
-- mode;
-- límites 2E.3;
-- analysis SHA-256;
-- proposal SHA-256;
-- authorization SHA-256;
-- proposal evidence fingerprint;
-- edits derivados exactamente de `proposed_edits[]`;
-- plan fingerprint;
-- summary.
-
-Contrato:
+Artefacto `semantic_edit_plan.json` schema v1. Sólo se materializa desde `valid_authorized` y conserva source SHA, analysis/proposal/authorization SHA, evidence fingerprint, edits exactos y plan fingerprint.
 
 ```text
 globally_authorized = true
@@ -210,34 +175,21 @@ executable = true
 auto_apply = false
 ```
 
-Cualquier cambio del plan invalida el fingerprint.
+Cualquier cambio invalida la cadena.
 
 ## 10. Semantic render gate
 
-El renderer genérico:
-
-- rechaza cualquier artifact con `proposed_edits`;
-- rechaza `record_type=semantic_edit_plan` salvo llamada interna con semantic gate autorizado.
-
-La vía pública correcta es:
+El renderer genérico rechaza proposals y `semantic_edit_plan`. La vía pública correcta es:
 
 ```text
 video-tunner execution render INPUT ANALYSIS PROPOSAL AUTHORIZATION PLAN OUTPUT
 ```
 
-Antes de FFmpeg debe revalidar:
-
-1. plan contra analysis/proposal/authorization actuales;
-2. authorization global;
-3. hashes de analysis/proposal/authorization;
-4. plan fingerprint;
-5. source SHA-256 real contra analysis/proposal/plan.
-
-No eliminar ni puentear esta revalidación.
+Antes de FFmpeg debe revalidar plan, authorization, hashes/fingerprints y source SHA real. No eliminar ni puentear esta revalidación.
 
 ## 11. CLI / transcription strategy
 
-Execution 2E.4:
+Execution:
 
 ```text
 execution authorize
@@ -250,64 +202,46 @@ execution render
 
 El `render` legacy no acepta Semantic Edit Plans.
 
-`analyze` mantiene `single_pass` como default. La estrategia `deterministic_overlap_12s_3s_repeat_consensus_v1` sólo se activa mediante `--transcription-strategy` explícito.
+`analyze` mantiene `single_pass` como default; 12s/3s sólo se activa mediante `--transcription-strategy` explícito.
 
 ## 12. E2E real 2E.4
 
-Run `33909625346`:
-
-- crea MP4 real 10 s A/V;
-- cadena completa analysis → individual approval → proposal → global authorization → semantic plan → render gate → FFmpeg;
-- un único semantic edit de 0.4 s;
-- original SHA-256 preservado;
-- output duration esperada dentro de ±0.15 s;
-- 1 stream vídeo + 1 audio;
-- 202/202 PASS + doctor.
-
-Esto valida ruta técnica, no calidad perceptual general de joins.
+Run `33909625346`: MP4 real 10 s A/V, cadena completa autorizada, un edit de 0.4 s, original SHA preservado, duración esperada ±0.15 s, 1 stream vídeo + 1 audio, 202/202 PASS + doctor.
 
 Detalle: `Validation/phase2e-execution-authorization.md`.
 
-## 13. Fase 2E.5 — Post-render Verification / Human Close-out
+## 13. Fase 2E.5 — cierre final
 
-Technical pre-human gate final `34119952855`:
-
-```text
-cases = 3
-sources = 2
-technical PASS = 3/3
-human perceptual reviews = 0/3 PENDING
-```
-
-Casos:
+Technical gate `34119952855`:
 
 ```text
-ami-es2002b-d-repeat-157  PASS  acoustic_context_only
-ami-ts3005d-c-repeat-298  PASS  acoustic_context_only
-ami-es2002b-d-repeat-13   PASS  low_energy_boundary_context
+3 cases / 2 sources
+3/3 technical PASS
+157 -> acoustic_context_only
+298 -> acoustic_context_only
+13  -> low_energy_boundary_context
 ```
 
-Post-render verification debe comprobar:
+Human gate final:
 
-1. cadena exacta de execution provenance;
-2. original intacto y output distinto;
-3. duración esperada vs real;
-4. 1 stream vídeo + 1 audio;
-5. auditoría acústica de cada join renderizado;
-6. `auto_apply = false`.
+```text
+3/3 valid human PASS
+0 FAIL
+0 invalid/stale reviews
+CLOSE_OUT_READY
+```
 
-Human review:
+El finalizador offline liga cada review al SHA del technical report, SHA del output, plan fingerprint y `join_id`; no vuelve a ejecutar Whisper ni FFmpeg y no sustituye el juicio humano.
 
-- escuchar ORIGINAL y RENDERED reales;
-- PASS/FAIL explícito por `join_id` con reason;
-- review ligada al SHA del technical report, SHA del output y plan fingerprint;
-- 3/3 PASS en 2 fuentes → `CLOSE_OUT_READY`;
-- un FAIL → `INSUFFICIENT_JOIN_QUALITY`;
-- evidencia stale/alterada → `INVALID_EVIDENCE`.
+Final hashes:
 
-`.github/scripts/finalize_phase2e_human_closeout.py` procesa esa evidencia offline. No vuelve a ejecutar Whisper ni FFmpeg y no puede sustituir el juicio humano.
+```text
+source bundle manifest SHA256  d0b12929ede07c1c5a56b074008d0903a868a7cf61e5ce10801c2b682f164ed0
+human decisions SHA256         867a33c87ec2154d08558a67d503535d4527cb99af07ac65458507fe73288e04
+closeout decision SHA256       2cc5ae013cdcbfc53efc376d5db4f2f2f53d5a8848c019820dee6899b88c188a
+```
 
-Detalle: `Validation/phase2e-post-render-closeout.md`.
+Detalle: `Validation/phase2e-post-render-closeout.md` y `Validation/phase2e-human-closeout/`.
 
 ## 14. GitHub / CI / Release
 
@@ -318,8 +252,8 @@ Detalle: `Validation/phase2e-post-render-closeout.md`.
 - no modelos/vídeos/ZIPs artifacts ordinarios;
 - no Release sin autorización expresa de Guille.
 
-## 15. Docs
+## 15. Docs / siguiente trabajo
 
 Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.
 
-Trabajo inmediato: obtener la escucha humana real 3/3, finalizar 2E.5 offline, documentar el cierre, limpiar tooling diagnóstico sobrante y preparar integración a `main`. No iniciar Fase 3 antes de cerrar 2E.
+Trabajo inmediato tras integrar 2E: iniciar **Fase 3 — calidad audiovisual / auditoría**, sin habilitar `auto_apply` y sin anticipar UX/release hardening.
