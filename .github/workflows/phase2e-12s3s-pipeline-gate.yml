@@ -126,3 +126,4 @@ jobs:
           Write-Host "Consensus still fails closed on single support, same-side support, timing disagreement, owner lexical disagreement, non-collapsed owner timing, cross-segment collapsed copies, or an already-preserved owner repeat."
           Write-Host "FFmpeg is an immutable asset verified by archive SHA and packaged version token."
           Write-Host "No approval, execution authorization, materialized edit or render is created by this gate."
+          Write-Host "PHASE2E_12S3S_FINAL_IMMUTABLE_TRIGGER=1"
