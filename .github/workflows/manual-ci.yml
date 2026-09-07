@@ -1,13 +1,7 @@
 name: Manual CI
 
-# final Phase 2E branch-closeout trigger
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2e-post-render-verification
-    paths:
-      - .github/workflows/manual-ci.yml
 
 concurrency:
   group: video-tunner-manual-ci-${{ github.ref }}
