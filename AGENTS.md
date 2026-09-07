@@ -17,14 +17,16 @@ Obligatorio:
 7. cada artifact/capability es independiente y stale-safe;
 8. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
 9. `measurement != treatment decision != treatment authorization`;
-10. `profile selection != normalization approval != normalization execution authorization`;
-11. technical normalization PASS != human perceptual PASS;
-12. `preserve` audiovisual es default;
-13. ningún risk finding auto-selecciona tratamiento;
-14. dynamic loudnorm fallback está prohibido en la foundation validada;
-15. ante duda: KEEP/REVIEW;
-16. `auto_apply=false`;
-17. no release sin autorización expresa de Guille.
+10. `noise measurement != denoise decision != denoise authorization`;
+11. `profile selection != normalization approval != normalization execution authorization`;
+12. technical normalization PASS != human perceptual PASS;
+13. `preserve` audiovisual es default;
+14. ningún risk finding auto-selecciona tratamiento;
+15. dynamic loudnorm fallback está prohibido en la foundation validada;
+16. ningún valor dBFS de 3.6a es por sí solo un threshold de denoise;
+17. ante duda: KEEP/REVIEW;
+18. `auto_apply=false`;
+19. no release sin autorización expresa de Guille.
 
 Cadena actual:
 
@@ -36,14 +38,16 @@ sources → ingest/sync → MASTER AUDIO → Whisper/VAD
 → semantic render gate → FFmpeg
 → post-render technical verification → human review → 2E closeout
 → audiovisual quality audit
-→ audiovisual treatment decision
-→ normalization profile decision
-→ normalization approval
-→ normalization plan proposal
-→ normalization execution authorization
-→ gated linear normalization render
-→ independent normalization post-render verification
-→ human perceptual review [PENDING]
+   ├→ audiovisual treatment decision
+   │  → normalization profile decision
+   │  → normalization approval
+   │  → normalization plan proposal
+   │  → normalization execution authorization
+   │  → gated linear normalization render
+   │  → independent normalization post-render verification
+   │  → human perceptual review [PENDING]
+   └→ noise evidence audit [MEASUREMENT-ONLY]
+      → denoise corpus/evaluation [NEXT]
 ```
 
 ## 2. Estado
@@ -62,12 +66,13 @@ Completado:
 - Fase 3.5a — Linear Normalization Plan Proposal foundation;
 - Fase 3.5b — Normalization Execution Authorization foundation;
 - Fase 3.5c — real gated linear normalization renderer technical foundation;
-- Fase 3.5d — independent normalization post-render verifier technical foundation.
+- Fase 3.5d — independent normalization post-render verifier technical foundation;
+- Fase 3.6a — Noise Evidence Audit measurement-only foundation.
 
 No completado:
 
 - human perceptual close-out de normalización;
-- denoise evidence/treatment;
+- denoise corpus/decision/treatment;
 - join smoothing/crossfade evidence/treatment;
 - Fase 3 closeout;
 - UX/release.
@@ -95,6 +100,8 @@ human review  2E.5 — 3/3 human perceptual PASS / CLOSE_OUT_READY
 34139056626  Phase 3.5c real normalization render — 25/25 PASS
 34139502187  Phase 3.5d technical verification — 16/16 PASS
 34139639280  full regression through 3.5d — 337/337 + doctor PASS
+34141013261  Phase 3.6a noise audit — 9/9 + real MP4/AAC E2E PASS
+34141115293  full regression through 3.6a — 346/346 + doctor PASS
 ```
 
 Focal baseline observed only:
@@ -141,6 +148,7 @@ normalization_plan_proposal               schema v1
 normalization_execution_authorization     schema v1
 normalization_render_result               schema v1
 normalization_post_render_verification    schema v1
+noise_evidence_audit                      schema v1
 ```
 
 No mutar artifacts upstream para registrar decisiones downstream.
@@ -276,7 +284,47 @@ auto_apply = false
 
 Detalle: `Validation/phase3-normalization-foundation.md`.
 
-## 9. Baseline real de Fase 3
+## 9. Fase 3.6a — Noise Evidence Audit
+
+`Source/video_tunner/noise_audit.py` es measurement-only.
+
+Precommit de evidencia:
+
+```text
+analysis PCM              mono PCM16 @ 16 kHz
+frame size                0.20 s
+non-speech guard          0.15 s
+minimum NS window         0.40 s
+minimum NS windows        2
+minimum total NS coverage 2.0 s
+```
+
+Reglas:
+
+- exige `audiovisual_quality_audit` válido y output SHA vigente;
+- speech intervals deben ser explícitos, no solapados y dentro de timeline;
+- `speech_evidence_sha256` obligatorio;
+- non-speech se deriva sólo después de separar 150 ms de cada borde speech;
+- digital silence se registra como tal, no como un floor dBFS inventado;
+- speech/non-speech delta es sólo energy proxy, no SNR perceptual;
+- `insufficient_noise_evidence` significa cobertura insuficiente, no que haga falta denoise;
+- ninguna métrica activa tratamiento.
+
+Siempre:
+
+```text
+denoise_evaluated = false
+denoise_authorized = false
+filter_selected = false
+parameters_defined = false
+executable = false
+treatment_authorized = false
+auto_apply = false
+```
+
+Detalle: `Validation/phase3-noise-audit-foundation.md`.
+
+## 10. Baseline real de Fase 3
 
 `Validation/phase3-focal-quality-baseline.json` procede del mismo bundle ORIGINAL/RENDERED escuchado por Guille en 2E.5.
 
@@ -288,21 +336,21 @@ La evidencia actual NO justifica:
 
 Default: preservar el render validado.
 
-## 10. Próximo trabajo — Fase 3.6
+## 11. Próximo trabajo — Fase 3.6b
 
-Abrir **denoise evidence/audit** antes de cualquier tratamiento:
+Antes de cualquier denoiser ejecutable:
 
-- medir, no filtrar;
-- no inferir “noise floor” desde ventanas no acreditadas;
-- usar sólo ventanas no-speech/speech con provenance suficiente;
-- si no hay ventanas confiables, exigirlas explícitamente en vez de adivinarlas;
-- no seleccionar `afftdn`, `arnndn` u otro filtro por conveniencia;
-- denoise debe permanecer `not_authorized` hasta evidencia/corpus específico;
-- controles limpios son obligatorios para detectar degradación introducida por denoise.
+- seleccionar/congelar corpus con noisy speech y clean/control comparable;
+- provenance + licencia compatibles con el proyecto;
+- diversidad de ruidos y niveles;
+- métricas objetivas sólo como evidencia auxiliar;
+- controles limpios obligatorios para detectar degradación introducida;
+- comparación perceptual humana antes de autorizar filtro/parámetros;
+- no seleccionar `afftdn`, `arnndn` u otro filtro por conveniencia.
 
 Join smoothing/crossfade continúa bloqueado hasta evidencia A/B perceptual específica.
 
-## 11. GitHub / CI / Release
+## 12. GitHub / CI / Release
 
 - GitHub source of truth;
 - CI deliberada;
