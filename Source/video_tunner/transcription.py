@@ -9,6 +9,12 @@ from typing import Any, Iterable
 from .tools import model_root, portable_strict_mode, runtime_layout
 
 
+WHISPER_SAMPLE_RATE = 16000
+CHUNKED_TRANSCRIPTION_WINDOW_SECONDS = 12.0
+CHUNKED_TRANSCRIPTION_HOP_SECONDS = 6.0
+CHUNKED_TRANSCRIPTION_STRATEGY = "deterministic_overlap_12s_6s_v1"
+
+
 class TranscriptionDependencyError(RuntimeError):
     pass
 
@@ -34,6 +40,15 @@ class TranscriptSegment:
 
 
 @dataclass(frozen=True)
+class TranscriptionChunkWindow:
+    index: int
+    start: float
+    end: float
+    ownership_start: float
+    ownership_end: float
+
+
+@dataclass(frozen=True)
 class TranscriptResult:
     language: str | None
     language_probability: float | None
@@ -41,6 +56,10 @@ class TranscriptResult:
     device: str
     compute_type: str
     segments: tuple[TranscriptSegment, ...]
+    strategy: str = "single_pass"
+    chunk_window_seconds: float | None = None
+    chunk_hop_seconds: float | None = None
+    chunk_count: int | None = None
 
     @property
     def word_count(self) -> int:
@@ -135,6 +154,47 @@ def _resolve_device_and_compute(device: str, compute_type: str) -> tuple[str, st
     return "cpu", "int8"
 
 
+def _resolve_whisper_model_source(model_name: str) -> tuple[str, bool]:
+    local_model = local_whisper_model_path(model_name)
+    local_status = whisper_model_status(model_name)
+    if local_status["available"]:
+        return str(local_model), True
+    if portable_strict_mode():
+        raise WhisperModelNotFoundError(
+            f"El modelo Whisper '{model_name}' no está disponible en {local_model}. "
+            f"Descárgalo primero con `video-tunner model fetch {model_name}`."
+        )
+    return model_name, False
+
+
+def _load_whisper_model(
+    model_name: str,
+    *,
+    device: str,
+    compute_type: str,
+) -> tuple[Any, str, str]:
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as exc:
+        raise TranscriptionDependencyError(
+            "Falta faster-whisper. Instala las dependencias de análisis con "
+            "`python -m pip install -e .[analysis]`."
+        ) from exc
+
+    resolved_device, resolved_compute = _resolve_device_and_compute(device, compute_type)
+    model_source, local_files_only = _resolve_whisper_model_source(model_name)
+    download_root = model_root() / "whisper"
+    download_root.mkdir(parents=True, exist_ok=True)
+    model = WhisperModel(
+        model_source,
+        device=resolved_device,
+        compute_type=resolved_compute,
+        download_root=str(download_root),
+        local_files_only=local_files_only,
+    )
+    return model, resolved_device, resolved_compute
+
+
 def _normalise_segments(raw_segments: Iterable[Any]) -> tuple[TranscriptSegment, ...]:
     result: list[TranscriptSegment] = []
     for segment in raw_segments:
@@ -170,6 +230,113 @@ def _normalise_segments(raw_segments: Iterable[Any]) -> tuple[TranscriptSegment,
     return tuple(result)
 
 
+def build_transcription_chunk_windows(
+    duration_seconds: float,
+    *,
+    window_seconds: float = CHUNKED_TRANSCRIPTION_WINDOW_SECONDS,
+    hop_seconds: float = CHUNKED_TRANSCRIPTION_HOP_SECONDS,
+) -> tuple[TranscriptionChunkWindow, ...]:
+    """Build a deterministic fixed grid with one non-overlapping ownership region per chunk.
+
+    For the 12s/6s profile, adjacent chunks overlap by 6s. Their ownership
+    boundary is the midpoint of that overlap, so interior chunks own their
+    central 6 seconds and every timeline instant belongs to exactly one chunk.
+    The first/last chunks additionally own the media edges.
+    """
+    duration = float(duration_seconds)
+    window = float(window_seconds)
+    hop = float(hop_seconds)
+    if duration < 0.0:
+        raise ValueError("La duración de audio no puede ser negativa.")
+    if window <= 0.0 or hop <= 0.0 or hop > window:
+        raise ValueError("Geometría de chunking inválida.")
+    if duration == 0.0:
+        return ()
+
+    starts: list[float] = []
+    start = 0.0
+    while start < duration - 1e-9:
+        starts.append(round(start, 9))
+        start += hop
+
+    overlap = window - hop
+    ownership_margin = overlap / 2.0
+    windows: list[TranscriptionChunkWindow] = []
+    for index, start in enumerate(starts):
+        end = min(duration, start + window)
+        ownership_start = 0.0 if index == 0 else min(duration, start + ownership_margin)
+        if index == len(starts) - 1:
+            ownership_end = duration
+        else:
+            ownership_end = min(duration, start + window - ownership_margin)
+        if ownership_end <= ownership_start + 1e-9:
+            continue
+        windows.append(
+            TranscriptionChunkWindow(
+                index=index,
+                start=round(start, 9),
+                end=round(end, 9),
+                ownership_start=round(ownership_start, 9),
+                ownership_end=round(ownership_end, 9),
+            )
+        )
+    return tuple(windows)
+
+
+def _word_midpoint(word: WordTiming, *, offset: float = 0.0) -> float:
+    return offset + (float(word.start) + float(word.end)) / 2.0
+
+
+def merge_chunked_transcript_segments(
+    chunks: Iterable[tuple[TranscriptionChunkWindow, tuple[TranscriptSegment, ...]]],
+) -> tuple[TranscriptSegment, ...]:
+    """Map local chunk timestamps to the master timeline using deterministic ownership.
+
+    No fuzzy text reconciliation occurs. A word is retained iff its global
+    midpoint belongs to that chunk's ownership region. Because ownership regions
+    tile the timeline without overlap, the same temporal word hypothesis cannot
+    be emitted twice merely because the ASR windows overlap.
+    """
+    merged: list[TranscriptSegment] = []
+    ordered = sorted(chunks, key=lambda item: (item[0].start, item[0].index))
+    last_window_index = ordered[-1][0].index if ordered else -1
+
+    for window, segments in ordered:
+        for segment in segments:
+            selected: list[WordTiming] = []
+            for word in segment.words:
+                midpoint = _word_midpoint(word, offset=window.start)
+                in_left = midpoint >= window.ownership_start - 1e-9
+                if window.index == last_window_index:
+                    in_right = midpoint <= window.ownership_end + 1e-9
+                else:
+                    in_right = midpoint < window.ownership_end - 1e-9
+                if not (in_left and in_right):
+                    continue
+                selected.append(
+                    WordTiming(
+                        text=word.text,
+                        start=round(window.start + float(word.start), 6),
+                        end=round(window.start + float(word.end), 6),
+                        probability=word.probability,
+                    )
+                )
+            if not selected:
+                continue
+            selected.sort(key=lambda item: (item.start, item.end, item.text))
+            merged.append(
+                TranscriptSegment(
+                    text=" ".join(word.text for word in selected).strip(),
+                    start=selected[0].start,
+                    end=selected[-1].end,
+                    words=tuple(selected),
+                )
+            )
+
+    merged.sort(key=lambda item: (item.start, item.end, item.text))
+    return tuple(merged)
+
+
 def transcribe_audio(
     audio_wav: str | Path,
     *,
@@ -183,37 +350,10 @@ def transcribe_audio(
     if not wav_path.is_file():
         raise FileNotFoundError(f"No existe el WAV de análisis: {wav_path}")
 
-    try:
-        from faster_whisper import WhisperModel
-    except ImportError as exc:
-        raise TranscriptionDependencyError(
-            "Falta faster-whisper. Instala las dependencias de análisis con "
-            "`python -m pip install -e .[analysis]`."
-        ) from exc
-
-    resolved_device, resolved_compute = _resolve_device_and_compute(device, compute_type)
-    local_model = local_whisper_model_path(model_name)
-    local_status = whisper_model_status(model_name)
-    if local_status["available"]:
-        model_source = str(local_model)
-        local_files_only = True
-    elif portable_strict_mode():
-        raise WhisperModelNotFoundError(
-            f"El modelo Whisper '{model_name}' no está disponible en {local_model}. "
-            f"Descárgalo primero con `video-tunner model fetch {model_name}`."
-        )
-    else:
-        model_source = model_name
-        local_files_only = False
-
-    download_root = model_root() / "whisper"
-    download_root.mkdir(parents=True, exist_ok=True)
-    model = WhisperModel(
-        model_source,
-        device=resolved_device,
-        compute_type=resolved_compute,
-        download_root=str(download_root),
-        local_files_only=local_files_only,
+    model, resolved_device, resolved_compute = _load_whisper_model(
+        model_name,
+        device=device,
+        compute_type=compute_type,
     )
     raw_segments, info = model.transcribe(
         str(wav_path),
@@ -236,15 +376,114 @@ def transcribe_audio(
     )
 
 
+def transcribe_audio_chunked(
+    audio_wav: str | Path,
+    *,
+    model_name: str = "large-v3-turbo",
+    language: str | None = None,
+    device: str = "auto",
+    compute_type: str = "auto",
+    window_seconds: float = CHUNKED_TRANSCRIPTION_WINDOW_SECONDS,
+    hop_seconds: float = CHUNKED_TRANSCRIPTION_HOP_SECONDS,
+) -> TranscriptResult:
+    """Transcribe deterministic overlapping windows and merge them on the master timeline.
+
+    This is opt-in during Phase 2E hardening. It does not alter `transcribe_audio`
+    or the default analysis pipeline. Audio is decoded once through faster-whisper's
+    bundled PyAV path, then sliced in-memory. Every chunk is independently decoded
+    by Whisper; overlap is reconciled only by deterministic temporal ownership.
+    """
+    wav_path = Path(audio_wav)
+    if not wav_path.is_file():
+        raise FileNotFoundError(f"No existe el WAV de análisis: {wav_path}")
+
+    try:
+        from faster_whisper.audio import decode_audio
+    except ImportError as exc:
+        raise TranscriptionDependencyError(
+            "Falta faster-whisper/PyAV para decodificar el audio chunked."
+        ) from exc
+
+    model, resolved_device, resolved_compute = _load_whisper_model(
+        model_name,
+        device=device,
+        compute_type=compute_type,
+    )
+    audio = decode_audio(str(wav_path), sampling_rate=WHISPER_SAMPLE_RATE)
+    duration = float(len(audio)) / float(WHISPER_SAMPLE_RATE)
+    windows = build_transcription_chunk_windows(
+        duration,
+        window_seconds=window_seconds,
+        hop_seconds=hop_seconds,
+    )
+    if not windows:
+        return TranscriptResult(
+            language=language,
+            language_probability=None,
+            model=model_name,
+            device=resolved_device,
+            compute_type=resolved_compute,
+            segments=(),
+            strategy=CHUNKED_TRANSCRIPTION_STRATEGY,
+            chunk_window_seconds=float(window_seconds),
+            chunk_hop_seconds=float(hop_seconds),
+            chunk_count=0,
+        )
+
+    chunk_results: list[tuple[TranscriptionChunkWindow, tuple[TranscriptSegment, ...]]] = []
+    detected_language = language
+    detected_probability: float | None = None
+    for window in windows:
+        start_sample = int(round(window.start * WHISPER_SAMPLE_RATE))
+        end_sample = int(round(window.end * WHISPER_SAMPLE_RATE))
+        chunk_audio = audio[start_sample:end_sample]
+        raw_segments, info = model.transcribe(
+            chunk_audio,
+            language=detected_language,
+            word_timestamps=True,
+            vad_filter=False,
+            condition_on_previous_text=True,
+        )
+        segments = _normalise_segments(raw_segments)
+        if detected_language is None:
+            detected_language = getattr(info, "language", None)
+            probability = getattr(info, "language_probability", None)
+            detected_probability = None if probability is None else float(probability)
+        elif detected_probability is None and language is None:
+            probability = getattr(info, "language_probability", None)
+            detected_probability = None if probability is None else float(probability)
+        chunk_results.append((window, segments))
+
+    merged = merge_chunked_transcript_segments(chunk_results)
+    return TranscriptResult(
+        language=detected_language,
+        language_probability=detected_probability,
+        model=model_name,
+        device=resolved_device,
+        compute_type=resolved_compute,
+        segments=merged,
+        strategy=CHUNKED_TRANSCRIPTION_STRATEGY,
+        chunk_window_seconds=float(window_seconds),
+        chunk_hop_seconds=float(hop_seconds),
+        chunk_count=len(windows),
+    )
+
+
 def transcript_to_dict(result: TranscriptResult) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "engine": "faster-whisper",
         "model": result.model,
         "device": result.device,
         "compute_type": result.compute_type,
         "language": result.language,
         "language_probability": result.language_probability,
+        "strategy": {
+            "name": result.strategy,
+            "chunk_window_seconds": result.chunk_window_seconds,
+            "chunk_hop_seconds": result.chunk_hop_seconds,
+            "chunk_count": result.chunk_count,
+        },
         "word_count": result.word_count,
         "segments": [
             {
@@ -279,7 +518,7 @@ def write_transcript_txt(result: TranscriptResult, destination: str | Path) -> P
 def _srt_timestamp(seconds: float) -> str:
     milliseconds = max(0, int(round(seconds * 1000)))
     hours, remainder = divmod(milliseconds, 3_600_000)
-    minutes, remainder = divmod(remainder, 60_000)
+    minutes, remainder = divmod(milliseconds % 3_600_000, 60_000)
     secs, millis = divmod(remainder, 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 

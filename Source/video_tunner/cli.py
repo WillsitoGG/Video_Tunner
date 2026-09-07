@@ -7,7 +7,11 @@ import json
 from pathlib import Path
 
 from . import __version__
-from .analysis_pipeline import analyze_spoken_video
+from .analysis_pipeline import (
+    CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY,
+    SINGLE_PASS_TRANSCRIPTION_STRATEGY,
+    analyze_spoken_video,
+)
 from .approval import (
     build_approval_record,
     load_json_object,
@@ -174,6 +178,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         manual_drift_ppm=args.drift_ppm,
         master_audio=args.master_audio,
         ingest_report_path=args.ingest_report,
+        transcription_strategy=args.transcription_strategy,
     )
     _json(result)
     return 0
@@ -429,6 +434,15 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--language", default="auto", help="Idioma Whisper (p. ej. es) o auto.")
     analyze.add_argument("--device", choices=("auto", "cpu", "cuda"), default="cpu")
     analyze.add_argument("--compute-type", default="auto")
+    analyze.add_argument(
+        "--transcription-strategy",
+        choices=(SINGLE_PASS_TRANSCRIPTION_STRATEGY, CHUNKED_TRANSCRIPTION_12S_3S_STRATEGY),
+        default=SINGLE_PASS_TRANSCRIPTION_STRATEGY,
+        help=(
+            "Estrategia de transcripción. Default: single_pass. "
+            "La estrategia 12s/3s repeat-consensus es opt-in y conserva todos los guards semánticos."
+        ),
+    )
     analyze.set_defaults(func=cmd_analyze)
 
     approval = sub.add_parser(

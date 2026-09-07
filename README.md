@@ -36,8 +36,9 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 2E.2 — Explicit Approval Contract: ✅
 - Fase 2E.3 — Approved Edit Plan Proposal + Global Limits: ✅
 - Fase 2E.4 — Execution Authorization / Semantic Render Gate: ✅
-- Fase 2E — Promotion to Edit Plan: 🟡 **en curso**
-- Fase 2E.5 — Semantic Render Verification / Close-out: 🟡 **siguiente**
+- Fase 2E.5 — Semantic Render Verification / Human Close-out: ✅ **3/3 técnico + 3/3 humano**
+- Fase 2E — Promotion to Edit Plan: ✅ **CLOSE_OUT_READY**
+- Fase 3 — Calidad audiovisual / auditoría: ⏭️ siguiente
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -71,7 +72,11 @@ semantic render gate
   ↓
 FFmpeg render
   ↓
-future post-render verification/audit
+semantic_render_verification
+  ↓
+semantic_render_human_review
+  ↓
+phase2e_closeout_decision
 ```
 
 Invariantes:
@@ -86,6 +91,8 @@ proposal_ready_for_global_review != render authorization
 proposed_edits[] != edits[]
 global APPROVE != auto_apply
 semantic_edit_plan requires semantic render gate
+technical post-render PASS != human perceptual PASS
+stale/altered evidence = INVALID_EVIDENCE
 auto_apply = false
 ```
 
@@ -98,84 +105,26 @@ auto_apply = false
 
 Modelo objetivo: **`large-v3-turbo`**.
 
-## Artifacts actuales
+La estrategia de transcripción de producto sigue siendo `single_pass` por defecto. `deterministic_overlap_12s_3s_repeat_consensus_v1` está expuesta como opt-in explícito y es la estrategia validada para el close-out 2E.5.
 
-### Analysis
-
-```text
-analysis.json
-schema_version = 9
-```
-
-Incluye `promotion_assessments[]` además de candidates/scopes/fillers/join/acoustic/semantic/eligibility.
-
-### Approval individual
+## Artifacts principales
 
 ```text
-promotion_approval.json
-schema_version = 1
-record_type = promotion_approval
+analysis.json                         schema v9
+promotion_approval.json               schema v1
+approved_edit_plan_proposal.json      schema v1
+semantic_execution_authorization.json schema v1
+semantic_edit_plan.json               schema v1
+semantic_render_verification          schema v1
+semantic_render_human_review          schema v1
+phase2e_closeout_decision              schema v1
 ```
 
-### Proposal global acotada
-
-```text
-approved_edit_plan_proposal.json
-schema_version = 1
-record_type = approved_edit_plan_proposal
-proposed_edits[]
-```
-
-Límites precomprometidos, iguales en ambos modos:
-
-```text
-max_semantic_edits    = 10
-max_removed_seconds   = 30.0
-max_removed_fraction  = 0.05
-```
-
-### Global execution authorization
-
-```text
-semantic_execution_authorization.json
-schema_version = 1
-record_type = semantic_execution_authorization
-```
-
-Liga la decisión global a SHA-256 exactos de analysis/proposal + fingerprint canónico de la proposal + actor/reason/timestamp.
-
-Un APPROVE válido permite únicamente la cadena controlada:
-
-```text
-authorized = true
-edit_plan_materialization_authorized = true
-semantic_render_authorization = true
-proposal_render_authorization = false
-executable = false
-auto_apply = false
-```
-
-### Semantic Edit Plan
-
-```text
-semantic_edit_plan.json
-schema_version = 1
-record_type = semantic_edit_plan
-edits[]
-```
-
-Se materializa sólo si la autorización global sigue siendo `valid_authorized`. Conserva SHA-256 de analysis/proposal/authorization, fingerprint del plan y provenance de cada edit.
-
-```text
-globally_authorized = true
-requires_semantic_render_gate = true
-executable = true
-auto_apply = false
-```
+La proposal nunca es ejecutable. El Semantic Edit Plan sólo se materializa desde una autorización global vigente, y el renderer genérico rechaza proposals y Semantic Edit Plans fuera del semantic render gate.
 
 ## Semantic render gate
 
-El comando genérico `render` **rechaza** tanto proposals como Semantic Edit Plans. La única vía semántica ejecutable es `execution render`, que justo antes de FFmpeg revalida:
+La vía semántica ejecutable es `execution render`, que justo antes de FFmpeg revalida:
 
 1. analysis actual;
 2. proposal actual;
@@ -186,67 +135,39 @@ El comando genérico `render` **rechaza** tanto proposals como Semantic Edit Pla
 
 Si cualquier elemento es stale, manipulado o distinto, el render se bloquea.
 
-CLI:
-
-```text
-video-tunner execution authorize ANALYSIS PROPOSAL --decision approve|reject --actor ACTOR --reason REASON --output semantic_execution_authorization.json
-video-tunner execution validate ANALYSIS PROPOSAL AUTHORIZATION
-video-tunner execution materialize ANALYSIS PROPOSAL AUTHORIZATION --output semantic_edit_plan.json
-video-tunner execution plan-validate ANALYSIS PROPOSAL AUTHORIZATION PLAN
-video-tunner execution render-check INPUT ANALYSIS PROPOSAL AUTHORIZATION PLAN
-video-tunner execution render INPUT ANALYSIS PROPOSAL AUTHORIZATION PLAN OUTPUT
-```
-
 ## Evidencia principal de Fase 2E
 
 ```text
-33894995584  Human Positive Close-out — CLOSE_OUT_READY
 33899201093  2E.1 schema v9 — 166/166 PASS + doctor
 33899857378  2E.2 approval contract — 174/174 PASS + doctor
 33900544072  2E.3 proposal foundation — 185/185 PASS + doctor
 33908500929  2E.3 renderer isolation — 186/186 PASS + doctor
 33909424933  2E.4 authorization/render-gate core — 201/201 PASS + doctor
 33909625346  2E.4 real FFmpeg semantic render E2E — 202/202 PASS + doctor
+34119952855  2E.5 technical close-out — 278 tests + portable/provenance + 3/3 real AMI technical renders PASS
+34121684853  2E.5 offline human-finalizer contract — PASS
 ```
 
-### E2E real 2E.4
-
-`33909625346` crea un MP4 real de 10 s con vídeo+audio y recorre:
+Final 2E.5:
 
 ```text
-analysis
-→ promotion approval
-→ bounded proposal
-→ global execution approval
-→ semantic Edit Plan
-→ semantic render gate
-→ FFmpeg
+cases = 3
+sources = 2
+technical PASS = 3/3
+human perceptual PASS = 3/3
+human FAIL = 0
+invalid/stale reviews = 0
+status = CLOSE_OUT_READY
+auto_apply = false
 ```
 
-El test final:
+Evidencia permanente: `Validation/phase2e-post-render-closeout.md` y `Validation/phase2e-human-closeout/`.
 
-- materializa exactamente un edit de `0.4 s`;
-- renderiza únicamente ese tramo autorizado;
-- confirma que el SHA-256 del original no cambia;
-- confirma duración de salida esperada con tolerancia `±0.15 s`;
-- conserva 1 stream de vídeo + 1 de audio;
-- mantiene `auto_apply=false`.
+## Siguiente trabajo — Fase 3
 
-Esta evidencia valida la ruta técnica/gobernanza; **no** demuestra todavía calidad perceptual humana general de los joins renderizados.
+Con Fase 2E cerrada, el siguiente bloque es **calidad audiovisual / auditoría**: tratamiento de joins, normalización/denoise controlados, auditoría avanzada de salida y calidad audiovisual end-to-end.
 
-Detalle: `Validation/phase2e-execution-authorization.md`.
-
-## Siguiente trabajo — Fase 2E.5
-
-**Semantic Render Verification / Close-out**:
-
-1. post-render structural verification;
-2. expected vs actual duration accounting;
-3. comprobar streams y output provenance;
-4. audit local alrededor de cada join renderizado;
-5. evidencia perceptual/humana sobre joins semánticos reales;
-6. informe completo analysis → approvals → proposal → authorization → plan → output;
-7. decisión explícita de cierre de Fase 2E antes de pasar a capas audiovisuales posteriores.
+Después: Fase 4 UX mínima y Fase 5 Portable Release Hardening.
 
 ## Principios
 
@@ -257,7 +178,8 @@ Detalle: `Validation/phase2e-execution-authorization.md`.
 - conservador por defecto;
 - ante duda: KEEP/REVIEW;
 - GitHub como source of truth;
-- CI deliberada y sin artifacts pesados ordinarios;
+- CI deliberada y workflows pesados manual-only;
+- `auto_apply=false`;
 - no GitHub Release sin autorización expresa de Guille.
 
 Consulta `AGENTS.md`, `ROADMAP.md`, `RELEASE_STATUS.md`, `UPSTREAM_SOURCES.md` y `Validation/`.

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "record_type": "phase2e_closeout_decision",
+  "phase2e_closeout_ready": true,
+  "auto_apply": false,
+  "status": "CLOSE_OUT_READY",
+  "reason": null,
+  "summary": {
+    "required_cases": 3,
+    "evaluated_cases": 3,
+    "required_sources": 2,
+    "distinct_sources": 2,
+    "valid_review_count": 3,
+    "human_perceptual_pass_count": 3,
+    "human_perceptual_fail_count": 0,
+    "invalid_or_stale_review_count": 0
+  },
+  "cases": [
+    {
+      "id": "ami-es2002b-d-repeat-157",
+      "audio_source_id": "ES2002b-D",
+      "status": "valid_human_pass",
+      "valid": true,
+      "human_perceptual_pass": true,
+      "reviewed_join_count": 1
+    },
+    {
+      "id": "ami-ts3005d-c-repeat-298",
+      "audio_source_id": "TS3005d-C",
+      "status": "valid_human_pass",
+      "valid": true,
+      "human_perceptual_pass": true,
+      "reviewed_join_count": 1
+    },
+    {
+      "id": "ami-es2002b-d-repeat-13",
+      "audio_source_id": "ES2002b-D",
+      "status": "valid_human_pass",
+      "valid": true,
+      "human_perceptual_pass": true,
+      "reviewed_join_count": 1
+    }
+  ]
+}

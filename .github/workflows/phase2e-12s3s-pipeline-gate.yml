@@ -1,0 +1,123 @@
+name: Phase 2E 12s-3s Pipeline Gate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-tunner-phase2e-12s3s-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE2E_HUMAN_FIXTURE: tests\fixtures\phase2e_human_render_closeout_ami_v1.json
+  PHASE2E_FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-05-13-10/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-gpl-9.0.zip
+  PHASE2E_EXPECTED_FFMPEG_SHA256: a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f
+  PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN: n9.0.1-26-g5c8e7e2433
+
+jobs:
+  windows-12s3s-pipeline:
+    runs-on: windows-2025
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Preflight strategy and harness
+        shell: pwsh
+        run: |
+          python -m py_compile .\.github\scripts\run_phase2e_12s3s_pipeline_gate.py .\Source\video_tunner\transcription_consensus.py
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m unittest tests.test_analysis_transcription_strategy tests.test_transcription_profiles tests.test_transcription_chunking tests.test_transcription_repeat_consensus tests.test_phase2e_12s3s_pipeline_gate_harness -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "PHASE2E_12S3S_PIPELINE_PREFLIGHT=PASS"
+
+      - name: Download licensed AMI speaker-specific sources
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1 -Fixture $env:PHASE2E_HUMAN_FIXTURE
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Build analysis portable with immutable FFmpeg
+        shell: pwsh
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis -FfmpegUrl $env:PHASE2E_FFMPEG_URL
+
+      - name: Verify portable FFmpeg provenance
+        shell: pwsh
+        run: |
+          $manifestPath = Join-Path $PWD "dist\Video_Tunner\portable-manifest.json"
+          if (-not (Test-Path $manifestPath)) { throw "Missing portable-manifest.json" }
+          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          $sha = ([string]$manifest.ffmpeg_archive_sha256).ToLowerInvariant()
+          if ($sha -ne $env:PHASE2E_EXPECTED_FFMPEG_SHA256) {
+            throw "Portable FFmpeg SHA mismatch: $sha"
+          }
+          if ([string]$manifest.ffmpeg -notlike "*$($env:PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN)*") {
+            throw "Unexpected portable FFmpeg version: $($manifest.ffmpeg)"
+          }
+          $ffmpeg = Join-Path $PWD "dist\Video_Tunner\Tools\ffmpeg\bin\ffmpeg.exe"
+          $versionLine = (& $ffmpeg -version | Select-Object -First 1 | Out-String).Trim()
+          if ($versionLine -notlike "*$($env:PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN)*") {
+            throw "Unexpected packaged FFmpeg build: $versionLine"
+          }
+          Write-Host "PHASE2E_12S3S_PORTABLE_FFMPEG_SHA256=$sha"
+          Write-Host "PHASE2E_12S3S_PORTABLE_FFMPEG_VERSION=$versionLine"
+          Write-Host "PHASE2E_12S3S_PORTABLE_PROVENANCE=PASS"
+
+      - name: Run 12s-3s repeat-consensus full-pipeline human gate
+        shell: pwsh
+        run: |
+          $modelRoot = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E 12s3s Source ModelRoot"
+          $modelDestination = Join-Path $modelRoot "whisper\large-v3-turbo"
+          Remove-Item $modelRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $modelDestination | Out-Null
+          Copy-Item (Join-Path $env:SPANISH_TARGET_MODEL_STAGE "*") $modelDestination -Recurse -Force
+
+          $env:VIDEO_TUNNER_MODEL_DIR = $modelRoot
+          $env:VIDEO_TUNNER_FFMPEG_DIR = Join-Path $PWD "dist\Video_Tunner\Tools\ffmpeg\bin"
+          Remove-Item Env:VIDEO_TUNNER_PORTABLE_STRICT -ErrorAction SilentlyContinue
+          $env:HF_HOME = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E 12s3s HF Home"
+          $env:HUGGINGFACE_HUB_CACHE = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E 12s3s HF Cache"
+          $env:HF_HUB_OFFLINE = "1"
+          $env:HF_HUB_DISABLE_XET = "1"
+          $env:PYTHONPATH = "$PWD\Source"
+
+          $output = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E 12s3s Pipeline Gate"
+          python .\.github\scripts\run_phase2e_12s3s_pipeline_gate.py `
+            --fixture $env:PHASE2E_HUMAN_FIXTURE `
+            --ffmpeg (Join-Path $env:VIDEO_TUNNER_FFMPEG_DIR "ffmpeg.exe") `
+            --output $output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload lightweight gate manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2e-12s3s-pipeline-gate
+          path: ${{ runner.temp }}\Video Tunner Phase2E 12s3s Pipeline Gate\manifest.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+
+      - name: Scope note
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Evidence gate only. Product default remains single_pass."
+          Write-Host "Validated explicit opt-in strategy: deterministic_overlap_12s_3s_repeat_consensus_v1."
+          Write-Host "Repeat consensus is restricted to exact adjacent repetitions of 3-7 tokens and requires two timing-aligned supporters straddling the temporal owner."
+          Write-Host "Collapsed-span recovery requires exactly one owner lexical copy spanning from the corroborated first occurrence start to the second occurrence end within the unchanged 0.35s tolerance."
+          Write-Host "An owner-only strong punctuation mark immediately before the recovered repeat is reconciled only when both straddling supporters contain the same predecessor token/text, agree on its timing, and both omit strong punctuation. Missing or conflicting evidence preserves the owner punctuation."
+          Write-Host "Existing semantic, join, acoustic, eligibility, promotion and global-limit guards remain unchanged and authoritative."
+          Write-Host "Consensus still fails closed on single support, same-side support, timing disagreement, owner lexical disagreement, non-collapsed owner timing, cross-segment collapsed copies, or an already-preserved owner repeat."
+          Write-Host "FFmpeg is an immutable asset verified by archive SHA and packaged version token."
+          Write-Host "No approval, execution authorization, materialized edit or render is created by this gate."

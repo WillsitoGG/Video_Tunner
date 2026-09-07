@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "record_type": "semantic_render_human_review",
+  "created_utc": "2026-09-07T12:39:11.065464+00:00",
+  "actor": "human-reviewer",
+  "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparison for this case.",
+  "technical_verification": {
+    "sha256": "a548f397c7968235a9a3ddb7bd3e6af1d6025286c390be9c34de9e168b74715c",
+    "output_sha256": "2190f507b30a135e6d1799cb54218f4a1be8d62c0aed816d07e6737e35a66b5b",
+    "plan_fingerprint": "ab56912a7bdd3c908450650c565dcd24543bcd80d69f16f0342582fd0637ea70"
+  },
+  "join_reviews": [
+    {
+      "join_id": "post-render-join-0001",
+      "edit_id": "semantic-edit-0001",
+      "candidate_id": "possible_repetition-0001",
+      "output_join_seconds": 20.0,
+      "technical_status": "low_energy_boundary_context",
+      "decision": "PASS",
+      "reason": "Explicit human OK after listening to the focused ORIGINAL/RENDERED comparison for this case."
+    }
+  ],
+  "status": "human_perceptual_pass",
+  "human_perceptual_pass": true,
+  "render_closeout_ready": true,
+  "phase2e_closeout_ready": false,
+  "requires_phase2e_corpus_closeout": true,
+  "auto_apply": false
+}
