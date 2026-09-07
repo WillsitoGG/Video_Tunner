@@ -35,7 +35,10 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 3 focal real — ORIGINAL/RENDERED sobre los 3 joins 2E.5: ✅
 - Fase 3.2 — Bypass-first Treatment Decision: ✅ **foundation validada**
 - Fase 3.3 — Normalization Profile Contract: ✅ **review-only foundation**
-- Fase 3 — tratamiento audiovisual ejecutable: 🚧 **todavía no autorizado**
+- Fase 3.4 — Explicit Normalization Approval: ✅ **foundation validada**
+- Fase 3.5a–d — plan → execution authorization → real linear render → technical verification: ✅ **technical foundation validada**
+- Human perceptual close-out de normalización: ⏳ **pendiente**
+- Fase 3 completa: 🚧 **en curso**
 - Release pública: ninguna
 
 Video_Tunner es producto/repo propio, no un fork.
@@ -68,6 +71,18 @@ audiovisual_quality_audit
 audiovisual_treatment_decision
   ↓
 normalization_profile_decision
+  ↓
+normalization_approval
+  ↓
+normalization_plan_proposal
+  ↓
+normalization_execution_authorization
+  ↓
+gated linear normalization render
+  ↓
+normalization_post_render_verification
+  ↓
+human perceptual review [PENDING]
 ```
 
 Invariantes:
@@ -75,7 +90,9 @@ Invariantes:
 ```text
 measurement != treatment decision
 treatment decision != treatment authorization
-profile selection != normalization authorization
+profile selection != normalization approval
+normalization approval != execution authorization
+technical normalization PASS != human perceptual PASS
 Phase 3 favorable signal != rescue of failed Phase 2E
 preserve = default
 auto_apply = false
@@ -95,17 +112,22 @@ La estrategia de transcripción de producto sigue siendo `single_pass` por defec
 ## Artifacts principales
 
 ```text
-analysis.json                         schema v9
-promotion_approval.json               schema v1
-approved_edit_plan_proposal.json      schema v1
-semantic_execution_authorization.json schema v1
-semantic_edit_plan.json               schema v1
-semantic_render_verification          schema v1
-semantic_render_human_review          schema v1
-phase2e_closeout_decision              schema v1
-audiovisual_quality_audit              schema v1
-audiovisual_treatment_decision         schema v1
-normalization_profile_decision         schema v1
+analysis.json                            schema v9
+promotion_approval.json                  schema v1
+approved_edit_plan_proposal.json         schema v1
+semantic_execution_authorization.json    schema v1
+semantic_edit_plan.json                  schema v1
+semantic_render_verification             schema v1
+semantic_render_human_review             schema v1
+phase2e_closeout_decision                 schema v1
+audiovisual_quality_audit                 schema v1
+audiovisual_treatment_decision            schema v1
+normalization_profile_decision            schema v1
+normalization_approval                    schema v1
+normalization_plan_proposal               schema v1
+normalization_execution_authorization     schema v1
+normalization_render_result               schema v1
+normalization_post_render_verification    schema v1
 ```
 
 ## Evidencia principal Fase 2E
@@ -122,18 +144,9 @@ Evidencia permanente: `Validation/phase2e-post-render-closeout.md` y `Validation
 
 ## Fase 3 — estado actual
 
-### 3.1 Quality Audit v1
+### 3.1–3.3 — measurement / policy foundation
 
-`audiovisual_quality_audit` mide loudness integrado, true peak y LRA mediante FFmpeg sin aplicar tratamiento. Está ligado por SHA a un output que ya debe haber pasado el gate técnico 2E.
-
-```text
-34124957783  focused Windows + real FFmpeg — 8/8 PASS
-34125110506  full regression — 283/283 + doctor PASS
-```
-
-### Baseline focal real
-
-Run `34134893725`, reutilizando exactamente el bundle que Guille escuchó en 2E.5:
+`audiovisual_quality_audit` mide loudness integrado, true peak y LRA sin tratamiento. El baseline focal real reutilizó exactamente los 3 pares ya escuchados en 2E.5:
 
 ```text
 cases = 3
@@ -141,44 +154,80 @@ sources = 2
 human PASS = 3/3
 max observed |Δ loudness| = 0.40 LU
 max observed |Δ true peak| = 0.04 dB
-treatment_authorized = false
 ```
 
-**0.40 LU y 0.04 dB son observaciones del corpus, no thresholds de producto.** Esta muestra no justifica normalización obligatoria, denoise ni smoothing/crossfade por defecto.
+**0.40 LU y 0.04 dB son observaciones del corpus, no thresholds de producto.** Esa muestra no justifica normalización obligatoria, denoise ni smoothing/crossfade por defecto.
 
-Detalle: `Validation/phase3-focal-quality-baseline.json`.
+El comportamiento por defecto de Fase 3 es `preserve`. Un riesgo sólo abre revisión.
 
-### 3.2 Bypass-first Treatment Decision
-
-```text
-audit sin riesgo → bypass_preserve_render
-audit con riesgo → treatment_review_required
-```
-
-Un riesgo abre revisión; no elige ni autoriza un tratamiento. Run `34135210344`: 14/14 PASS.
-
-### 3.3 Normalization Profile Contract
-
-Perfil de producto por defecto: **`preserve`**.
-
-Existe `ebu_r128_programme` únicamente como opt-in standards-based y review-only:
+Perfil standards-based disponible únicamente como opt-in:
 
 ```text
+ebu_r128_programme
 target = -23 LUFS
 max true peak = -1 dBTP
 EBU R 128 v5.0 (November 2023)
-measurement basis = ITU-R BS.1770-5 (November 2023)
+measurement basis = ITU-R BS.1770-5
 ```
 
-No se extrapola como target universal de web/YouTube. Seleccionarlo exige opt-in y revisión humana y todavía **no autoriza render ni parámetros ejecutables**. Run `34135437824`: 13/13 PASS.
+No se extrapola como target universal de web/YouTube.
 
-Detalle global: `Validation/phase3-audiovisual-quality-foundation.md`.
+### 3.4–3.5d — normalization technical foundation
 
-## Siguiente trabajo — Fase 3.4
+Cadena explícita y stale-safe:
 
-Construir primero el **contrato explícito stale-safe de aprobación/rechazo de normalización**. Después, y sólo con evidencia propia, definir preview/derivative render y post-treatment audit. El output 2E original debe permanecer intacto.
+```text
+profile decision
+→ explicit normalization approval
+→ linear normalization plan proposal
+→ normalization execution authorization
+→ gated FFmpeg render
+→ independent technical post-render verification
+```
 
-No introducir todavía denoise ni join smoothing por defecto: la evidencia actual no los justifica.
+Política de tratamiento:
+
+```text
+lra_policy = preserve_measured_lra
+dynamic_fallback_allowed = false
+source overwrite = forbidden
+video = stream copy
+auto_apply = false
+```
+
+El plan sólo queda ready si FFmpeg puede trabajar en modo lineal sin violar el true-peak target. El renderer vuelve a validar toda la cadena inmediatamente antes de FFmpeg y elimina el derivado si `normalization_type != linear`.
+
+El verificador independiente comprueba además:
+
+```text
+Programme Loudness       -23 LUFS ±0.5 LU
+Maximum True Peak        -1 dBTP
+Duration delta           ≤ 0.15 s
+Video streams            1
+Audio streams            1
+Decoded video SHA-256    source == output
+```
+
+Evidencia:
+
+```text
+34136124997  3.4 approval contract — 15/15 PASS
+34136621557  3.5a linear plan foundation — 15/15 PASS
+34138226442  3.5b execution authorization — 15/15 PASS
+34139056626  3.5c real gated normalization render — 25/25 PASS
+34139502187  3.5d independent post-render verification — 16/16 PASS
+34139639280  full regression through 3.5d — 337/337 + doctor PASS
+```
+
+**Technical PASS no equivale a human perceptual PASS.** La normalización sigue siendo opt-in y su close-out perceptual humano está pendiente.
+
+Detalle: `Validation/phase3-audiovisual-quality-foundation.md`, `Validation/phase3-focal-quality-baseline.json` y `Validation/phase3-normalization-foundation.md`.
+
+## Siguiente trabajo — Fase 3.6
+
+Abrir **Denoise Evidence / Audit** como measurement-only foundation. No seleccionar ni aplicar un filtro de denoise por defecto. Primero se necesita evidencia acreditada de ruido y controles limpios; sólo después podrá evaluarse si existe beneficio y qué tratamiento, si alguno, merece una vía opt-in.
+
+Join smoothing/crossfade continúa bloqueado: los joins 2E.5 ya pasaron escucha humana sin smoothing y no existe evidencia A/B que justifique añadir procesamiento.
 
 Después: Fase 4 UX mínima y Fase 5 Portable Release Hardening.
 
