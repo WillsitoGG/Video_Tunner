@@ -25,6 +25,22 @@ def segment(*words: WordTiming) -> TranscriptSegment:
     )
 
 
+def local_word(
+    window_start: float,
+    text: str,
+    global_start: float,
+    global_end: float,
+    *,
+    probability: float = 0.95,
+) -> WordTiming:
+    return WordTiming(
+        text=text,
+        start=round(global_start - window_start, 6),
+        end=round(global_end - window_start, 6),
+        probability=probability,
+    )
+
+
 def local_phrase(window_start: float, global_start: float, *, probability: float = 0.95):
     starts = [global_start + (index * 0.20) for index in range(4)]
     return tuple(
@@ -60,6 +76,16 @@ def collapsed_phrase(window_start: float, *, probability: float = 0.98):
             probability=probability,
         )
         for text, start, end in global_spans
+    )
+
+
+def predecessor(window_start: float, text: str = "make", *, shift: float = 0.0, probability: float = 0.97):
+    return local_word(
+        window_start,
+        text,
+        19.55 + shift,
+        19.88 + shift,
+        probability=probability,
     )
 
 
@@ -125,6 +151,93 @@ class RepeatConsensusMergeTests(unittest.TestCase):
                 (22.30, 22.58, 0.79),
             ],
         )
+
+    def test_298_like_owner_only_boundary_punctuation_is_reconciled_by_two_supporters(self):
+        left, owner, right = windows()
+        context = owner_context(owner.start)
+        chunks = [
+            (
+                left,
+                (
+                    segment(
+                        predecessor(left.start, "make", probability=0.93),
+                        *repeat_words(left.start, probability=0.94),
+                    ),
+                ),
+            ),
+            (
+                owner,
+                (
+                    segment(
+                        predecessor(owner.start, "make.", probability=0.99),
+                        *collapsed_phrase(owner.start),
+                        *context,
+                    ),
+                ),
+            ),
+            (
+                right,
+                (
+                    segment(
+                        predecessor(right.start, "make", probability=0.96),
+                        *repeat_words(right.start, probability=0.96),
+                    ),
+                ),
+            ),
+        ]
+
+        baseline = merge_chunked_transcript_segments(chunks)
+        consensus = merge_chunked_transcript_segments_with_repeat_consensus(chunks)
+
+        self.assertEqual(flat_text(baseline), ["make.", *PHRASE, *CONTEXT])
+        self.assertEqual(flat_text(consensus), ["make", *PHRASE, *PHRASE, *CONTEXT])
+        corrected = flat_words(consensus)[0]
+        self.assertEqual((corrected.start, corrected.end, corrected.probability), (19.55, 19.88, 0.99))
+
+    def test_boundary_punctuation_is_preserved_when_supporters_disagree(self):
+        left, owner, right = windows()
+        chunks = [
+            (
+                left,
+                (segment(predecessor(left.start, "make"), *repeat_words(left.start)),),
+            ),
+            (
+                owner,
+                (segment(predecessor(owner.start, "make."), *collapsed_phrase(owner.start)),),
+            ),
+            (
+                right,
+                (segment(predecessor(right.start, "make."), *repeat_words(right.start)),),
+            ),
+        ]
+
+        consensus = merge_chunked_transcript_segments_with_repeat_consensus(chunks)
+        self.assertEqual(flat_text(consensus), ["make.", *PHRASE, *PHRASE])
+
+    def test_boundary_punctuation_is_preserved_when_supporter_predecessor_timing_disagrees(self):
+        left, owner, right = windows()
+        chunks = [
+            (
+                left,
+                (segment(predecessor(left.start, "make"), *repeat_words(left.start)),),
+            ),
+            (
+                owner,
+                (segment(predecessor(owner.start, "make."), *collapsed_phrase(owner.start)),),
+            ),
+            (
+                right,
+                (
+                    segment(
+                        predecessor(right.start, "make", shift=-0.8),
+                        *repeat_words(right.start),
+                    ),
+                ),
+            ),
+        ]
+
+        consensus = merge_chunked_transcript_segments_with_repeat_consensus(chunks)
+        self.assertEqual(flat_text(consensus), ["make.", *PHRASE, *PHRASE])
 
     def test_single_supporter_cannot_invent_repeat(self):
         left, owner, right = windows()
