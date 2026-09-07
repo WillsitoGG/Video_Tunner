@@ -2,6 +2,11 @@ name: Phase 2E Human Render Closeout
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/phase2e-human-render-closeout.trigger
 
 concurrency:
   group: video-tunner-phase2e-human-render-${{ github.ref }}
@@ -50,7 +55,7 @@ jobs:
           }
           python -m py_compile .\.github\scripts\build_phase2e_review_bundle_case.py .\Source\video_tunner\cli.py
           $env:PYTHONPATH = "$PWD\Source"
-          python -m unittest tests.test_analysis_transcription_strategy tests.test_transcription_repeat_consensus -v
+          python -m unittest tests.test_analysis_transcription_strategy tests.test_transcription_repeat_consensus tests.test_phase2e_review_bundle_tooling -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host "PHASE2E_HUMAN_RENDER_PREFLIGHT=PASS"
 
@@ -124,6 +129,7 @@ jobs:
           Write-Host "FFmpeg is the same immutable asset verified by archive SHA and packaged version token in the final 3/3 gate."
           Write-Host "The portable performs analyze -> approval -> bounded proposal -> global authorization -> Semantic Edit Plan -> gated render."
           Write-Host "Post-render verification checks exact provenance, original SHA, duration, streams and rendered join acoustics."
+          Write-Host "The host verifier is bound explicitly to the exact FFmpeg directory from the tested isolated portable."
           Write-Host "The uploaded artifact contains only short original/rendered review WAVs plus lightweight JSON/plan evidence."
           Write-Host "Full AMI source WAVs, model files, portable ZIPs and working analysis directories are not uploaded."
           Write-Host "Technical PASS does not close Phase 2E: all three joins still require explicit human listening PASS."
