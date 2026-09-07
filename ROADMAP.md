@@ -7,7 +7,7 @@
 - Master audio y sincronización antes de transcripción/VAD/semántica/acústica temporal.
 - Originales intactos y decisiones auditables/reversibles.
 - Ante baja confianza: REVIEW/manual, no adivinar.
-- CI pesada sólo cuando aporta evidencia nueva.
+- CI pesada sólo cuando aporta evidencia nueva; workflows pesados manual-only.
 
 ## Fases completadas
 
@@ -72,7 +72,7 @@ individual approval
 → FFmpeg
 ```
 
-Artefactos nuevos:
+Artefactos:
 
 ```text
 semantic_execution_authorization.json  schema v1
@@ -92,34 +92,63 @@ Validación:
 33909625346  202/202 PASS en 7.782 s + doctor + real FFmpeg E2E
 ```
 
-E2E final:
-- MP4 real de 10 s;
-- un único edit autorizado de 0.4 s;
-- original SHA-256 intacto;
-- output duration esperada ±0.15 s;
-- vídeo+audio preservados.
-
 Detalle: `Validation/phase2e-execution-authorization.md`.
 
-#### 2E.5 — Semantic Render Verification / Close-out — SIGUIENTE
+#### 2E.5 — Semantic Render Verification / Close-out — TECHNICAL PRE-HUMAN GATE PASS
 
-Objetivo: no basta con que FFmpeg renderice; hay que demostrar que el output resultante cumple estructural y perceptualmente.
+Ya implementado y validado técnicamente:
 
-Orden:
+1. `semantic_render_verification` separado;
+2. source/output SHA y protección frente a overwrite;
+3. streams esperados;
+4. duración esperada vs real por Semantic Edit Plan;
+5. auditoría de cada join sobre el output renderizado;
+6. clasificación acústica post-render;
+7. provenance completa analysis → approval → proposal → authorization → plan → output;
+8. bundle ligero de escucha ORIGINAL/RENDERED;
+9. `semantic_render_human_review` stale-safe;
+10. agregación `phase2e_closeout_decision` con thresholds precomprometidos;
+11. finalizador offline que no repite ASR ni render.
 
-1. crear post-render verification report separado;
-2. comprobar source/output SHA y evitar overwrite;
-3. verificar streams esperados;
-4. comparar duración esperada vs real por Edit Plan;
-5. auditar cada join renderizado con ventanas antes/después;
-6. medir discontinuidades post-render y no sólo pre-render;
-7. crear evidencia perceptual/humana sobre joins semánticos reales;
-8. conservar provenance completa analysis → approval → proposal → authorization → plan → output;
-9. fail-safe si post-render verification falla;
-10. decidir formalmente si Fase 2E puede cerrarse.
+Evidencia técnica final:
+
+```text
+34119952855  SUCCESS
+278 tests PASS (13 host-only skips)
+portable build PASS
+immutable FFmpeg provenance PASS
+3 precommitted AMI cases / 2 sources
+3/3 semantic renders PASS
+3/3 post-render technical verification PASS
+```
+
+Casos:
+
+```text
+157  PASS  acoustic_context_only
+298  PASS  acoustic_context_only
+13   PASS  low_energy_boundary_context
+```
+
+Estado real:
+
+```text
+technical pre-human gate = PASS
+human perceptual reviews = 0/3 PENDING
+Phase 2E close-out = NOT YET READY
+```
+
+El último gate no se automatiza: Guille debe escuchar los tres pares ORIGINAL/RENDERED y emitir PASS/FAIL real por join. Sólo 3/3 PASS válidos en las dos fuentes producen `CLOSE_OUT_READY`; un único FAIL produce `INSUFFICIENT_JOIN_QUALITY`. Evidencia stale/alterada produce `INVALID_EVIDENCE`.
+
+`single_pass` sigue siendo default del producto. `deterministic_overlap_12s_3s_repeat_consensus_v1` es opt-in explícito y la estrategia validada para este close-out.
+
+Detalle: `Validation/phase2e-post-render-closeout.md`.
 
 ## Fase 3 — Calidad audiovisual / auditoría
-Normalización, join treatment, denoise controlado, join audit avanzado e informe.
+
+**NO INICIAR hasta cerrar 2E.5.**
+
+Después del `CLOSE_OUT_READY` humano: normalización, join treatment, denoise controlado, join audit avanzado e informe.
 
 ## Fase 4 — UX mínima
 Seleccionar vídeo, audio externo opcional, sync, analizar, revisar, aprobar/rechazar, preparar proposal, autorizar globalmente, renderizar y abrir outputs.
@@ -132,9 +161,12 @@ Subtítulos visuales, reframe, zooms, shorts, B-roll y extras después del Clean
 
 ## Orden inmediato
 
-1. integrar 2E.4 en `main` con workflow manual-only;
-2. crear rama limpia para 2E.5;
-3. post-render structural verification;
-4. post-render join audit;
-5. evidencia humana/perceptual antes de cerrar 2E;
-6. mantener auto-apply semántico deshabilitado hasta ese cierre.
+1. Guille escucha los tres pares ORIGINAL/RENDERED del bundle técnico `34119952855`;
+2. registrar PASS/FAIL + motivo real para cada `join_id`;
+3. ejecutar `.github/scripts/finalize_phase2e_human_closeout.py` offline contra el bundle inmutable;
+4. si `CLOSE_OUT_READY`: documentar cierre 2E.5/2E;
+5. limpiar workflows/scripts diagnósticos que ya no sean permanentes;
+6. revisar diff completo, preparar PR e integrar 2E.5 en `main`;
+7. sólo entonces abrir Fase 3.
+
+No relajar thresholds post hoc y no publicar Release sin autorización expresa de Guille.
