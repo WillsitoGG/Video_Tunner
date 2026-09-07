@@ -14,6 +14,8 @@
 - Fase 3 focal baseline: **COMPLETADA — 3 joins reales / 2 fuentes**
 - Fase 3.2: **COMPLETADA COMO FOUNDATION — Bypass-first Treatment Decision**
 - Fase 3.3: **COMPLETADA COMO FOUNDATION REVIEW-ONLY — Normalization Profile Contract**
+- Fase 3.4: **COMPLETADA COMO FOUNDATION — Explicit Normalization Approval**
+- Fase 3.5a–d: **TECHNICAL FOUNDATION PASS — human perceptual close-out pendiente**
 - Fase 3 completa: **NO**
 
 ## Evidencia principal
@@ -32,6 +34,12 @@ Phase 3.1 full regression        34125110506  PASS — 283/283 + doctor
 Phase 3 focal baseline           34134893725  PASS — exact 2E.5 listening bundle
 Phase 3.2 treatment foundation   34135210344  PASS — 14/14
 Phase 3.3 normalization profile  34135437824  PASS — 13/13
+Phase 3.4 normalization approval 34136124997  PASS — 15/15
+Phase 3.5a normalization plan    34136621557  PASS — 15/15 base gate
+Phase 3.5b execution auth        34138226442  PASS — 15/15
+Phase 3.5c real linear render    34139056626  PASS — 25/25 + real FFmpeg E2E
+Phase 3.5d post-render verify    34139502187  PASS — 16/16 + real FFmpeg E2E
+Phase 3 through 3.5d regression  34139639280  PASS — 337/337 + doctor
 ```
 
 ## Phase 3 focal evidence
@@ -52,22 +60,56 @@ Estos máximos son **observaciones del corpus**, no thresholds generales.
 
 La muestra actual no justifica tratamiento obligatorio para reparar el renderer: no habilita normalización por defecto, denoise ni join smoothing/crossfade.
 
-Evidencia: `Validation/phase3-focal-quality-baseline.json` y `Validation/phase3-audiovisual-quality-foundation.md`.
+## Normalization technical foundation
+
+Cadena actual:
+
+```text
+audiovisual_quality_audit
+→ audiovisual_treatment_decision
+→ normalization_profile_decision
+→ normalization_approval
+→ normalization_plan_proposal
+→ normalization_execution_authorization
+→ normalization_render_result
+→ normalization_post_render_verification
+→ human perceptual review (PENDING)
+```
+
+La vía `ebu_r128_programme` está técnicamente validada como opt-in y fail-closed, no como comportamiento general del producto.
+
+```text
+product default                         preserve
+normalization auto-selection            false
+dynamic loudnorm fallback               forbidden
+normalization technical foundation      PASS
+normalization human perceptual closeout PENDING
+denoise                                 not authorized
+join smoothing / crossfade              not authorized
+auto_apply                              false
+```
+
+Detalle: `Validation/phase3-normalization-foundation.md`.
 
 ## Artifact chain actual
 
 ```text
-analysis.json                         schema v9
-promotion_approval.json               schema v1
-approved_edit_plan_proposal.json      schema v1
-semantic_execution_authorization.json schema v1
-semantic_edit_plan.json               schema v1
-semantic_render_verification          schema v1
-semantic_render_human_review          schema v1
-phase2e_closeout_decision              schema v1
-audiovisual_quality_audit              schema v1
-audiovisual_treatment_decision         schema v1
-normalization_profile_decision         schema v1
+analysis.json                              schema v9
+promotion_approval.json                    schema v1
+approved_edit_plan_proposal.json           schema v1
+semantic_execution_authorization.json      schema v1
+semantic_edit_plan.json                    schema v1
+semantic_render_verification               schema v1
+semantic_render_human_review               schema v1
+phase2e_closeout_decision                  schema v1
+audiovisual_quality_audit                  schema v1
+audiovisual_treatment_decision             schema v1
+normalization_profile_decision              schema v1
+normalization_approval                      schema v1
+normalization_plan_proposal                 schema v1
+normalization_execution_authorization       schema v1
+normalization_render_result                 schema v1
+normalization_post_render_verification      schema v1
 ```
 
 ## Safety Fase 3
@@ -78,24 +120,25 @@ measurement != treatment decision
 treatment decision != treatment authorization
 risk != automatic filter selection
 profile selection != normalization authorization
+technical normalization PASS != human perceptual PASS
 preserve = default
-normalization executable = not yet implemented
 denoise = not authorized
 join smoothing = not authorized
 auto_apply = false
 ```
 
-`ebu_r128_programme` está registrado únicamente como perfil opt-in/review-only basado en EBU R 128 v5.0 / ITU-R BS.1770-5. No es default ni se extrapola como target universal para web.
+`ebu_r128_programme` está registrado como perfil opt-in basado en EBU R 128 v5.0 / ITU-R BS.1770-5. No es default ni se extrapola como target universal para web.
 
 ## Pendiente antes de Release
 
-1. Fase 3.4 — explicit normalization approval stale-safe;
-2. Fase 3.5 — preview/derivative normalization sólo tras approval + parámetros validados;
-3. post-treatment technical + perceptual validation;
-4. resto de Fase 3 quality/audit según evidencia;
-5. Fase 4 UX;
-6. Fase 5 Release Hardening + licencias/notices + Windows limpio real;
-7. estrategia final de distribución/adquisición del modelo.
+1. Fase 3.6a — Noise Audit / denoise evidence measurement-only;
+2. corpus con ruido real + controles limpios antes de cualquier denoise ejecutable;
+3. human perceptual close-out de normalización si se pretende generalizar esa vía;
+4. evaluación específica A/B antes de cualquier join smoothing/crossfade;
+5. resto de Fase 3 quality/audit según evidencia;
+6. Fase 4 UX;
+7. Fase 5 Release Hardening + licencias/notices + Windows limpio real;
+8. estrategia final de distribución/adquisición del modelo.
 
 No existe todavía paquete final para `SHA256SUMS.txt` ni versión para `Archive/`.
 
