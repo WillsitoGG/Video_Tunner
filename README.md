@@ -38,6 +38,8 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 3.4 — Explicit Normalization Approval: ✅ **foundation validada**
 - Fase 3.5a–d — plan → execution authorization → real linear render → technical verification: ✅ **technical foundation validada**
 - Human perceptual close-out de normalización: ⏳ **pendiente**
+- Fase 3.6a — Noise Evidence Audit: ✅ **measurement-only foundation validada**
+- Denoise ejecutable: 🚫 **no autorizado**
 - Fase 3 completa: 🚧 **en curso**
 - Release pública: ninguna
 
@@ -67,22 +69,25 @@ semantic_render_verification → semantic_render_human_review
 phase2e_closeout_decision
   ↓
 audiovisual_quality_audit
-  ↓
-audiovisual_treatment_decision
-  ↓
-normalization_profile_decision
-  ↓
-normalization_approval
-  ↓
-normalization_plan_proposal
-  ↓
-normalization_execution_authorization
-  ↓
-gated linear normalization render
-  ↓
-normalization_post_render_verification
-  ↓
-human perceptual review [PENDING]
+  ├→ audiovisual_treatment_decision
+  │   ↓
+  │ normalization_profile_decision
+  │   ↓
+  │ normalization_approval
+  │   ↓
+  │ normalization_plan_proposal
+  │   ↓
+  │ normalization_execution_authorization
+  │   ↓
+  │ gated linear normalization render
+  │   ↓
+  │ normalization_post_render_verification
+  │   ↓
+  │ human perceptual review [PENDING]
+  │
+  └→ noise_evidence_audit [MEASUREMENT-ONLY]
+      ↓
+      denoise corpus/evaluation [NEXT; no renderer]
 ```
 
 Invariantes:
@@ -90,6 +95,8 @@ Invariantes:
 ```text
 measurement != treatment decision
 treatment decision != treatment authorization
+noise measurement != denoise decision
+denoise decision != denoise authorization
 profile selection != normalization approval
 normalization approval != execution authorization
 technical normalization PASS != human perceptual PASS
@@ -128,6 +135,7 @@ normalization_plan_proposal               schema v1
 normalization_execution_authorization     schema v1
 normalization_render_result               schema v1
 normalization_post_render_verification    schema v1
+noise_evidence_audit                      schema v1
 ```
 
 ## Evidencia principal Fase 2E
@@ -221,11 +229,56 @@ Evidencia:
 
 **Technical PASS no equivale a human perceptual PASS.** La normalización sigue siendo opt-in y su close-out perceptual humano está pendiente.
 
-Detalle: `Validation/phase3-audiovisual-quality-foundation.md`, `Validation/phase3-focal-quality-baseline.json` y `Validation/phase3-normalization-foundation.md`.
+### 3.6a — Noise Evidence Audit
 
-## Siguiente trabajo — Fase 3.6
+Foundation measurement-only sobre un output 2E acreditado:
 
-Abrir **Denoise Evidence / Audit** como measurement-only foundation. No seleccionar ni aplicar un filtro de denoise por defecto. Primero se necesita evidencia acreditada de ruido y controles limpios; sólo después podrá evaluarse si existe beneficio y qué tratamiento, si alguno, merece una vía opt-in.
+```text
+analysis PCM              mono PCM16 @ 16 kHz
+frame size                0.20 s
+non-speech guard          0.15 s
+minimum NS window         0.40 s
+minimum NS windows        2
+minimum total NS coverage 2.0 s
+```
+
+La suficiencia sólo decide si **hay evidencia medible**. No existe threshold de dBFS que active denoise.
+
+Métricas:
+
+```text
+speech/non-speech median RMS dBFS
+p90 RMS dBFS
+max peak dBFS
+digital silence frame count
+speech-to-non-speech median RMS delta (energy proxy only)
+```
+
+Evidencia:
+
+```text
+34141013261  focused noise audit + real MP4/AAC E2E — 9/9 PASS
+34141115293  full regression through 3.6a — 346/346 + doctor PASS
+```
+
+Siempre:
+
+```text
+denoise_evaluated = false
+denoise_authorized = false
+filter_selected = false
+parameters_defined = false
+executable = false
+auto_apply = false
+```
+
+Detalle: `Validation/phase3-noise-audit-foundation.md`.
+
+## Siguiente trabajo — Fase 3.6b
+
+Seleccionar y congelar primero un **corpus de evaluación denoise** con noisy speech + clean/control comparable, provenance/licencia clara y diversidad de ruido. Las métricas objetivas serán evidencia auxiliar; antes de autorizar cualquier filtro deberá existir comparación perceptual humana.
+
+No implementar todavía un renderer de denoise.
 
 Join smoothing/crossfade continúa bloqueado: los joins 2E.5 ya pasaron escucha humana sin smoothing y no existe evidencia A/B que justifique añadir procesamiento.
 
