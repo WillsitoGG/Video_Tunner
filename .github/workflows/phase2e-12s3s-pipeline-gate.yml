@@ -2,11 +2,6 @@ name: Phase 2E 12s-3s Pipeline Gate
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2e-post-render-verification
-    paths:
-      - .github/workflows/phase2e-12s3s-pipeline-gate.yml
 
 permissions:
   contents: read
@@ -117,8 +112,8 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          Write-Host "Evidence gate only. Product CLI/default remains single-pass."
-          Write-Host "Internal strategy: deterministic_overlap_12s_3s_repeat_consensus_v1."
+          Write-Host "Evidence gate only. Product default remains single_pass."
+          Write-Host "Validated explicit opt-in strategy: deterministic_overlap_12s_3s_repeat_consensus_v1."
           Write-Host "Repeat consensus is restricted to exact adjacent repetitions of 3-7 tokens and requires two timing-aligned supporters straddling the temporal owner."
           Write-Host "Collapsed-span recovery requires exactly one owner lexical copy spanning from the corroborated first occurrence start to the second occurrence end within the unchanged 0.35s tolerance."
           Write-Host "An owner-only strong punctuation mark immediately before the recovered repeat is reconciled only when both straddling supporters contain the same predecessor token/text, agree on its timing, and both omit strong punctuation. Missing or conflicting evidence preserves the owner punctuation."
@@ -126,4 +121,3 @@ jobs:
           Write-Host "Consensus still fails closed on single support, same-side support, timing disagreement, owner lexical disagreement, non-collapsed owner timing, cross-segment collapsed copies, or an already-preserved owner repeat."
           Write-Host "FFmpeg is an immutable asset verified by archive SHA and packaged version token."
           Write-Host "No approval, execution authorization, materialized edit or render is created by this gate."
-          Write-Host "PHASE2E_12S3S_FINAL_IMMUTABLE_TRIGGER=1"
