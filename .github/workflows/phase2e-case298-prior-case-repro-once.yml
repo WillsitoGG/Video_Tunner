@@ -1,0 +1,172 @@
+name: Phase 2E Case 298 Prior Case Repro Once
+
+on:
+  push:
+    branches:
+      - phase2e-post-render-verification
+    paths:
+      - .github/workflows/phase2e-case298-prior-case-repro-once.yml
+
+concurrency:
+  group: video-tunner-phase2e-case298-prior-case-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE2E_SOURCE_FIXTURE: tests\fixtures\phase2e_human_render_closeout_ami_v1.json
+  PHASE2E_FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-05-13-10/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-gpl-9.0.zip
+  PHASE2E_EXPECTED_FFMPEG_SHA256: a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f
+  PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN: n9.0.1-26-g5c8e7e2433
+
+jobs:
+  windows-case298-prior-case:
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned analysis runtime
+        run: python -m pip install -e .[analysis]
+
+      - name: Preflight actual pipeline harness
+        shell: pwsh
+        run: |
+          python -m py_compile .\.github\scripts\run_phase2e_12s3s_pipeline_gate.py .\Source\video_tunner\transcription_consensus.py
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m unittest tests.test_transcription_repeat_consensus tests.test_phase2e_12s3s_pipeline_gate_harness -v
+          Write-Host "PHASE2E_CASE298_PRIOR_CASE_PREFLIGHT=PASS"
+
+      - name: Acquire immutable FFmpeg build
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Prior Case FFmpeg"
+          $zip = Join-Path $root "ffmpeg.zip"
+          $extract = Join-Path $root "extract"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Invoke-WebRequest -Uri $env:PHASE2E_FFMPEG_URL -OutFile $zip
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne $env:PHASE2E_EXPECTED_FFMPEG_SHA256) { throw "FFmpeg archive SHA mismatch: $sha" }
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+          $ffmpeg = Get-ChildItem $extract -Filter ffmpeg.exe -Recurse | Select-Object -First 1
+          $ffprobe = Get-ChildItem $extract -Filter ffprobe.exe -Recurse | Select-Object -First 1
+          if (-not $ffmpeg -or -not $ffprobe) { throw "Immutable FFmpeg archive missing tools" }
+          $versionLine = (& $ffmpeg.FullName -version | Select-Object -First 1 | Out-String).Trim()
+          if ($versionLine -notlike "*$($env:PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN)*") { throw "Unexpected FFmpeg build: $versionLine" }
+          "PHASE2E_DIAGNOSTIC_FFMPEG=$($ffmpeg.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VIDEO_TUNNER_FFMPEG_DIR=$($ffmpeg.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "PHASE2E_CASE298_PRIOR_CASE_FFMPEG_SHA256=$sha"
+          Write-Host "PHASE2E_CASE298_PRIOR_CASE_FFMPEG_VERSION=$versionLine"
+
+      - name: Download licensed AMI sources
+        shell: pwsh
+        run: .\.github\scripts\download_ami_positive_closeout_fixtures.ps1 -Fixture $env:PHASE2E_SOURCE_FIXTURE
+
+      - name: Acquire pinned large-v3-turbo model
+        shell: pwsh
+        run: .\.github\scripts\download_large_v3_turbo_direct.ps1
+
+      - name: Build isolated fixtures and model root
+        shell: pwsh
+        run: |
+          $source = Get-Content $env:PHASE2E_SOURCE_FIXTURE -Raw | ConvertFrom-Json
+          $case157 = @($source.cases | Where-Object { $_.id -eq "ami-es2002b-d-repeat-157" })
+          $case298 = @($source.cases | Where-Object { $_.id -eq "ami-ts3005d-c-repeat-298" })
+          if ($case157.Count -ne 1 -or $case298.Count -ne 1) { throw "Expected unique 157 and 298 cases" }
+
+          $only298 = $source.PSObject.Copy()
+          $only298.cases = @($case298[0])
+          $only298Path = Join-Path $env:RUNNER_TEMP "phase2e-only298.json"
+          $only298 | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 $only298Path
+
+          $prior157 = $source.PSObject.Copy()
+          $prior157.cases = @($case157[0], $case298[0])
+          $prior157Path = Join-Path $env:RUNNER_TEMP "phase2e-157-then-298.json"
+          $prior157 | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 $prior157Path
+
+          $modelRoot = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Prior Case ModelRoot"
+          $modelDestination = Join-Path $modelRoot "whisper\large-v3-turbo"
+          New-Item -ItemType Directory -Force -Path $modelDestination | Out-Null
+          Copy-Item (Join-Path $env:SPANISH_TARGET_MODEL_STAGE "*") $modelDestination -Recurse -Force
+
+          "PHASE2E_ONLY298_FIXTURE=$only298Path" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PHASE2E_157_298_FIXTURE=$prior157Path" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VIDEO_TUNNER_MODEL_DIR=$modelRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Arm A - fresh process case 298 only
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          $env:HF_HUB_OFFLINE = "1"
+          $env:HF_HUB_DISABLE_XET = "1"
+          $output = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Prior Case Arm A"
+          python .\.github\scripts\run_phase2e_12s3s_pipeline_gate.py `
+            --fixture $env:PHASE2E_ONLY298_FIXTURE `
+            --ffmpeg $env:PHASE2E_DIAGNOSTIC_FFMPEG `
+            --output $output
+          $exit = $LASTEXITCODE
+          $manifest = Get-Content (Join-Path $output "manifest.json") -Raw | ConvertFrom-Json
+          $case = @($manifest.cases | Where-Object { $_.id -eq "ami-ts3005d-c-repeat-298" })
+          if ($case.Count -ne 1) { throw "Arm A missing case 298" }
+          "PHASE2E_ARM_A_PASS=$([int][bool]$case[0].pass)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "PHASE2E_CASE298_PRIOR_CASE_ARM_A_PASS=$([int][bool]$case[0].pass) HARNESS_EXIT=$exit PROMOTIONS=$($case[0].promotion_match_count)"
+
+      - name: Arm B - fresh process case 157 then case 298
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\Source"
+          $env:HF_HUB_OFFLINE = "1"
+          $env:HF_HUB_DISABLE_XET = "1"
+          $output = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Prior Case Arm B"
+          python .\.github\scripts\run_phase2e_12s3s_pipeline_gate.py `
+            --fixture $env:PHASE2E_157_298_FIXTURE `
+            --ffmpeg $env:PHASE2E_DIAGNOSTIC_FFMPEG `
+            --output $output
+          $exit = $LASTEXITCODE
+          $manifest = Get-Content (Join-Path $output "manifest.json") -Raw | ConvertFrom-Json
+          $case157 = @($manifest.cases | Where-Object { $_.id -eq "ami-es2002b-d-repeat-157" })
+          $case298 = @($manifest.cases | Where-Object { $_.id -eq "ami-ts3005d-c-repeat-298" })
+          if ($case157.Count -ne 1 -or $case298.Count -ne 1) { throw "Arm B missing expected cases" }
+          Write-Host "PHASE2E_CASE298_PRIOR_CASE_ARM_B_157_PASS=$([int][bool]$case157[0].pass)"
+          Write-Host "PHASE2E_CASE298_PRIOR_CASE_ARM_B_298_PASS=$([int][bool]$case298[0].pass) HARNESS_EXIT=$exit PROMOTIONS=$($case298[0].promotion_match_count)"
+          $summary = [ordered]@{
+            schema_version = 1
+            record_type = "phase2e_case298_prior_case_process_state_diagnostic"
+            arm_a_298_only_pass = ([bool][int]$env:PHASE2E_ARM_A_PASS)
+            arm_b_157_pass = [bool]$case157[0].pass
+            arm_b_298_after_157_pass = [bool]$case298[0].pass
+            prior_case_changes_298_result = (([bool][int]$env:PHASE2E_ARM_A_PASS) -ne [bool]$case298[0].pass)
+            note = "Actual analyze_spoken_video pipeline in separate Python processes. Arm B differs only by evaluating case 157 earlier in the same harness process before case 298."
+            safety = [ordered]@{
+              product_default_changed = $false
+              timing_tolerance_changed = $false
+              detector_or_guard_changed = $false
+              approval_created = $false
+              render_performed = $false
+            }
+          }
+          $summaryPath = Join-Path $env:RUNNER_TEMP "phase2e-case298-prior-case-summary.json"
+          $summary | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $summaryPath
+          "PHASE2E_PRIOR_CASE_SUMMARY=$summaryPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload lightweight summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2e-case298-prior-case-repro
+          path: ${{ env.PHASE2E_PRIOR_CASE_SUMMARY }}
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+
+      - name: Scope note
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Diagnostic only. Compares actual pipeline case 298 in a clean process versus after case 157 in another clean process."
+          Write-Host "No product default, threshold, timing tolerance, detector, safety guard, approval, edit, authorization or render changes."
