@@ -2,11 +2,6 @@ name: Phase 2E Human Render Closeout
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - phase2e-post-render-verification
-    paths:
-      - .github/phase2e-human-render-closeout.trigger
 
 concurrency:
   group: video-tunner-phase2e-human-render-${{ github.ref }}
