@@ -9,10 +9,13 @@ concurrency:
 
 env:
   PHASE2E_HUMAN_RENDER_FIXTURE: tests\fixtures\phase2e_human_render_closeout_ami_v1.json
+  PHASE2E_FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-05-13-10/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-gpl-9.0.zip
+  PHASE2E_EXPECTED_FFMPEG_SHA256: a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f
+  PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN: n9.0.1-26-g5c8e7e2433
 
 jobs:
   windows-human-render-closeout:
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 45
 
     steps:
@@ -24,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Preflight Phase 2E.5 scripts
+      - name: Preflight Phase 2E.5 scripts and CLI strategy contract
         shell: pwsh
         run: |
           foreach ($path in @(
@@ -45,7 +48,10 @@ jobs:
               throw "PowerShell parser errors: $path"
             }
           }
-          python -m py_compile .\.github\scripts\build_phase2e_review_bundle_case.py
+          python -m py_compile .\.github\scripts\build_phase2e_review_bundle_case.py .\Source\video_tunner\cli.py
+          $env:PYTHONPATH = "$PWD\Source"
+          python -m unittest tests.test_analysis_transcription_strategy tests.test_transcription_repeat_consensus -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host "PHASE2E_HUMAN_RENDER_PREFLIGHT=PASS"
 
       - name: Lock closeout corpus and thresholds before listening
@@ -55,6 +61,7 @@ jobs:
           python -m unittest discover -s tests -p "test_phase2e_human_render_closeout_fixture.py" -v
           python -m unittest discover -s tests -p "test_human_render_review.py" -v
           python -m unittest discover -s tests -p "test_phase2e_closeout.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install lightweight host verifier dependency
         run: python -m pip install numpy==2.5.2
@@ -67,13 +74,29 @@ jobs:
         shell: pwsh
         run: .\.github\scripts\download_large_v3_turbo_direct.ps1
 
-      - name: Build analysis portable
+      - name: Build analysis portable with immutable FFmpeg
         shell: pwsh
-        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis
+        run: .\.github\scripts\build_portable_windows.ps1 -Profile analysis -FfmpegUrl $env:PHASE2E_FFMPEG_URL
+
+      - name: Verify portable FFmpeg provenance
+        shell: pwsh
+        run: |
+          $manifestPath = Join-Path $PWD "dist\Video_Tunner\portable-manifest.json"
+          if (-not (Test-Path $manifestPath)) { throw "Missing portable-manifest.json" }
+          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          $sha = ([string]$manifest.ffmpeg_archive_sha256).ToLowerInvariant()
+          if ($sha -ne $env:PHASE2E_EXPECTED_FFMPEG_SHA256) { throw "Portable FFmpeg SHA mismatch: $sha" }
+          if ([string]$manifest.ffmpeg -notlike "*$($env:PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN)*") {
+            throw "Unexpected portable FFmpeg version: $($manifest.ffmpeg)"
+          }
+          Write-Host "PHASE2E_HUMAN_RENDER_PORTABLE_FFMPEG_SHA256=$sha"
+          Write-Host "PHASE2E_HUMAN_RENDER_PORTABLE_PROVENANCE=PASS"
 
       - name: Run current regression suite
         shell: pwsh
-        run: python -m unittest discover -s tests -v
+        run: |
+          python -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Render and technically verify precommitted human cases
         shell: pwsh
@@ -95,8 +118,10 @@ jobs:
         run: |
           Write-Host "The corpus contains exactly the 3 AMI cases that already reached foundation_guards_pass in Phase 2D.6."
           Write-Host "Selection and 3-case/2-source/100%-pass thresholds were committed before Phase 2E.5 listening evidence."
+          Write-Host "The portable analyze command explicitly selects deterministic_overlap_12s_3s_repeat_consensus_v1; single_pass remains the product default."
           Write-Host "Execution windows use deterministic real AMI context: 20s before + 20s after the manual reparandum."
           Write-Host "The existing 5% global removed-fraction safety limit is unchanged."
+          Write-Host "FFmpeg is the same immutable asset verified by archive SHA and packaged version token in the final 3/3 gate."
           Write-Host "The portable performs analyze -> approval -> bounded proposal -> global authorization -> Semantic Edit Plan -> gated render."
           Write-Host "Post-render verification checks exact provenance, original SHA, duration, streams and rendered join acoustics."
           Write-Host "The uploaded artifact contains only short original/rendered review WAVs plus lightweight JSON/plan evidence."
