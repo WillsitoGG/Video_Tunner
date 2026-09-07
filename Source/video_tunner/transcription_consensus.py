@@ -24,6 +24,7 @@ from .transcription import (
 MIN_REPEAT_CONSENSUS_TOKENS = 3
 MAX_REPEAT_CONSENSUS_TOKENS = 7
 REPEAT_CONSENSUS_TIMING_TOLERANCE_SECONDS = 0.35
+STRONG_BOUNDARY_PUNCTUATION = (".", "?", "!", ";", ":")
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class RepeatHypothesis:
     window_index: int
     phrase: tuple[str, ...]
     words: tuple[WordTiming, ...]
+    predecessor: WordTiming | None
     first_start: float
     first_end: float
     second_start: float
@@ -82,6 +84,7 @@ def _repeat_hypotheses(
                 window_index=window.index,
                 phrase=first,
                 words=repeated_words,
+                predecessor=(words[index - 1] if index > 0 else None),
                 first_start=repeated_words[0].start,
                 first_end=repeated_words[size - 1].end,
                 second_start=repeated_words[size].start,
@@ -111,6 +114,22 @@ def _timings_agree(
             (left.second_end, right.second_end),
         )
     )
+
+
+def _word_timings_agree(
+    left: WordTiming,
+    right: WordTiming,
+    *,
+    tolerance_seconds: float,
+) -> bool:
+    return (
+        abs(float(left.start) - float(right.start)) <= tolerance_seconds
+        and abs(float(left.end) - float(right.end)) <= tolerance_seconds
+    )
+
+
+def _has_strong_boundary_punctuation(text: str) -> bool:
+    return text.rstrip().endswith(STRONG_BOUNDARY_PUNCTUATION)
 
 
 def _owner_for_time(
@@ -206,6 +225,83 @@ def _replace_exact_word_sequence(
     return tuple(rebuilt)
 
 
+def _preceding_exact_word(
+    segments: tuple[TranscriptSegment, ...],
+    target: WordTiming,
+) -> WordTiming | None:
+    words = sorted(
+        (word for segment in segments for word in segment.words),
+        key=lambda item: (item.start, item.end, item.text),
+    )
+    matches = [index for index, word in enumerate(words) if word is target]
+    if len(matches) != 1 or matches[0] == 0:
+        return None
+    return words[matches[0] - 1]
+
+
+def _reconcile_predecessor_boundary(
+    baseline_predecessor: WordTiming | None,
+    left: RepeatHypothesis,
+    right: RepeatHypothesis,
+    *,
+    tolerance_seconds: float,
+) -> WordTiming | None:
+    """Return a text-only boundary correction when two supporters prove it.
+
+    This is deliberately narrower than relaxing join safety. It only removes an
+    owner strong-boundary punctuation hypothesis when both independent repeat
+    supporters straddling that owner also contain the same immediately preceding
+    lexical word, agree on its timing, agree on its exact text (case-insensitive),
+    and neither supporter reports strong boundary punctuation there. Any missing
+    or conflicting evidence keeps the owner punctuation unchanged.
+    """
+    left_predecessor = left.predecessor
+    right_predecessor = right.predecessor
+    if baseline_predecessor is None or left_predecessor is None or right_predecessor is None:
+        return None
+
+    baseline_token = _normalise_token(baseline_predecessor.text)
+    left_token = _normalise_token(left_predecessor.text)
+    right_token = _normalise_token(right_predecessor.text)
+    if not baseline_token or baseline_token != left_token or baseline_token != right_token:
+        return None
+    if left_predecessor.text.strip().casefold() != right_predecessor.text.strip().casefold():
+        return None
+    if _has_strong_boundary_punctuation(left_predecessor.text):
+        return None
+    if _has_strong_boundary_punctuation(right_predecessor.text):
+        return None
+    if not _has_strong_boundary_punctuation(baseline_predecessor.text):
+        return None
+    if not _word_timings_agree(
+        left_predecessor,
+        right_predecessor,
+        tolerance_seconds=tolerance_seconds,
+    ):
+        return None
+
+    supporter = max(
+        (left_predecessor, right_predecessor),
+        key=lambda item: (
+            -1.0 if item.probability is None else float(item.probability),
+            -float(item.start),
+        ),
+    )
+    if not _word_timings_agree(
+        baseline_predecessor,
+        supporter,
+        tolerance_seconds=tolerance_seconds,
+    ):
+        return None
+
+    return WordTiming(
+        text=supporter.text.strip(),
+        start=baseline_predecessor.start,
+        end=baseline_predecessor.end,
+        probability=baseline_predecessor.probability,
+    )
+
+
 def merge_chunked_transcript_segments_with_repeat_consensus(
     chunks: Iterable[tuple[TranscriptionChunkWindow, tuple[TranscriptSegment, ...]]],
     *,
@@ -223,8 +319,12 @@ def merge_chunked_transcript_segments_with_repeat_consensus(
     corroborated second occurrence. That is treated as a narrowly evidenced
     collapsed-span hypothesis. Only those exact baseline word objects are
     replaced by the corroborated repeated words; every surrounding baseline word
-    is preserved unchanged. Otherwise this function returns the baseline
-    unchanged for that region.
+    is preserved unchanged except for one equally narrow boundary reconciliation:
+    if both straddling supporters independently agree that the same immediately
+    preceding word has no strong sentence-boundary punctuation, a contradictory
+    owner-only strong punctuation mark on that exact word is replaced by the
+    supporters' agreed text while preserving the owner timing/probability.
+    Otherwise the boundary is preserved unchanged.
 
     This helper is Phase 2E hardening only. It does not authorize, approve or
     execute any edit and is not wired into the product default.
@@ -324,8 +424,26 @@ def merge_chunked_transcript_segments_with_repeat_consensus(
                 (left, right),
                 key=lambda item: (_average_probability(item.words), -item.window_index),
             )
+            candidate_segments = patched
+            baseline_predecessor = _preceding_exact_word(patched, collapsed_words[0])
+            reconciled_predecessor = _reconcile_predecessor_boundary(
+                baseline_predecessor,
+                left,
+                right,
+                tolerance_seconds=timing_tolerance_seconds,
+            )
+            if reconciled_predecessor is not None:
+                corrected = _replace_exact_word_sequence(
+                    candidate_segments,
+                    target=(baseline_predecessor,),
+                    replacement=(reconciled_predecessor,),
+                )
+                if corrected is None:
+                    continue
+                candidate_segments = corrected
+
             rebuilt = _replace_exact_word_sequence(
-                patched,
+                candidate_segments,
                 target=collapsed_words,
                 replacement=source.words,
             )
