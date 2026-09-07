@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "record_type": "denoise_evaluation_corpus_fixture",
+  "corpus_id": "voicebank_demand_official_test_balanced_v1",
+  "frozen_utc": "2026-09-07T15:58:00Z",
+  "purpose": "Precommitted paired clean/noisy evaluation corpus for future denoise comparison. This fixture does not select or authorize any denoiser.",
+  "dataset": {
+    "name": "Noisy speech database for training speech enhancement algorithms and TTS models",
+    "common_name": "VoiceBank+DEMAND",
+    "publisher": "University of Edinburgh DataShare",
+    "creator": "Cassia Valentini-Botinhao",
+    "persistent_identifier": "https://doi.org/10.7488/ds/2117",
+    "item_url": "https://datashare.ed.ac.uk/items/6ed35425-bf14-4d2b-93a1-0a4984952757",
+    "license": "Creative Commons Attribution 4.0 International Public License",
+    "native_sample_rate_hz": 48000,
+    "test_set": {
+      "paired_utterances": 824,
+      "speakers": ["p232", "p257"],
+      "noise_types": ["bus", "cafe", "living", "office", "psquare"],
+      "snr_db": [2.5, 7.5, 12.5, 17.5]
+    }
+  },
+  "archives": {
+    "clean_testset": {
+      "filename": "clean_testset_wav.zip",
+      "legacy_download_url": "https://datashare.ed.ac.uk/bitstream/handle/10283/2791/clean_testset_wav.zip",
+      "md5": "34eb1c0ba7ef667e9b966866c542fc16",
+      "published_size_mb": 147.18
+    },
+    "noisy_testset": {
+      "filename": "noisy_testset_wav.zip",
+      "legacy_download_url": "https://datashare.ed.ac.uk/bitstream/handle/10283/2791/noisy_testset_wav.zip",
+      "md5": "fb1b86caa31e8ba5b506c0c64da9aab5",
+      "published_size_mb": 162.68
+    },
+    "logfiles": {
+      "filename": "logfiles.zip",
+      "legacy_download_url": "https://datashare.ed.ac.uk/bitstream/handle/10283/2791/logfiles.zip",
+      "md5": "0d16f5b6afe12d64238d1e4a0e6ff6e8",
+      "published_size_mb": 0.11321
+    }
+  },
+  "selection_policy": {
+    "selection_frozen_before_algorithm_comparison": true,
+    "paired_by_identical_basename": true,
+    "required_speakers": 2,
+    "required_noise_types": 5,
+    "required_snr_levels": 4,
+    "required_cases_per_speaker_noise_snr_cell": 1,
+    "required_cases": 40,
+    "full_factorial": "2 speakers x 5 noise types x 4 SNR levels",
+    "algorithm_results_used_for_selection": false,
+    "human_preferences_used_for_selection": false
+  },
+  "cases": [
+    {"id": "p257_001", "speaker": "p257", "noise": "bus", "snr_db": 17.5},
+    {"id": "p257_002", "speaker": "p257", "noise": "bus", "snr_db": 12.5},
+    {"id": "p257_003", "speaker": "p257", "noise": "bus", "snr_db": 7.5},
+    {"id": "p257_004", "speaker": "p257", "noise": "bus", "snr_db": 2.5},
+    {"id": "p257_006", "speaker": "p257", "noise": "cafe", "snr_db": 17.5},
+    {"id": "p257_007", "speaker": "p257", "noise": "cafe", "snr_db": 12.5},
+    {"id": "p257_008", "speaker": "p257", "noise": "cafe", "snr_db": 7.5},
+    {"id": "p257_009", "speaker": "p257", "noise": "cafe", "snr_db": 2.5},
+    {"id": "p257_010", "speaker": "p257", "noise": "living", "snr_db": 17.5},
+    {"id": "p257_011", "speaker": "p257", "noise": "living", "snr_db": 12.5},
+    {"id": "p257_012", "speaker": "p257", "noise": "living", "snr_db": 7.5},
+    {"id": "p257_013", "speaker": "p257", "noise": "living", "snr_db": 2.5},
+    {"id": "p257_014", "speaker": "p257", "noise": "office", "snr_db": 17.5},
+    {"id": "p257_015", "speaker": "p257", "noise": "office", "snr_db": 12.5},
+    {"id": "p257_016", "speaker": "p257", "noise": "office", "snr_db": 7.5},
+    {"id": "p257_017", "speaker": "p257", "noise": "office", "snr_db": 2.5},
+    {"id": "p257_018", "speaker": "p257", "noise": "psquare", "snr_db": 17.5},
+    {"id": "p257_019", "speaker": "p257", "noise": "psquare", "snr_db": 12.5},
+    {"id": "p257_020", "speaker": "p257", "noise": "psquare", "snr_db": 7.5},
+    {"id": "p257_022", "speaker": "p257", "noise": "psquare", "snr_db": 2.5},
+    {"id": "p232_001", "speaker": "p232", "noise": "bus", "snr_db": 17.5},
+    {"id": "p232_002", "speaker": "p232", "noise": "bus", "snr_db": 12.5},
+    {"id": "p232_003", "speaker": "p232", "noise": "bus", "snr_db": 7.5},
+    {"id": "p232_005", "speaker": "p232", "noise": "bus", "snr_db": 2.5},
+    {"id": "p232_006", "speaker": "p232", "noise": "cafe", "snr_db": 17.5},
+    {"id": "p232_007", "speaker": "p232", "noise": "cafe", "snr_db": 12.5},
+    {"id": "p232_009", "speaker": "p232", "noise": "cafe", "snr_db": 7.5},
+    {"id": "p232_010", "speaker": "p232", "noise": "cafe", "snr_db": 2.5},
+    {"id": "p232_011", "speaker": "p232", "noise": "living", "snr_db": 17.5},
+    {"id": "p232_012", "speaker": "p232", "noise": "living", "snr_db": 12.5},
+    {"id": "p232_013", "speaker": "p232", "noise": "living", "snr_db": 7.5},
+    {"id": "p232_014", "speaker": "p232", "noise": "living", "snr_db": 2.5},
+    {"id": "p232_015", "speaker": "p232", "noise": "office", "snr_db": 17.5},
+    {"id": "p232_016", "speaker": "p232", "noise": "office", "snr_db": 12.5},
+    {"id": "p232_017", "speaker": "p232", "noise": "office", "snr_db": 7.5},
+    {"id": "p232_019", "speaker": "p232", "noise": "office", "snr_db": 2.5},
+    {"id": "p232_020", "speaker": "p232", "noise": "psquare", "snr_db": 17.5},
+    {"id": "p232_021", "speaker": "p232", "noise": "psquare", "snr_db": 12.5},
+    {"id": "p232_022", "speaker": "p232", "noise": "psquare", "snr_db": 7.5},
+    {"id": "p232_023", "speaker": "p232", "noise": "psquare", "snr_db": 2.5}
+  ],
+  "evaluation_policy": {
+    "clean_reference_required": true,
+    "objective_metrics_are_auxiliary_only": true,
+    "human_perceptual_comparison_required_before_treatment_authorization": true,
+    "denoiser_selected": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false
+  }
+}
