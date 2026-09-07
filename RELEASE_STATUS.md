@@ -16,6 +16,8 @@
 - Fase 3.3: **COMPLETADA COMO FOUNDATION REVIEW-ONLY — Normalization Profile Contract**
 - Fase 3.4: **COMPLETADA COMO FOUNDATION — Explicit Normalization Approval**
 - Fase 3.5a–d: **TECHNICAL FOUNDATION PASS — human perceptual close-out pendiente**
+- Fase 3.6a: **MEASUREMENT FOUNDATION PASS — Noise Evidence Audit**
+- Denoise ejecutable: **NO AUTORIZADO**
 - Fase 3 completa: **NO**
 
 ## Evidencia principal
@@ -40,6 +42,8 @@ Phase 3.5b execution auth        34138226442  PASS — 15/15
 Phase 3.5c real linear render    34139056626  PASS — 25/25 + real FFmpeg E2E
 Phase 3.5d post-render verify    34139502187  PASS — 16/16 + real FFmpeg E2E
 Phase 3 through 3.5d regression  34139639280  PASS — 337/337 + doctor
+Phase 3.6a noise audit           34141013261  PASS — 9/9 + real MP4/AAC E2E
+Phase 3 through 3.6a regression  34141115293  PASS — 346/346 + doctor
 ```
 
 ## Phase 3 focal evidence
@@ -58,25 +62,7 @@ auto_apply                      false
 
 Estos máximos son **observaciones del corpus**, no thresholds generales.
 
-La muestra actual no justifica tratamiento obligatorio para reparar el renderer: no habilita normalización por defecto, denoise ni join smoothing/crossfade.
-
 ## Normalization technical foundation
-
-Cadena actual:
-
-```text
-audiovisual_quality_audit
-→ audiovisual_treatment_decision
-→ normalization_profile_decision
-→ normalization_approval
-→ normalization_plan_proposal
-→ normalization_execution_authorization
-→ normalization_render_result
-→ normalization_post_render_verification
-→ human perceptual review (PENDING)
-```
-
-La vía `ebu_r128_programme` está técnicamente validada como opt-in y fail-closed, no como comportamiento general del producto.
 
 ```text
 product default                         preserve
@@ -90,6 +76,37 @@ auto_apply                              false
 ```
 
 Detalle: `Validation/phase3-normalization-foundation.md`.
+
+## Noise measurement foundation
+
+`noise_evidence_audit` mide únicamente energía sobre ventanas speech/non-speech acreditadas.
+
+Precommit:
+
+```text
+PCM analysis                mono PCM16 @ 16 kHz
+frame                       0.20 s
+non-speech guard            0.15 s
+minimum NS window           0.40 s
+minimum NS windows          2
+minimum total NS coverage   2.0 s
+```
+
+Estas condiciones determinan si la evidencia es suficiente para **medir**, no si el vídeo necesita denoise.
+
+Siempre:
+
+```text
+denoise_evaluated = false
+denoise_authorized = false
+filter_selected = false
+parameters_defined = false
+executable = false
+treatment_authorized = false
+auto_apply = false
+```
+
+Detalle: `Validation/phase3-noise-audit-foundation.md`.
 
 ## Artifact chain actual
 
@@ -110,6 +127,7 @@ normalization_plan_proposal                 schema v1
 normalization_execution_authorization       schema v1
 normalization_render_result                 schema v1
 normalization_post_render_verification      schema v1
+noise_evidence_audit                        schema v1
 ```
 
 ## Safety Fase 3
@@ -118,6 +136,8 @@ normalization_post_render_verification      schema v1
 Phase 3 cannot rescue failed Phase 2E evidence
 measurement != treatment decision
 treatment decision != treatment authorization
+noise measurement != denoise decision
+denoise decision != denoise authorization
 risk != automatic filter selection
 profile selection != normalization authorization
 technical normalization PASS != human perceptual PASS
@@ -127,12 +147,10 @@ join smoothing = not authorized
 auto_apply = false
 ```
 
-`ebu_r128_programme` está registrado como perfil opt-in basado en EBU R 128 v5.0 / ITU-R BS.1770-5. No es default ni se extrapola como target universal para web.
-
 ## Pendiente antes de Release
 
-1. Fase 3.6a — Noise Audit / denoise evidence measurement-only;
-2. corpus con ruido real + controles limpios antes de cualquier denoise ejecutable;
+1. Fase 3.6b — corpus de evaluación denoise con noisy speech + clean/control y licencias claras;
+2. evaluación objetiva + perceptual antes de cualquier denoise ejecutable;
 3. human perceptual close-out de normalización si se pretende generalizar esa vía;
 4. evaluación específica A/B antes de cualquier join smoothing/crossfade;
 5. resto de Fase 3 quality/audit según evidencia;
