@@ -13,8 +13,9 @@ concurrency:
 
 env:
   PHASE2E_HUMAN_FIXTURE: tests\fixtures\phase2e_human_render_closeout_ami_v1.json
-  PHASE2E_FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip
-  PHASE2E_EXPECTED_FFMPEG_SHA256: 87c4729f3193f3ba562bada0330a98338c9a858d25b15fc98338a1364667348b
+  PHASE2E_FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-05-13-10/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-gpl-9.0.zip
+  PHASE2E_EXPECTED_FFMPEG_SHA256: a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f
+  PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN: n9.0.1-26-g5c8e7e2433
 
 jobs:
   windows-case298-thread-repro:
@@ -39,7 +40,7 @@ jobs:
       - name: Install pinned analysis runtime
         run: python -m pip install -e .[analysis]
 
-      - name: Acquire exact FFmpeg archive
+      - name: Acquire immutable FFmpeg build
         shell: pwsh
         run: |
           $root = Join-Path $env:RUNNER_TEMP "Video Tunner Phase2E Case298 Thread Repro FFmpeg"
@@ -53,10 +54,16 @@ jobs:
           Expand-Archive -Path $zip -DestinationPath $extract -Force
           $ffmpeg = Get-ChildItem $extract -Filter ffmpeg.exe -Recurse | Select-Object -First 1
           $ffprobe = Get-ChildItem $extract -Filter ffprobe.exe -Recurse | Select-Object -First 1
-          if (-not $ffmpeg -or -not $ffprobe) { throw "Exact FFmpeg archive missing tools" }
+          if (-not $ffmpeg -or -not $ffprobe) { throw "Immutable FFmpeg archive missing tools" }
+          $versionLine = (& $ffmpeg.FullName -version | Select-Object -First 1 | Out-String).Trim()
+          Write-Host "PHASE2E_CASE298_THREAD_REPRO_FFMPEG_VERSION=$versionLine"
+          if ($versionLine -notlike "*$($env:PHASE2E_EXPECTED_FFMPEG_VERSION_TOKEN)*") {
+            throw "Unexpected FFmpeg build: $versionLine"
+          }
           "PHASE2E_DIAGNOSTIC_FFMPEG=$($ffmpeg.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "VIDEO_TUNNER_FFMPEG_DIR=$($ffmpeg.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "PHASE2E_DIAGNOSTIC_FFMPEG_SHA256=$sha" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PHASE2E_DIAGNOSTIC_FFMPEG_VERSION_LINE=$versionLine" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Download licensed AMI speaker-specific sources
         shell: pwsh
@@ -78,6 +85,7 @@ jobs:
             --model-stage $env:SPANISH_TARGET_MODEL_STAGE `
             --ffmpeg $env:PHASE2E_DIAGNOSTIC_FFMPEG `
             --ffmpeg-archive-sha256 $env:PHASE2E_DIAGNOSTIC_FFMPEG_SHA256 `
+            --ffmpeg-version-line $env:PHASE2E_DIAGNOSTIC_FFMPEG_VERSION_LINE `
             --output $output
 
       - name: Upload lightweight diagnostic manifest
@@ -96,4 +104,6 @@ jobs:
         run: |
           Write-Host "Diagnostic only: same case 298 master, three fresh-model runs per CPU-thread arm."
           Write-Host "Arm A uses faster-whisper runtime default cpu_threads=0; Arm B fixes cpu_threads=1; both use num_workers=1."
+          Write-Host "FFmpeg uses immutable release tag autobuild-2026-09-05-13-10 and verifies both archive SHA and contained build token."
+          Write-Host "Prior mutable /latest/ archive SHA is not asserted equal to the immutable asset SHA."
           Write-Host "No product default, timing tolerance, detector, guard, approval, edit, authorization or render is changed."
