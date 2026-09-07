@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "record_type": "denoiser_human_perceptual_review",
+  "policy_id": "phase3_denoiser_blinded_human_ab_v1",
+  "policy_sha256": "563a5cf043793880777403899c7b217ca125c1be0d7b0c07f0512b84087bdfbb",
+  "bundle_manifest_sha256": "47f7c6600bc5dccbeb7125ea1da9e2be07b5dd1900e80b6709557c05df627913",
+  "reviewer": "Guille",
+  "status": "COMPLETE",
+  "decisions": [
+    {"case_id":"p257_013","comparison":"comparison_1","preference":"B","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere B."},
+    {"case_id":"p257_013","comparison":"comparison_2","preference":"NO_PREFERENCE","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"Ambas versiones le suenan igual."},
+    {"case_id":"p257_017","comparison":"comparison_1","preference":"A","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere A."},
+    {"case_id":"p257_017","comparison":"comparison_2","preference":"NO_PREFERENCE","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"Ambas versiones le suenan igual."},
+    {"case_id":"p232_019","comparison":"comparison_1","preference":"A","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere A."},
+    {"case_id":"p232_019","comparison":"comparison_2","preference":"B","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere B."},
+    {"case_id":"p257_009","comparison":"comparison_1","preference":"A","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere A."},
+    {"case_id":"p257_009","comparison":"comparison_2","preference":"NO_PREFERENCE","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"Ambas versiones le suenan igual."},
+    {"case_id":"p257_022","comparison":"comparison_1","preference":"B","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere B."},
+    {"case_id":"p257_022","comparison":"comparison_2","preference":"A","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere A."},
+    {"case_id":"p232_020","comparison":"comparison_1","preference":"A","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere A."},
+    {"case_id":"p232_020","comparison":"comparison_2","preference":"B","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere B."},
+    {"case_id":"p232_006","comparison":"comparison_1","preference":"B","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere B."},
+    {"case_id":"p232_006","comparison":"comparison_2","preference":"B","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere B."},
+    {"case_id":"p257_001","comparison":"comparison_1","preference":"B","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere B."},
+    {"case_id":"p257_001","comparison":"comparison_2","preference":"NO_PREFERENCE","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"Ambas versiones le suenan igual."},
+    {"case_id":"p232_001","comparison":"comparison_1","preference":"A","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere A."},
+    {"case_id":"p232_001","comparison":"comparison_2","preference":"NO_PREFERENCE","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"Ambas versiones le suenan igual."},
+    {"case_id":"p232_011","comparison":"comparison_1","preference":"B","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere B."},
+    {"case_id":"p232_011","comparison":"comparison_2","preference":"A","A":{"speech_integrity":"PASS","artifact":"PASS"},"B":{"speech_integrity":"PASS","artifact":"PASS"},"reason":"El revisor prefiere A."}
+  ],
+  "capabilities": {
+    "candidate_selection_authorized": false,
+    "denoiser_selected": false,
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false
+  }
+}
