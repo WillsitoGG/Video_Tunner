@@ -14,7 +14,7 @@ Obligatorio:
 4. Whisper, VAD y acoustic join usan exactamente el mismo master acreditado;
 5. auto-sync sólo con evidencia suficiente; override/manual fallback;
 6. original siempre intacto;
-7. `candidate != scope != assessment != semantic decision != eligibility != promotion != approval != proposal != execution authorization != semantic edit plan != rendered output`;
+7. `candidate != scope != assessment != semantic decision != eligibility != promotion != approval != proposal != execution authorization != semantic edit plan != rendered output != post-render verification != human review`;
 8. `PROPOSED_CUT != executable CUT`;
 9. `foundation_guards_pass != safe cut`;
 10. `promotion_review_candidate != approval`;
@@ -24,12 +24,15 @@ Obligatorio:
 14. global APPROVE nunca implica `auto_apply`;
 15. `semantic_edit_plan` sólo puede renderizarse por semantic render gate;
 16. cualquier cambio de analysis/proposal/authorization/plan/source invalida la cadena correspondiente;
-17. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
-18. ante duda: `KEEP / REVIEW`;
-19. conservador por defecto.
+17. technical post-render PASS nunca sustituye human perceptual PASS;
+18. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
+19. un único human FAIL en el corpus 2E.5 mantiene Fase 2E abierta;
+20. evidencia humana stale/alterada = `INVALID_EVIDENCE`, no PASS/FAIL de calidad;
+21. ante duda: `KEEP / REVIEW`;
+22. conservador por defecto.
 
 ```text
-sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join → acoustic → semantic → eligibility → promotion → individual approval → bounded proposal → global execution authorization → semantic Edit Plan → semantic render gate → FFmpeg → verification/audit
+sources → ingest/sync → MASTER AUDIO → Whisper/VAD → candidates → scopes/fillers → join → acoustic → semantic → eligibility → promotion → individual approval → bounded proposal → global execution authorization → semantic Edit Plan → semantic render gate → FFmpeg → post-render verification → human review → corpus closeout
 ```
 
 ## 2. Estado
@@ -42,9 +45,10 @@ Completado:
 - Fase 2E.1 — Promotion Policy Foundation / analysis schema v9;
 - Fase 2E.2 — Explicit Approval Contract / approval schema v1;
 - Fase 2E.3 — Approved Edit Plan Proposal + Global Limits / proposal schema v1;
-- **Fase 2E.4 — Execution Authorization / Semantic Render Gate — COMPLETADA**.
+- Fase 2E.4 — Execution Authorization / Semantic Render Gate;
+- **Fase 2E.5 technical pre-human gate — 3/3 AMI renders + post-render verification PASS**.
 
-Siguiente: **Fase 2E.5 — Semantic Render Verification / Close-out**.
+Pendiente para cerrar 2E.5 y Fase 2E: **escucha humana real 3/3 + agregación auditable**.
 
 Auto-apply semántico sigue deshabilitado.
 
@@ -62,9 +66,11 @@ Auto-apply semántico sigue deshabilitado.
 33908500929  2E.3 renderer isolation — 186/186 + doctor PASS
 33909424933  2E.4 core — 201/201 in 7.310 s + doctor PASS
 33909625346  2E.4 real FFmpeg E2E — 202/202 in 7.782 s + doctor PASS
+34119952855  2E.5 technical close-out — 278 tests + portable/provenance + 3/3 technical renders PASS
+34121684853  2E.5 offline human-finalizer contract PASS
 ```
 
-No generalizar métricas de corpus fuera de su muestra.
+No generalizar métricas de corpus fuera de su muestra. `34119952855` no es evidencia humana perceptual: `human_perceptual_reviews_completed = 0/3`.
 
 ## 4. Stack fijado
 
@@ -79,6 +85,8 @@ PyInstaller 6.22.2
 
 VAD: faster-whisper + `silero_vad_v6.onnx`. Modelo objetivo: `large-v3-turbo`.
 
+Para el close-out 2E.5 se usa explícitamente `deterministic_overlap_12s_3s_repeat_consensus_v1`. `single_pass` sigue siendo default del producto. No exponer estrategias no validadas por CLI.
+
 ## 5. Schemas / artifacts
 
 ```text
@@ -87,9 +95,12 @@ promotion_approval.json               schema v1
 approved_edit_plan_proposal.json      schema v1
 semantic_execution_authorization.json schema v1
 semantic_edit_plan.json               schema v1
+semantic_render_verification          schema v1
+semantic_render_human_review          schema v1
+phase2e_closeout_decision              schema v1
 ```
 
-No mutar `analysis.json` para approvals, proposal, authorization o plan.
+No mutar `analysis.json` para approvals, proposal, authorization, plan, verification o human review.
 
 ## 6. Promotion + approvals
 
@@ -224,7 +235,9 @@ Antes de FFmpeg debe revalidar:
 
 No eliminar ni puentear esta revalidación.
 
-## 11. CLI 2E.4
+## 11. CLI / transcription strategy
+
+Execution 2E.4:
 
 ```text
 execution authorize
@@ -236,6 +249,8 @@ execution render
 ```
 
 El `render` legacy no acepta Semantic Edit Plans.
+
+`analyze` mantiene `single_pass` como default. La estrategia `deterministic_overlap_12s_3s_repeat_consensus_v1` sólo se activa mediante `--transcription-strategy` explícito.
 
 ## 12. E2E real 2E.4
 
@@ -253,24 +268,58 @@ Esto valida ruta técnica, no calidad perceptual general de joins.
 
 Detalle: `Validation/phase2e-execution-authorization.md`.
 
-## 13. Siguiente — 2E.5 Semantic Render Verification / Close-out
+## 13. Fase 2E.5 — Post-render Verification / Human Close-out
 
-1. post-render structural verification;
-2. duración esperada vs real;
-3. streams/output provenance;
-4. audit local de cada join renderizado;
-5. evidencia perceptual humana de joins semánticos;
-6. audit report end-to-end;
-7. decidir cierre de 2E.
+Technical pre-human gate final `34119952855`:
+
+```text
+cases = 3
+sources = 2
+technical PASS = 3/3
+human perceptual reviews = 0/3 PENDING
+```
+
+Casos:
+
+```text
+ami-es2002b-d-repeat-157  PASS  acoustic_context_only
+ami-ts3005d-c-repeat-298  PASS  acoustic_context_only
+ami-es2002b-d-repeat-13   PASS  low_energy_boundary_context
+```
+
+Post-render verification debe comprobar:
+
+1. cadena exacta de execution provenance;
+2. original intacto y output distinto;
+3. duración esperada vs real;
+4. 1 stream vídeo + 1 audio;
+5. auditoría acústica de cada join renderizado;
+6. `auto_apply = false`.
+
+Human review:
+
+- escuchar ORIGINAL y RENDERED reales;
+- PASS/FAIL explícito por `join_id` con reason;
+- review ligada al SHA del technical report, SHA del output y plan fingerprint;
+- 3/3 PASS en 2 fuentes → `CLOSE_OUT_READY`;
+- un FAIL → `INSUFFICIENT_JOIN_QUALITY`;
+- evidencia stale/alterada → `INVALID_EVIDENCE`.
+
+`.github/scripts/finalize_phase2e_human_closeout.py` procesa esa evidencia offline. No vuelve a ejecutar Whisper ni FFmpeg y no puede sustituir el juicio humano.
+
+Detalle: `Validation/phase2e-post-render-closeout.md`.
 
 ## 14. GitHub / CI / Release
 
 - GitHub source of truth;
 - CI deliberada;
-- workflows manual-only normalmente;
+- workflows pesados manual-only normalmente;
+- triggers one-shot se eliminan tras uso;
 - no modelos/vídeos/ZIPs artifacts ordinarios;
 - no Release sin autorización expresa de Guille.
 
 ## 15. Docs
 
 Mantener sincronizados README, AGENTS, ROADMAP, RELEASE_STATUS y Validation ante cambios relevantes.
+
+Trabajo inmediato: obtener la escucha humana real 3/3, finalizar 2E.5 offline, documentar el cierre, limpiar tooling diagnóstico sobrante y preparar integración a `main`. No iniciar Fase 3 antes de cerrar 2E.
