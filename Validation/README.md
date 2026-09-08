@@ -37,7 +37,7 @@ Foundation general:
 - `phase3-normalization-foundation.md` — 3.4 Explicit Normalization Approval + 3.5a–d plan/authorization/renderer/post-render technical verification.
 - `phase3-noise-audit-foundation.md` — 3.6a Noise Evidence Audit measurement-only.
 
-Denoise 3.6b–h:
+Denoise 3.6b–i:
 
 - `phase3-denoise-corpus-materialization.json` — corpus VoiceBank+DEMAND congelado y materializado: 40 pares noisy/clean, hashes y provenance.
 - `phase3-denoise-objective-baseline.json` — baseline noisy objetivo SI-SDR/STOI sobre 40/40 casos.
@@ -50,7 +50,8 @@ Denoise 3.6b–h:
 - `phase3-denoiser-selection-review.json` — decisión de selection review 3.6f.
 - `phase3-denoiser-selection-closeout.json` — closeout y provenance de selección.
 - `phase3-denoiser-portable-runtime.json` — contrato/provenance 3.6g del runtime DeepFilterNet portable inmutable/offline.
-- `phase3-denoise-plan-authorization-foundation.json` — foundation 3.6h: `denoise_plan_proposal` no ejecutable + `denoise_execution_authorization` stale/tamper-safe, sin autorización real por-media ni renderer.
+- `phase3-denoise-plan-authorization-foundation.json` — foundation 3.6h: `denoise_plan_proposal` no ejecutable + `denoise_execution_authorization` stale/tamper-safe.
+- `phase3-denoise-render-foundation.json` — foundation 3.6i: gated `denoise_render_result`, E2E sintético con binario DeepFilterNet real, timeline observada y límites de capability.
 
 ## Runs principales
 
@@ -78,7 +79,9 @@ Denoise 3.6b–h:
 34150832960  Phase 3.6f final validation — 12/12 focused + 410/410 + doctor PASS
 34211660270  Phase 3.6g portable runtime contract — 14/14 focused + 418 integrated + both doctors PASS
 34219441077  Phase 3.6g post-persistence — 20/20 focused + 424 integrated + both doctors PASS
-34220351609  Phase 3.6h plan/authorization contract — 38/38 focused + 445/445 integrated + doctor PASS
+34220351609  Phase 3.6h base plan/authorization contract — 38/38 focused + 445/445 integrated + doctor PASS
+34225276990  Phase 3.6h clean closeout — 45/45 focused + 452/452 integrated + doctor PASS
+34231340544  Phase 3.6i renderer foundation — 49/49 focused + 1/1 real DeepFilter E2E + 466/466 integrated, 0 skips + doctor PASS
 ```
 
 ## Fase 3 focal — observaciones
@@ -93,7 +96,7 @@ max observed |Δ true peak| = 0.04 dB
 
 **0.40 LU y 0.04 dB son observaciones de la muestra, no thresholds de producto.**
 
-## Denoise 3.6b–h — interpretación acreditada
+## Denoise 3.6b–i — interpretación acreditada
 
 ### Corpus 3.6b
 
@@ -195,9 +198,9 @@ artifact_id = 10050110122
 zip_sha256 = c27f8a0ddfaa88bfdfa36bf8c79d6b4ec74198669f75cbfbb427648c6d04de89
 ```
 
-La presencia del binario seleccionado dentro del portable **no crea un renderer ni autoriza denoise**.
+La presencia del binario seleccionado dentro del portable **no autoriza denoise**.
 
-### Plan + authorization design 3.6h
+### Plan + authorization 3.6h
 
 Artifacts schema v1:
 
@@ -208,50 +211,89 @@ denoise_execution_authorization
 
 El plan sólo puede quedar `ready` si la evidencia 3.6a tiene cobertura suficiente y toda la cadena exacta sigue vigente. `evidence_sufficient` significa **measurement coverage suficiente**, no “denoise necesario”.
 
-El plan fija criptográficamente:
+La autorización separada exige `APPROVE`/`REJECT`, actor y reason. Un APPROVE representa permiso para la ruta gated y no ejecuta tratamiento por sí mismo.
 
-- `noise_evidence_audit` completo y su fingerprint;
-- output SHA acreditado;
-- selection review 3.6f y fingerprint;
-- candidato DeepFilterNet exacto;
-- runtime 3.6g y fingerprint, incluida CLI/timeline contract.
-
-El plan continúa sin capability:
+Cierre limpio `34225276990`:
 
 ```text
-parameters_executable = false
-denoise_authorized = false
-denoise_render_authorization = false
-plan_render_authorization = false
-renderer_available = false
-executable = false
-auto_apply = false
-```
-
-La autorización separada exige `APPROVE`/`REJECT`, actor y reason. Un APPROVE sólo representa permiso para una **futura** ruta gated y no ejecuta tratamiento por sí mismo.
-
-Gate `34220351609`:
-
-```text
-38/38 focused PASS
-445/445 integrated PASS
+45/45 focused PASS
+452/452 integrated PASS
 doctor PASS
 ```
 
-Los APPROVE del gate son fixtures sintéticos. Estado real persistido de 3.6h:
+Los APPROVE de los gates son fixtures sintéticos. **Guille no emitió una autorización real per-media en 3.6h.**
+
+Binder: `tests/test_phase3_denoise_plan_authorization_evidence.py`.
+
+### Gated renderer 3.6i
+
+`denoise_render_result` schema v1 sólo puede generarse tras revalidar toda la cadena 3.6a→h y una autorización APPROVE vigente para el source SHA actual.
+
+Contratos congelados:
+
+```text
+source overwrite = forbidden
+exact streams = 1 video + 1 audio
+initial source audio support = mono only
+DeepFilter input = PCM16 mono 48 kHz
+CLI = materialized from validated plan arguments_template
+--compensate-delay = required
+raw duration delta limit = ±0.05 s
+alignment search = forbidden
+time shift = forbidden
+level matching = forbidden
+timeline normalization = right-tail trim or digital-silence pad only
+video = stream copy
+audio = AAC 192k
+-shortest = forbidden
+render complete != technical PASS
+render complete != human PASS
+preserve = default
+auto_apply = false
+```
+
+Gate final `34231340544`:
+
+```text
+49/49 focused PASS
+1/1 real DeepFilter synthetic E2E PASS
+466/466 integrated PASS
+0 skips
+doctor PASS
+```
+
+Timeline observada exactamente en ese E2E sintético:
+
+```text
+input_frames = 144000
+raw_output_frames = 142560
+raw_frame_delta = -1440
+raw_duration_delta_seconds = -0.03
+max_abs_raw_duration_delta_seconds = 0.05
+timeline_normalization_action = pad_right_tail_silence
+final_frames = 144000
+alignment_search_performed = false
+time_shift_performed = false
+level_matching_performed = false
+```
+
+`-0.03 s` es una observación del E2E; no sustituye ni modifica el límite precomprometido ±0.05 s.
+
+Estado real persistido:
 
 ```text
 real_user_authorization_record_created = false
 real_user_media_authorized_for_denoise = false
-denoise_renderer_implemented = false
-treated_media_generated = false
+real_user_media_processed_by_denoise_renderer = false
+real_user_treated_media_generated = false
+stereo_or_multichannel_generalized = false
+independent_denoise_post_render_verifier = false
 product_default = preserve
 auto_apply = false
 ```
 
-En particular, **Guille no emitió una autorización real por-media de denoise en 3.6h**.
-
-Binder permanente: `tests/test_phase3_denoise_plan_authorization_evidence.py`.
+Binder: `tests/test_phase3_denoise_render_foundation_evidence.py`.
+Permanent gate: `.github/workflows/phase3-denoise-render-foundation.yml`, manual-only.
 
 ## Regla de interpretación
 
@@ -267,6 +309,8 @@ Una validación PASS acredita únicamente el alcance descrito en su documento. N
 - que selección de candidato autorice ejecución;
 - que disponibilidad offline del runtime autorice renderer;
 - que la existencia de un authorization schema equivalga a una autorización real emitida por Guille;
+- que `denoise_render_complete` equivalga a technical PASS;
+- que technical denoise PASS futuro equivalga a human perceptual PASS;
 - denoise o smoothing automáticos;
 - validación final del ZIP portable en Windows limpio.
 
@@ -292,7 +336,9 @@ Phase 2E output PASS
       → portable selected-runtime contract
       → denoise_plan_proposal
       → denoise_execution_authorization
-      → gated denoise renderer technical foundation (NEXT)
+      → gated denoise renderer technical foundation
+      → independent denoise post-render technical verifier (NEXT)
+      → human denoise treatment closeout (LATER)
 ```
 
 Invariantes:
@@ -307,8 +353,9 @@ candidate selection != denoise authorization
 selected runtime availability != renderer authorization
 denoise plan != denoise execution authorization
 authorization artifact != renderer execution
-profile selection != normalization authorization
+render complete != independent technical PASS
 technical PASS != human perceptual PASS
+profile selection != normalization authorization
 preserve = default
 auto_apply = false
 ```
