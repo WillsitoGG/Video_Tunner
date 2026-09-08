@@ -30,12 +30,28 @@ Fase 2E está cerrada como `CLOSE_OUT_READY`; `auto_apply=false`.
 
 ### Fase 3 — audiovisual quality / audit
 
+Foundation general:
+
 - `phase3-audiovisual-quality-foundation.md` — 3.1 Quality Audit, baseline focal real, 3.2 Treatment Decision y 3.3 Normalization Profile Contract.
 - `phase3-focal-quality-baseline.json` — medición persistente exacta de los tres pares ORIGINAL/RENDERED ya escuchados en 2E.5.
 - `phase3-normalization-foundation.md` — 3.4 Explicit Normalization Approval + 3.5a–d plan/authorization/renderer/post-render technical verification.
 - `phase3-noise-audit-foundation.md` — 3.6a Noise Evidence Audit measurement-only.
 
-Runs principales:
+Denoise 3.6b–g:
+
+- `phase3-denoise-corpus-materialization.json` — corpus VoiceBank+DEMAND congelado y materializado: 40 pares noisy/clean, hashes y provenance.
+- `phase3-denoise-objective-baseline.json` — baseline noisy objetivo SI-SDR/STOI sobre 40/40 casos.
+- `phase3-denoiser-candidate-objective-comparison.json` — comparación objetiva preserve / AFFTDN / DeepFilterNet y clean controls.
+- `phase3-denoiser-human-ab-bundle-technical.json` — manifest técnico del bundle A/B cegado.
+- `phase3-denoiser-human-ab-public-review.json` — review público/cegado de Guille.
+- `phase3-denoiser-human-ab-review.json` — review remapeado/unblinded con fingerprints.
+- `phase3-denoiser-human-perceptual-gate.json` — gate perceptual precomprometido.
+- `phase3-denoiser-human-perceptual-closeout.json` — closeout 3.6e.
+- `phase3-denoiser-selection-review.json` — decisión de selection review 3.6f.
+- `phase3-denoiser-selection-closeout.json` — closeout y provenance de selección.
+- `phase3-denoiser-portable-runtime.json` — contrato/provenance 3.6g del runtime DeepFilterNet portable inmutable/offline.
+
+## Runs principales
 
 ```text
 34124957783  Phase 3.1 focused + real FFmpeg E2E — 8/8 PASS
@@ -51,9 +67,18 @@ Runs principales:
 34139639280  full regression through 3.5d — 337/337 + doctor PASS
 34141013261  Phase 3.6a noise evidence audit — 9/9 + real MP4/AAC E2E PASS
 34141115293  full regression through 3.6a — 346/346 + doctor PASS
+34142222451  Phase 3.6b corpus materialization — 40 paired cases PASS
+34143456746  Phase 3.6c objective noisy baseline — 40/40 measured
+34144574712  DeepFilterNet temporal smoke — 3.00 s → 2.97 s
+34145308485  Phase 3.6d candidate objective comparison — PASS
+34148410617  Phase 3.6e blinded A/B bundle — PASS
+34150202283  Phase 3.6e closeout validation — 398/398 + doctor PASS
+34150663772  Phase 3.6f selection artifact — DeepFilterNet selected for integration review
+34150832960  Phase 3.6f final validation — 12/12 focused + 410/410 + doctor PASS
+34211660270  Phase 3.6g portable runtime contract — 14/14 focused + 418 integrated + both doctors PASS
 ```
 
-Baseline focal observado:
+## Fase 3 focal — observaciones
 
 ```text
 cases = 3
@@ -65,19 +90,109 @@ max observed |Δ true peak| = 0.04 dB
 
 **0.40 LU y 0.04 dB son observaciones de la muestra, no thresholds de producto.**
 
-Interpretación acreditada hasta ahora:
+## Denoise 3.6b–g — interpretación acreditada
 
-- no hay evidencia para normalización obligatoria como reparación del renderer en el corpus focal;
-- existe una vía `ebu_r128_programme` opt-in técnicamente validada y fail-closed;
-- la normalización sigue pendiente de human perceptual close-out antes de generalizarla;
-- `noise_evidence_audit` puede medir energía speech/non-speech con timing evidence explícita y SHA vigente;
-- cobertura insuficiente se distingue de un problema de ruido;
-- digital silence no recibe un floor dBFS inventado;
-- ninguna métrica 3.6a selecciona ni autoriza denoise;
-- no hay evidencia para denoise por defecto;
-- no hay evidencia para join smoothing/crossfade por defecto;
-- `preserve` es default;
-- `auto_apply=false`.
+### Corpus 3.6b
+
+```text
+corpus_id = voicebank_demand_official_test_balanced_v1
+cases = 40 paired noisy/clean
+speakers = p232, p257
+noise = bus, cafe, living, office, psquare
+SNRs = 17.5, 12.5, 7.5, 2.5 dB
+sample rate = 48000 Hz
+license = CC BY 4.0
+```
+
+### Baseline 3.6c
+
+```text
+mean noisy SI-SDR = 9.16548156 dB
+mean noisy STOI   = 0.95070362
+```
+
+Es baseline descriptivo; no define aceptación ni ranking.
+
+### Comparación 3.6d
+
+DeepFilterNet 0.5.6 sobre 40 casos noisy:
+
+```text
+mean SI-SDR delta vs preserve = +9.87013412 dB
+positive SI-SDR cases = 40/40
+mean STOI delta vs preserve = +0.01112968
+positive STOI cases = 27/40
+raw duration delta = -0.03 s
+```
+
+Clean controls:
+
+```text
+case_count = 40
+mean STOI = 0.99542798
+mean normalized RMSE = 0.03238068
+numeric acceptance threshold applied = false
+```
+
+Las métricas objetivas son auxiliares. La comparación no seleccionó ni autorizó tratamiento por sí sola.
+
+### Human A/B 3.6e
+
+Guille completó la escucha cegada precomprometida:
+
+```text
+DeepFilterNet
+  treatment preference = 10
+  preserve preference = 0
+  no preference = 0
+  speech integrity failures = 0
+  artifact failures = 0
+  perceptual gate = PASS
+
+AFFTDN
+  treatment preference = 3
+  preserve preference = 2
+  no preference = 5
+  perceptual gate = FAIL
+```
+
+El gate humano sólo habilitó selection review.
+
+### Selection 3.6f
+
+```text
+selected_candidate_id = deepfilternet_0_5_6_compensated_v1
+selection_status = SELECTED_FOR_INTEGRATION_REVIEW
+```
+
+Selección != autorización de denoise.
+
+### Portable runtime 3.6g
+
+Contrato exacto:
+
+```text
+DeepFilterNet = 0.5.6
+runtime = Tools/deepfilter/bin/deep-filter.exe
+SHA-256 = 75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915
+size = 26912256 bytes
+runtime_download_allowed = false
+product_default = preserve
+denoise_authorized = false
+renderer_authorized = false
+auto_apply = false
+```
+
+Gate `34211660270` verificó build portable, provenance, ejecución offline con outbound network bloqueado, rechazo fail-closed de binario manipulado, regresión integrada y ambos `doctor`.
+
+Artifact ligero:
+
+```text
+artifact_id = 10050110122
+zip_sha256 = c27f8a0ddfaa88bfdfa36bf8c79d6b4ec74198669f75cbfbb427648c6d04de89
+```
+
+La presencia del binario seleccionado dentro del portable **no crea un renderer ni autoriza denoise**.
 
 ## Regla de interpretación
 
@@ -89,6 +204,9 @@ Una validación PASS acredita únicamente el alcance descrito en su documento. N
 - que una medición autorice tratamiento;
 - que technical normalization PASS equivalga a human perceptual PASS;
 - que un dBFS medido implique necesidad de denoise;
+- que una métrica objetiva seleccione automáticamente un algoritmo;
+- que selección de candidato autorice ejecución;
+- que disponibilidad offline del runtime autorice renderer;
 - denoise o smoothing automáticos;
 - validación final del ZIP portable en Windows limpio.
 
@@ -106,7 +224,13 @@ Phase 2E output PASS
    │  → normalization_post_render_verification
    │  → human perceptual normalization review (PENDING)
    └→ noise_evidence_audit
-      → denoise evaluation corpus (NEXT)
+      → frozen denoise corpus
+      → objective noisy baseline
+      → candidate objective comparison
+      → blinded human A/B
+      → candidate selection review
+      → portable selected-runtime contract
+      → denoise plan proposal + explicit execution authorization (NEXT)
 ```
 
 Invariantes:
@@ -116,7 +240,9 @@ Phase 3 favorable signal != rescue of failed Phase 2E
 measurement != treatment decision
 treatment decision != treatment authorization
 noise measurement != denoise decision
-denoise decision != denoise authorization
+denoise evaluation != candidate selection
+candidate selection != denoise authorization
+selected runtime availability != renderer authorization
 profile selection != normalization authorization
 technical PASS != human perceptual PASS
 preserve = default
