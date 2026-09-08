@@ -1,5 +1,4 @@
 import json
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -172,6 +171,10 @@ class DenoiseRenderEndToEndTests(unittest.TestCase):
                 authorization_sha256=authorization_sha,
             )
 
+            print(
+                "PHASE3_6I_E2E_TIMELINE="
+                + json.dumps(result["timeline"], sort_keys=True, separators=(",", ":"))
+            )
             self.assertTrue(output.is_file())
             self.assertEqual(sha256_path(source), source_sha_before)
             self.assertEqual(result["status"], "denoise_render_complete")
