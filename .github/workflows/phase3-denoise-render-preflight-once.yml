@@ -1,0 +1,27 @@
+name: Phase 3.6i Denoise Renderer Preflight One-shot
+
+on:
+  push:
+    paths:
+      - ".github/phase3-denoise-render-preflight.trigger"
+
+jobs:
+  preflight:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install editable package
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Compile renderer
+        run: python -m py_compile Source/video_tunner/denoise_render.py tests/test_denoise_render.py
+      - name: Run Phase 3.6i focused unit contracts
+        run: >-
+          python -m unittest -v
+          tests.test_denoise_render
+          tests.test_denoise_plan
+          tests.test_denoise_execution_authorization
+          tests.test_denoise_runtime
