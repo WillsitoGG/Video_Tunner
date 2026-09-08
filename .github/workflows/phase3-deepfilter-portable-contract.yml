@@ -34,12 +34,13 @@ jobs:
       - name: Install lightweight editable package
         run: python -m pip install --disable-pip-version-check -e .
 
-      - name: Validate frozen selection and runtime contract
+      - name: Validate frozen selection, runtime contract and persisted closeout
         run: >-
           python -m unittest -v
           tests.test_denoise_runtime
           tests.test_tools_portable
           tests.test_phase3_denoiser_selection_review_evidence
+          tests.test_phase3_denoiser_portable_runtime_evidence
 
       - name: Build analysis portable with selected immutable DeepFilterNet
         shell: pwsh
@@ -130,5 +131,5 @@ jobs:
       - name: Scope note
         shell: pwsh
         run: |
-          Write-Host "Phase 3.6g validates only immutable/offline portable availability of the selected DeepFilterNet 0.5.6 binary."
+          Write-Host "Phase 3.6g validates immutable/offline portable availability plus persisted closeout binding of the selected DeepFilterNet 0.5.6 binary."
           Write-Host "It does NOT add a denoise renderer, does NOT authorize denoise, and does NOT change product default preserve."
