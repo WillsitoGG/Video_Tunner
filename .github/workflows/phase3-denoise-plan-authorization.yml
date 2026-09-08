@@ -2,6 +2,9 @@ name: Phase 3.6h Denoise Plan and Authorization
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/phase3-denoise-plan-authorization.trigger"
 
 concurrency:
   group: phase3-denoise-plan-authorization-${{ github.ref }}
