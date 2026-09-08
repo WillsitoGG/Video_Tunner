@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "record_type": "phase3_denoiser_portable_runtime_closeout",
+  "phase": "3.6g",
+  "status": "CLOSED",
+  "closed_utc": "2026-09-08T09:46:33Z",
+  "scope": "Immutable/offline portable availability of the denoiser selected in Phase 3.6f. This closeout does not add a denoise renderer and does not authorize denoise execution.",
+  "selected_denoiser": {
+    "candidate_id": "deepfilternet_0_5_6_compensated_v1",
+    "implementation": "deep-filter",
+    "version": "0.5.6",
+    "upstream_repository": "Rikorose/DeepFilterNet",
+    "upstream_release": "v0.5.6",
+    "upstream_asset_name": "deep-filter-0.5.6-x86_64-pc-windows-msvc.exe",
+    "upstream_asset_url": "https://github.com/Rikorose/DeepFilterNet/releases/download/v0.5.6/deep-filter-0.5.6-x86_64-pc-windows-msvc.exe",
+    "asset_sha256": "75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915",
+    "asset_size_bytes": 26912256,
+    "upstream_license_observed_at_tag": "Apache-2.0 OR MIT",
+    "runtime_relative_path": "Tools/deepfilter/bin/deep-filter.exe",
+    "arguments": [
+      "--compensate-delay",
+      "--output-dir",
+      "<output_dir>",
+      "<input_wav>"
+    ],
+    "explicit_model_argument": false
+  },
+  "portable_contract": {
+    "asset_acquisition_stage": "build_only",
+    "runtime_download_allowed": false,
+    "path_lookup_allowed": false,
+    "identity_verification": {
+      "before_bundle_copy": [
+        "sha256",
+        "size_bytes",
+        "version_cli",
+        "required_cli_flags"
+      ],
+      "after_bundle_copy": [
+        "sha256",
+        "size_bytes",
+        "version_cli",
+        "required_cli_flags"
+      ]
+    },
+    "media_contract": {
+      "input_pcm": "pcm_s16le",
+      "input_channels": 1,
+      "input_sample_rate_hz": 48000,
+      "output_channels": 1,
+      "output_sample_rate_hz": 48000,
+      "raw_duration_delta_max_seconds": 0.05
+    }
+  },
+  "validation": {
+    "successful_workflow_run_id": 34211660270,
+    "successful_job_id": 102013916505,
+    "validated_head_sha": "1db1bdd516292b00136e45a3c92b53b18f59b29f",
+    "workflow": ".github/workflows/phase3-deepfilter-portable-contract.yml",
+    "runner": "windows-latest",
+    "focused_contract_tests": {
+      "ran": 14,
+      "result": "PASS"
+    },
+    "portable_build": "PASS",
+    "ffmpeg_provenance": {
+      "result": "PASS",
+      "archive_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-05-13-10/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-gpl-9.0.zip",
+      "archive_sha256": "a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f",
+      "version_token": "n9.0.1-26-g5c8e7e2433"
+    },
+    "portable_provenance_gate": "PASS",
+    "offline_smoke": {
+      "result": "PASS",
+      "outbound_network_for_exact_executable": "BLOCKED",
+      "input_duration_seconds": 3.0,
+      "output_duration_seconds": 2.97,
+      "raw_duration_delta_seconds": -0.03,
+      "max_abs_raw_duration_delta_seconds": 0.05,
+      "output_channels": 1,
+      "output_sample_rate_hz": 48000,
+      "output_sample_width_bytes": 2,
+      "runtime_download_performed": false
+    },
+    "tamper_fail_closed": {
+      "result": "PASS",
+      "mutation": "append_one_byte",
+      "expected_size_bytes": 26912256,
+      "observed_tampered_size_bytes": 26912257,
+      "rejection_class": "size_mismatch"
+    },
+    "integrated_regression": {
+      "ran": 418,
+      "result": "PASS",
+      "skipped": 13
+    },
+    "development_doctor": "PASS",
+    "portable_doctor": "PASS",
+    "artifact": {
+      "id": 10050110122,
+      "name": "phase3-deepfilter-portable-contract-evidence",
+      "size_bytes": 1947,
+      "zip_sha256": "c27f8a0ddfaa88bfdfa36bf8c79d6b4ec74198669f75cbfbb427648c6d04de89",
+      "files": [
+        "dist/Video_Tunner/portable-manifest.json",
+        "phase3-deepfilter-offline-smoke.json"
+      ]
+    }
+  },
+  "preceding_harness_attempt": {
+    "workflow_run_id": 34211360399,
+    "job_id": 102012874369,
+    "classification": "HARNESS_ONLY_FAILURE_AFTER_SUCCESSFUL_PORTABLE_PROVENANCE_OFFLINE_SMOKE_AND_TAMPER_REJECTION",
+    "resolution": "Expected tamper rejection was moved into an assertion helper that converts the expected DenoiserRuntimeError into gate success. Product runtime contract and selected binary were unchanged."
+  },
+  "product_state_after_closeout": {
+    "selected_for_integration_review_only": true,
+    "product_default": "preserve",
+    "denoise_authorized": false,
+    "renderer_authorized": false,
+    "auto_apply": false,
+    "denoise_renderer_present": false
+  },
+  "interpretation": {
+    "proven": [
+      "The exact selected DeepFilterNet 0.5.6 Windows x64 binary can be bundled inside the Video_Tunner portable tree with immutable provenance.",
+      "The bundled binary executes successfully while outbound network access for that executable is blocked.",
+      "The runtime contract does not search PATH and does not download the denoiser at runtime.",
+      "A modified selected binary is rejected fail-closed.",
+      "The existing Video_Tunner regression and doctor contracts remain green with the selected binary bundled."
+    ],
+    "not_proven_or_not_authorized": [
+      "No product denoise renderer is authorized by this evidence.",
+      "No denoise treatment is auto-applied.",
+      "The product default is not changed from preserve.",
+      "Bundling the selected runtime is not equivalent to authorization to process user audio."
+    ]
+  },
+  "next_gate": "3.6h_explicit_denoise_plan_and_execution_authorization_design"
+}
