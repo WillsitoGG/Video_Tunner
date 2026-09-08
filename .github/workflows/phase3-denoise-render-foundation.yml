@@ -66,7 +66,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $deepfilterHelp -notmatch "--compensate-delay" -or $deepfilterHelp -notmatch "--output-dir") { throw "DeepFilterNet CLI mismatch." }
           Write-Host "PHASE3_6I_IMMUTABLE_TOOLS=PASS"
 
-      - name: Validate Phase 3.6i focused contracts
+      - name: Validate Phase 3.6i focused contracts and persisted evidence
         run: >-
           python -m unittest -v
           tests.test_denoise_render
@@ -75,6 +75,7 @@ jobs:
           tests.test_denoise_execution_authorization
           tests.test_denoise_runtime
           tests.test_phase3_denoise_plan_authorization_evidence
+          tests.test_phase3_denoise_render_foundation_evidence
 
       - name: Run real DeepFilterNet synthetic render E2E
         run: python -m unittest -v tests.test_denoise_render_e2e_ffmpeg
