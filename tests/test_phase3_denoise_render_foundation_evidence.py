@@ -151,6 +151,28 @@ class Phase3DenoiseRenderFoundationEvidenceTests(unittest.TestCase):
         self.assertIn("No Guille media is processed or authorized", workflow)
         self.assertIn("Render complete is not technical PASS or human PASS", workflow)
 
+    def test_master_docs_are_synchronized_to_3_6i_closed_and_3_6j_next(self):
+        docs = {
+            "README": (ROOT / "README.md").read_text(encoding="utf-8"),
+            "AGENTS": (ROOT / "AGENTS.md").read_text(encoding="utf-8"),
+            "ROADMAP": (ROOT / "ROADMAP.md").read_text(encoding="utf-8"),
+            "RELEASE_STATUS": (ROOT / "RELEASE_STATUS.md").read_text(encoding="utf-8"),
+            "VALIDATION_README": (ROOT / "Validation" / "README.md").read_text(encoding="utf-8"),
+        }
+        for name, content in docs.items():
+            with self.subTest(document=name):
+                self.assertIn("3.6i", content)
+                self.assertIn("3.6j", content)
+        self.assertIn("Fase 3.6i — Gated Denoise Renderer: ✅ **TECHNICAL FOUNDATION PASS**", docs["README"])
+        self.assertIn("Siguiente trabajo — Fase 3.6j", docs["README"])
+        self.assertIn("3.6i — gated denoise renderer technical foundation", docs["AGENTS"])
+        self.assertIn("3.6j independent denoise post-render technical verifier", docs["AGENTS"])
+        self.assertIn("3.6i — Gated Denoise Renderer Technical Foundation — COMPLETADA", docs["ROADMAP"])
+        self.assertIn("3.6j — Independent Denoise Post-Render Technical Verifier — SIGUIENTE", docs["ROADMAP"])
+        self.assertIn("Fase 3.6i: **TECHNICAL FOUNDATION PASS", docs["RELEASE_STATUS"])
+        self.assertIn("phase3-denoise-render-foundation.json", docs["VALIDATION_README"])
+        self.assertIn("real_user_media_processed_by_denoise_renderer = false", docs["VALIDATION_README"])
+
 
 if __name__ == "__main__":
     unittest.main()
