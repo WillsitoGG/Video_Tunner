@@ -18,15 +18,19 @@ Obligatorio:
 8. una señal posterior favorable nunca rescata una guarda anterior bloqueada;
 9. `measurement != treatment decision != treatment authorization`;
 10. `noise measurement != denoise decision != denoise authorization`;
-11. `profile selection != normalization approval != normalization execution authorization`;
-12. technical normalization PASS != human perceptual PASS;
-13. `preserve` audiovisual es default;
-14. ningún risk finding auto-selecciona tratamiento;
-15. dynamic loudnorm fallback está prohibido en la foundation validada;
-16. ningún valor dBFS de 3.6a es por sí solo un threshold de denoise;
-17. ante duda: KEEP/REVIEW;
-18. `auto_apply=false`;
-19. no release sin autorización expresa de Guille.
+11. candidate evaluation != candidate selection != denoise authorization;
+12. selected denoiser != renderer authorization;
+13. `profile selection != normalization approval != normalization execution authorization`;
+14. technical normalization PASS != human perceptual PASS;
+15. `preserve` audiovisual es default;
+16. ningún risk finding auto-selecciona tratamiento;
+17. dynamic loudnorm fallback está prohibido en la foundation validada;
+18. ningún valor dBFS de 3.6a es por sí solo un threshold de denoise;
+19. ninguna métrica objetiva de 3.6c–d sustituye escucha humana;
+20. DeepFilterNet integrado en portable no implica denoise autorizado;
+21. ante duda: KEEP/REVIEW;
+22. `auto_apply=false`;
+23. no release sin autorización expresa de Guille.
 
 Cadena actual:
 
@@ -46,8 +50,14 @@ sources → ingest/sync → MASTER AUDIO → Whisper/VAD
    │  → gated linear normalization render
    │  → independent normalization post-render verification
    │  → human perceptual review [PENDING]
-   └→ noise evidence audit [MEASUREMENT-ONLY]
-      → denoise corpus/evaluation [NEXT]
+   └→ noise evidence audit
+      → frozen denoise corpus
+      → objective baseline
+      → candidate objective comparison
+      → blinded human A/B
+      → candidate selection review
+      → portable selected-runtime contract
+      → denoise plan/authorization [NEXT; no renderer]
 ```
 
 ## 2. Estado
@@ -67,12 +77,19 @@ Completado:
 - Fase 3.5b — Normalization Execution Authorization foundation;
 - Fase 3.5c — real gated linear normalization renderer technical foundation;
 - Fase 3.5d — independent normalization post-render verifier technical foundation;
-- Fase 3.6a — Noise Evidence Audit measurement-only foundation.
+- Fase 3.6a — Noise Evidence Audit measurement-only foundation;
+- Fase 3.6b — frozen denoise evaluation corpus + materialization evidence;
+- Fase 3.6c — objective noisy baseline;
+- Fase 3.6d — objective candidate comparison;
+- Fase 3.6e — blinded human perceptual A/B closeout;
+- Fase 3.6f — denoiser selection review: DeepFilterNet selected for integration review;
+- Fase 3.6g — immutable/offline portable DeepFilterNet runtime contract.
 
 No completado:
 
 - human perceptual close-out de normalización;
-- denoise corpus/decision/treatment;
+- denoise plan + explicit execution authorization;
+- denoise renderer / post-render verification;
 - join smoothing/crossfade evidence/treatment;
 - Fase 3 closeout;
 - UX/release.
@@ -102,6 +119,15 @@ human review  2E.5 — 3/3 human perceptual PASS / CLOSE_OUT_READY
 34139639280  full regression through 3.5d — 337/337 + doctor PASS
 34141013261  Phase 3.6a noise audit — 9/9 + real MP4/AAC E2E PASS
 34141115293  full regression through 3.6a — 346/346 + doctor PASS
+34142222451  Phase 3.6b corpus materialization — 40 paired cases PASS
+34143456746  Phase 3.6c objective noisy baseline — 40/40 measured
+34144574712  DeepFilterNet 0.5.6 temporal smoke — 3.00 s → 2.97 s
+34145308485  Phase 3.6d candidate objective comparison — PASS
+34148410617  Phase 3.6e blinded human A/B bundle
+34150202283  Phase 3.6e closeout validation — 398/398 + doctor PASS
+34150663772  Phase 3.6f selection artifact — DeepFilterNet selected for integration review
+34150832960  Phase 3.6f final validation — 410/410 + doctor PASS
+34211660270  Phase 3.6g portable runtime — 14/14 focused, 418 integrated, both doctor PASS
 ```
 
 Focal baseline observed only:
@@ -128,6 +154,23 @@ PyInstaller 6.22.2
 VAD: faster-whisper + `silero_vad_v6.onnx`. Modelo objetivo: `large-v3-turbo`.
 
 `single_pass` sigue siendo default de transcripción. `deterministic_overlap_12s_3s_repeat_consensus_v1` es opt-in explícito y fue validada para 2E.5. No exponer estrategias no validadas.
+
+Denoiser seleccionado para integration review:
+
+```text
+candidate_id = deepfilternet_0_5_6_compensated_v1
+upstream = DeepFilterNet 0.5.6
+asset = deep-filter-0.5.6-x86_64-pc-windows-msvc.exe
+sha256 = 75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915
+size = 26912256 bytes
+runtime = Tools/deepfilter/bin/deep-filter.exe
+args = --compensate-delay --output-dir <output_dir> <input_wav>
+runtime_download_allowed = false
+product_default = preserve
+denoise_authorized = false
+renderer_authorized = false
+auto_apply = false
+```
 
 ## 5. Schemas / artifacts
 
@@ -284,7 +327,9 @@ auto_apply = false
 
 Detalle: `Validation/phase3-normalization-foundation.md`.
 
-## 9. Fase 3.6a — Noise Evidence Audit
+## 9. Fase 3.6a–g — Denoise evidence, selection y portable runtime
+
+### 3.6a — Noise Evidence Audit
 
 `Source/video_tunner/noise_audit.py` es measurement-only.
 
@@ -299,30 +344,139 @@ minimum NS windows        2
 minimum total NS coverage 2.0 s
 ```
 
-Reglas:
+La suficiencia sólo acredita cobertura para medir. Ninguna métrica activa denoise.
 
-- exige `audiovisual_quality_audit` válido y output SHA vigente;
-- speech intervals deben ser explícitos, no solapados y dentro de timeline;
-- `speech_evidence_sha256` obligatorio;
-- non-speech se deriva sólo después de separar 150 ms de cada borde speech;
-- digital silence se registra como tal, no como un floor dBFS inventado;
-- speech/non-speech delta es sólo energy proxy, no SNR perceptual;
-- `insufficient_noise_evidence` significa cobertura insuficiente, no que haga falta denoise;
-- ninguna métrica activa tratamiento.
+### 3.6b — Frozen evaluation corpus
 
-Siempre:
+Corpus: `voicebank_demand_official_test_balanced_v1`.
 
 ```text
-denoise_evaluated = false
+paired noisy + clean cases = 40
+speakers = 2 (p232, p257)
+noise classes = bus, cafe, living, office, psquare
+SNRs = 17.5, 12.5, 7.5, 2.5 dB
+sample rate = 48 kHz
+license = CC BY 4.0
+```
+
+Los archivos reales no se versionan en Git; se persisten hashes/provenance y se materializan sólo para validación.
+
+### 3.6c — Objective baseline
+
+Métricas precomprometidas:
+
+```text
+SI-SDR
+STOI
+```
+
+Baseline noisy descriptivo sobre 40/40 casos. No hay thresholds de aceptación ni ranking autorizado.
+
+### 3.6d — Candidate objective comparison
+
+Candidatos:
+
+```text
+preserve_noisy_control_v1
+ffmpeg_afftdn_fixed_v1
+deepfilternet_0_5_6_compensated_v1
+```
+
+DeepFilterNet, en los 40 casos noisy:
+
+```text
+mean SI-SDR delta vs preserve = +9.87013412 dB
+positive SI-SDR cases = 40/40
+mean STOI delta vs preserve = +0.01112968
+positive STOI cases = 27/40
+raw duration delta = -0.03 s
+```
+
+Clean controls DeepFilterNet:
+
+```text
+case_count = 40
+mean STOI = 0.99542798
+mean normalized RMSE = 0.03238068
+numeric acceptance threshold applied = false
+```
+
+`ffmpeg_afftdn_fixed_v1` degradó fuertemente las métricas en este contrato concreto. La comparación objetiva fue auxiliar y no seleccionó candidato por sí sola.
+
+### 3.6e — Human blinded A/B
+
+Guille realizó la escucha A/B precomprometida.
+
+DeepFilterNet:
+
+```text
+treatment preferences = 10
+preserve preferences = 0
+no preference = 0
+speech integrity failures = 0
+artifact failures = 0
+status = ELIGIBLE_FOR_SELECTION_REVIEW
+```
+
+AFFTDN:
+
+```text
+treatment preferences = 3
+preserve preferences = 2
+no preference = 5
+perceptual gate = FAIL
+status = NOT_ADVANCED_PRESERVE_DEFAULT
+```
+
+El human gate sólo habilitó selection review; no autorizó denoise ni renderer.
+
+### 3.6f — Candidate selection
+
+Seleccionado:
+
+```text
+deepfilternet_0_5_6_compensated_v1
+selection_status = SELECTED_FOR_INTEGRATION_REVIEW
+```
+
+No seleccionado: `ffmpeg_afftdn_fixed_v1`.
+
+La selección NO cambia:
+
+```text
+product_default = preserve
 denoise_authorized = false
-filter_selected = false
-parameters_defined = false
-executable = false
-treatment_authorized = false
+renderer_authorized = false
 auto_apply = false
 ```
 
-Detalle: `Validation/phase3-noise-audit-foundation.md`.
+### 3.6g — Portable runtime contract
+
+DeepFilterNet 0.5.6 se integra como herramienta portable inmutable:
+
+```text
+Tools/deepfilter/bin/deep-filter.exe
+SHA-256 75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915
+26912256 bytes
+runtime_download_allowed = false
+```
+
+El build descarga únicamente durante build, valida asset, copia el mismo binario y vuelve a validar. Runtime no usa PATH ni red para adquirirlo.
+
+Gate `34211660270` acreditó:
+
+- build portable PASS;
+- provenance exacta PASS;
+- ejecución de DeepFilterNet con outbound network bloqueado PASS;
+- tampered binary fail-closed PASS;
+- 14/14 tests focales;
+- 418 tests integrados OK;
+- development doctor PASS;
+- portable doctor PASS.
+
+Artifact ligero: `10050110122`, ZIP SHA-256 `c27f8a0ddfaa88bfdfa36bf8c79d6b4ec74198669f75cbfbb427648c6d04de89`.
+
+Evidencia persistente: `Validation/phase3-denoiser-portable-runtime.json`.
 
 ## 10. Baseline real de Fase 3
 
@@ -336,17 +490,21 @@ La evidencia actual NO justifica:
 
 Default: preservar el render validado.
 
-## 11. Próximo trabajo — Fase 3.6b
+## 11. Próximo trabajo — Fase 3.6h
 
-Antes de cualquier denoiser ejecutable:
+Crear primero una capa separada y stale-safe de **denoise plan proposal + explicit execution authorization**, sin renderer todavía.
 
-- seleccionar/congelar corpus con noisy speech y clean/control comparable;
-- provenance + licencia compatibles con el proyecto;
-- diversidad de ruidos y niveles;
-- métricas objetivas sólo como evidencia auxiliar;
-- controles limpios obligatorios para detectar degradación introducida;
-- comparación perceptual humana antes de autorizar filtro/parámetros;
-- no seleccionar `afftdn`, `arnndn` u otro filtro por conveniencia.
+Debe mantener como mínimo:
+
+- binding exacto al output/source SHA acreditado;
+- binding exacto a `deepfilternet_0_5_6_compensated_v1` y al runtime 3.6g;
+- parámetros/CLI congelados y auditables;
+- proposal != authorization;
+- aprobación explícita con actor + reason;
+- stale/tamper fail-closed;
+- `preserve` como product default;
+- `auto_apply=false`;
+- no output tratado hasta una fase posterior de renderer explícitamente autorizada.
 
 Join smoothing/crossfade continúa bloqueado hasta evidencia A/B perceptual específica.
 
