@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import tempfile
 import wave
@@ -11,6 +10,7 @@ from typing import Any
 from .approval import sha256_path
 from .denoise_execution_authorization import validate_denoise_execution_authorization
 from .denoise_runtime import (
+    DEEPFILTER_ARGUMENTS,
     DEEPFILTER_RAW_DURATION_DELTA_MAX_SECONDS,
     DenoiserRuntimeError,
     deepfilter_executable_path,
@@ -65,9 +65,8 @@ def _probe_source_audio_contract(source: Path) -> dict[str, Any]:
     return {"channels": channels, "sample_rate_hz": sample_rate_hz}
 
 
-def _read_pcm16_mono_48k(path: Path) -> tuple[wave._wave_params, bytes, int]:
+def _read_pcm16_mono_48k(path: Path) -> tuple[bytes, int]:
     with wave.open(str(path), "rb") as wav:
-        params = wav.getparams()
         if wav.getnchannels() != 1:
             raise ValueError(f"{path.name}: se requiere audio mono.")
         if wav.getsampwidth() != 2:
@@ -78,7 +77,66 @@ def _read_pcm16_mono_48k(path: Path) -> tuple[wave._wave_params, bytes, int]:
         raw = wav.readframes(frames)
     if len(raw) != frames * 2:
         raise ValueError(f"{path.name}: bytes PCM no coinciden con frame count.")
-    return params, raw, frames
+    return raw, frames
+
+
+def materialize_deepfilter_arguments(
+    plan: dict[str, Any],
+    *,
+    output_dir: str | Path,
+    input_wav: str | Path,
+) -> list[str]:
+    runtime = plan.get("runtime")
+    if not isinstance(runtime, dict):
+        raise ValueError("Denoise plan sin runtime contract.")
+    template = runtime.get("arguments_template")
+    if template != list(DEEPFILTER_ARGUMENTS):
+        raise ValueError("Denoise plan CLI template ya no coincide con el contrato 3.6g.")
+    replacements = {
+        "<output_dir>": str(Path(output_dir).resolve()),
+        "<input_wav>": str(Path(input_wav).resolve()),
+    }
+    materialized: list[str] = []
+    for token in template:
+        if token.startswith("<") and token.endswith(">"):
+            if token not in replacements:
+                raise ValueError(f"Placeholder DeepFilterNet no soportado: {token}")
+            materialized.append(replacements[token])
+        else:
+            materialized.append(str(token))
+    return materialized
+
+
+def build_denoise_remux_command(
+    ffmpeg: str | Path,
+    source: str | Path,
+    normalized_wav: str | Path,
+    destination: str | Path,
+) -> list[str]:
+    return [
+        str(ffmpeg),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(Path(source).resolve()),
+        "-i",
+        str(Path(normalized_wav).resolve()),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-map_metadata",
+        "0",
+        "-c:v",
+        "copy",
+        "-c:a",
+        DENOISE_RENDER_AUDIO_CODEC,
+        "-b:a",
+        DENOISE_RENDER_AUDIO_BITRATE,
+        str(Path(destination).resolve()),
+    ]
 
 
 def normalize_denoised_pcm_timeline(
@@ -97,8 +155,8 @@ def normalize_denoised_pcm_timeline(
     input_path = Path(input_wav).resolve()
     candidate_path = Path(denoised_wav).resolve()
     output_path = Path(destination_wav).resolve()
-    input_params, input_raw, input_frames = _read_pcm16_mono_48k(input_path)
-    _, candidate_raw, candidate_frames = _read_pcm16_mono_48k(candidate_path)
+    _, input_frames = _read_pcm16_mono_48k(input_path)
+    candidate_raw, candidate_frames = _read_pcm16_mono_48k(candidate_path)
 
     raw_frame_delta = candidate_frames - input_frames
     raw_duration_delta_seconds = raw_frame_delta / 48000.0
@@ -125,7 +183,7 @@ def normalize_denoised_pcm_timeline(
         wav.setframerate(48000)
         wav.writeframes(final_raw)
 
-    _, normalized_raw, final_frames = _read_pcm16_mono_48k(output_path)
+    normalized_raw, final_frames = _read_pcm16_mono_48k(output_path)
     if final_frames != input_frames:
         raise RuntimeError("La normalización temporal de cola no produjo frame count exacto.")
     prefix_bytes = min(len(candidate_raw), len(normalized_raw))
@@ -224,6 +282,7 @@ def validate_denoise_render_request(
 
     try:
         runtime_validation = validate_selected_denoiser_binary(probe_cli=True)
+        materialize_deepfilter_arguments(plan, output_dir=source_path.parent, input_wav=source_path)
     except (DenoiserRuntimeError, OSError, ValueError) as exc:
         return base | {"status": "blocked_runtime_contract", "reason": str(exc)}
 
@@ -344,16 +403,8 @@ def render_denoised_media(
         )
         _read_pcm16_mono_48k(input_wav)
 
-        _run_checked(
-            [
-                str(deepfilter),
-                "--compensate-delay",
-                "--output-dir",
-                str(raw_dir),
-                str(input_wav),
-            ],
-            label="DeepFilterNet",
-        )
+        deepfilter_args = materialize_deepfilter_arguments(plan, output_dir=raw_dir, input_wav=input_wav)
+        _run_checked([str(deepfilter), *deepfilter_args], label="DeepFilterNet")
         raw_outputs = sorted(raw_dir.glob("*.wav"))
         if len(raw_outputs) != 1:
             raise RuntimeError(f"DeepFilterNet produjo {len(raw_outputs)} WAVs; se esperaba exactamente 1.")
@@ -380,30 +431,7 @@ def render_denoised_media(
         timeline = normalize_denoised_pcm_timeline(input_wav, decoded_wav, normalized_wav)
 
         _run_checked(
-            [
-                str(ffmpeg),
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-y",
-                "-i",
-                str(source_path),
-                "-i",
-                str(normalized_wav),
-                "-map",
-                "0:v:0",
-                "-map",
-                "1:a:0",
-                "-map_metadata",
-                "0",
-                "-c:v",
-                "copy",
-                "-c:a",
-                DENOISE_RENDER_AUDIO_CODEC,
-                "-b:a",
-                DENOISE_RENDER_AUDIO_BITRATE,
-                str(destination_path),
-            ],
+            build_denoise_remux_command(ffmpeg, source_path, normalized_wav, destination_path),
             label="FFmpeg denoise remux",
         )
 
