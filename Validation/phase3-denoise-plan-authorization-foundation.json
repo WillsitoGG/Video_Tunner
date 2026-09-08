@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "record_type": "phase3_denoise_plan_authorization_foundation",
+  "phase": "3.6h",
+  "status": "TECHNICAL_FOUNDATION_PASS",
+  "implementation": {
+    "plan_module": "Source/video_tunner/denoise_plan.py",
+    "authorization_module": "Source/video_tunner/denoise_execution_authorization.py",
+    "plan_schema_version": 1,
+    "plan_record_type": "denoise_plan_proposal",
+    "plan_policy_id": "deepfilternet_compensated_offline_fail_closed_v1",
+    "authorization_schema_version": 1,
+    "authorization_record_type": "denoise_execution_authorization",
+    "decisions": ["APPROVE", "REJECT"]
+  },
+  "bindings": {
+    "noise_evidence_required": "noise_evidence_audit schema v1",
+    "noise_evidence_role": "measurement_coverage_only_not_treatment_trigger",
+    "current_output_sha256_required": true,
+    "selection_review_required": "denoiser_selection_review Phase 3.6f",
+    "selected_candidate_id": "deepfilternet_0_5_6_compensated_v1",
+    "runtime_contract_source": "Source/video_tunner/denoise_runtime.py",
+    "runtime_contract_phase": "3.6g",
+    "deepfilter_version": "0.5.6",
+    "deepfilter_asset_sha256": "75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915",
+    "deepfilter_asset_size_bytes": 26912256,
+    "runtime_relative_path": "Tools/deepfilter/bin/deep-filter.exe",
+    "arguments_template": ["--compensate-delay", "--output-dir", "<output_dir>", "<input_wav>"],
+    "raw_duration_delta_max_seconds": 0.05
+  },
+  "plan_contract": {
+    "insufficient_noise_measurement_coverage_blocks_plan": true,
+    "insufficient_coverage_is_not_interpreted_as_denoise_need": true,
+    "noise_evidence_fingerprint_bound": true,
+    "selection_review_fingerprint_bound": true,
+    "runtime_contract_fingerprint_bound": true,
+    "parameters_defined_only_when_measurement_coverage_is_sufficient": true,
+    "parameters_executable": false,
+    "denoise_authorized": false,
+    "denoise_render_authorization": false,
+    "plan_render_authorization": false,
+    "renderer_available": false,
+    "executable": false,
+    "auto_apply": false
+  },
+  "authorization_contract": {
+    "explicit_actor_required": true,
+    "explicit_reason_required": true,
+    "approve_can_grant_only_future_gated_denoise_render_authorization": true,
+    "approve_does_not_make_parameters_executable": true,
+    "approve_does_not_make_renderer_available": true,
+    "approve_does_not_make_record_executable": true,
+    "plan_render_authorization": false,
+    "auto_apply": false,
+    "stale_plan_sha_fails_closed": true,
+    "stale_output_sha_fails_closed": true,
+    "tampered_noise_evidence_fails_closed": true,
+    "tampered_selection_fails_closed": true,
+    "tampered_plan_fails_closed": true,
+    "capability_tampering_fails_closed": true
+  },
+  "validation": {
+    "run_id": 34220351609,
+    "job_id": 102041750032,
+    "head_sha": "ec5409066003472614c7f838789de789123d58be",
+    "runner": "windows-2025-vs2026",
+    "python": "3.12.10",
+    "focused_tests": "38/38 PASS",
+    "integrated_tests": "445/445 PASS",
+    "doctor": "PASS",
+    "scope_note_pass": true
+  },
+  "actual_product_state": {
+    "real_user_authorization_record_created": false,
+    "real_user_media_authorized_for_denoise": false,
+    "denoise_renderer_implemented": false,
+    "treated_media_generated": false,
+    "product_default": "preserve",
+    "product_default_changed": false,
+    "auto_apply": false
+  },
+  "interpretation": {
+    "phase3_6h_technical_foundation_closed": true,
+    "contract_approve_path_tested_with_synthetic_fixture_only": true,
+    "guille_did_not_issue_a_real_per_media_denoise_authorization_in_3_6h": true,
+    "selected_runtime_availability_does_not_equal_treatment_authorization": true,
+    "next_phase": "3.6i_gated_denoise_renderer_technical_foundation"
+  }
+}
