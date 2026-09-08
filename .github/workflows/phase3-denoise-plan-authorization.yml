@@ -33,7 +33,7 @@ jobs:
       - name: Install editable package and lightweight sync dependency
         run: python -m pip install --disable-pip-version-check -e . numpy==2.5.2
 
-      - name: Validate Phase 3.6h focused contracts
+      - name: Validate Phase 3.6h focused contracts and persisted closeout
         run: >-
           python -m unittest -v
           tests.test_denoise_plan
@@ -41,6 +41,7 @@ jobs:
           tests.test_denoise_runtime
           tests.test_phase3_denoiser_selection_review_evidence
           tests.test_phase3_denoiser_portable_runtime_evidence
+          tests.test_phase3_denoise_plan_authorization_evidence
 
       - name: Run integrated regression
         run: python -m unittest discover -s tests -v
