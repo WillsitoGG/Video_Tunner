@@ -37,6 +37,7 @@ def runtime_layout() -> dict[str, Path]:
         "logs": root / "Logs",
         "output": root / "Output",
         "ffmpeg_bin": root / "Tools" / "ffmpeg" / "bin",
+        "deepfilter_bin": root / "Tools" / "deepfilter" / "bin",
     }
 
 
