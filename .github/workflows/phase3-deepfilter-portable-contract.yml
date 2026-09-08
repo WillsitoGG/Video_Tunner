@@ -2,9 +2,6 @@ name: Phase 3.6g DeepFilterNet Portable Contract
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/phase3-deepfilter-portable-contract.trigger"
 
 concurrency:
   group: phase3-deepfilter-portable-${{ github.ref }}
