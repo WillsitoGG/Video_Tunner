@@ -10,7 +10,7 @@ concurrency:
 jobs:
   windows-render-foundation:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       PHASE3_FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-05-13-10/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-gpl-9.0.zip
       PHASE3_FFMPEG_SHA256: a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f
@@ -48,7 +48,9 @@ jobs:
           if (-not $ffmpeg -or -not $ffprobe) { throw "Immutable FFmpeg package incomplete." }
           $version = (& $ffmpeg.FullName -version | Select-Object -First 1)
           if ($version -notmatch [regex]::Escape($env:PHASE3_FFMPEG_VERSION_TOKEN)) { throw "FFmpeg version token mismatch." }
-          "VIDEO_TUNNER_FFMPEG_DIR=$($ffmpeg.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $ffmpegDir = $ffmpeg.Directory.FullName
+          "VIDEO_TUNNER_FFMPEG_DIR=$ffmpegDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $ffmpegDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
           $deepfilterDir = Join-Path $env:GITHUB_WORKSPACE "Tools\deepfilter\bin"
           New-Item -ItemType Directory -Force -Path $deepfilterDir | Out-Null
@@ -68,6 +70,7 @@ jobs:
         run: >-
           python -m unittest -v
           tests.test_denoise_render
+          tests.test_denoise_render_contract_binding
           tests.test_denoise_plan
           tests.test_denoise_execution_authorization
           tests.test_denoise_runtime
@@ -76,7 +79,7 @@ jobs:
       - name: Run real DeepFilterNet synthetic render E2E
         run: python -m unittest -v tests.test_denoise_render_e2e_ffmpeg
 
-      - name: Run integrated regression
+      - name: Run integrated regression with immutable FFmpeg discoverable by legacy E2E guards
         run: python -m unittest discover -s tests -v
 
       - name: Runtime doctor
