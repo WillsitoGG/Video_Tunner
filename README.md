@@ -10,7 +10,7 @@ Acepta vídeo con audio embebido o vídeo + audio externo. Antes de transcripci�
 ZIP → descomprimir → ejecutar
 ```
 
-Sin instalador, permisos de administrador, Python preinstalado ni FFmpeg/ffprobe preinstalados. Herramientas, modelos, configuración, temporales, caches y logs se resuelven desde el árbol portable.
+Sin instalador, permisos de administrador, Python preinstalado ni FFmpeg/ffprobe del sistema. Herramientas, modelos, configuración, temporales, caches y logs se resuelven desde el árbol portable.
 
 ```text
 A) vídeo + audio embebido → master audio
@@ -28,18 +28,18 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 1A — Portable Foundation: ✅
 - Fase 1B — Ingesta dual + sync/drift: ✅
 - Fase 1C — Transcripción/VAD + español real: ✅
-- Fase 2A–2C — Semántica + protección + validación real: ✅
-- Fase 2D — Scope + fillers + join + eligibility: ✅ **foundation/evidence cerrada**
-- Fase 2E — Promotion → approval → proposal → authorization → semantic render → human close-out: ✅ **CLOSE_OUT_READY**
-- Fase 3.1 — Audiovisual Quality Audit v1: ✅ **foundation validada**
-- Fase 3 focal real — ORIGINAL/RENDERED sobre los 3 joins 2E.5: ✅
-- Fase 3.2 — Bypass-first Treatment Decision: ✅ **foundation validada**
-- Fase 3.3 — Normalization Profile Contract: ✅ **review-only foundation**
-- Fase 3.4 — Explicit Normalization Approval: ✅ **foundation validada**
-- Fase 3.5a–d — plan → execution authorization → real linear render → technical verification: ✅ **technical foundation validada**
+- Fase 2A–2D — Semántica, protección, joins y eligibility: ✅
+- Fase 2E — Promotion → approval → authorization → semantic render → human close-out: ✅ **CLOSE_OUT_READY**
+- Fase 3.1–3.5d — Quality audit + normalization technical foundation: ✅
 - Human perceptual close-out de normalización: ⏳ **pendiente**
-- Fase 3.6a — Noise Evidence Audit: ✅ **measurement-only foundation validada**
-- Denoise ejecutable: 🚫 **no autorizado**
+- Fase 3.6a — Noise Evidence Audit: ✅ measurement-only
+- Fase 3.6b — Denoise Evaluation Corpus: ✅ 40 pares clean/noisy congelados
+- Fase 3.6c — Objective Baseline: ✅ 40/40
+- Fase 3.6d — Candidate Objective Comparison: ✅
+- Fase 3.6e — Blind Human A/B: ✅ **CLOSED**
+- Fase 3.6f — Selection Review: ✅ **DeepFilterNet 0.5.6 seleccionado para integration review**
+- Fase 3.6g — Portable Runtime Contract: ✅ **CLOSED**
+- Tratamiento denoise ejecutable en producto: 🚫 **NO AUTORIZADO**
 - Fase 3 completa: 🚧 **en curso**
 - Release pública: ninguna
 
@@ -64,30 +64,27 @@ bounded proposal → global execution authorization
   ↓
 semantic_edit_plan → semantic render gate → FFmpeg
   ↓
-semantic_render_verification → semantic_render_human_review
-  ↓
-phase2e_closeout_decision
+technical verification → human review → Phase 2E closeout
   ↓
 audiovisual_quality_audit
-  ├→ audiovisual_treatment_decision
-  │   ↓
-  │ normalization_profile_decision
-  │   ↓
-  │ normalization_approval
-  │   ↓
-  │ normalization_plan_proposal
-  │   ↓
-  │ normalization_execution_authorization
-  │   ↓
-  │ gated linear normalization render
-  │   ↓
-  │ normalization_post_render_verification
-  │   ↓
-  │ human perceptual review [PENDING]
+  ├→ normalization review/approval/plan/auth/render/technical verify
+  │  └→ human perceptual normalization review [PENDING]
   │
-  └→ noise_evidence_audit [MEASUREMENT-ONLY]
+  └→ noise_evidence_audit
       ↓
-      denoise corpus/evaluation [NEXT; no renderer]
+      frozen denoise corpus
+      ↓
+      objective baseline
+      ↓
+      candidate comparison
+      ↓
+      blinded human A/B
+      ↓
+      deterministic selection review
+      ↓
+      immutable/offline portable DeepFilterNet runtime
+      ↓
+      explicit denoise plan + execution-authorization design [NEXT]
 ```
 
 Invariantes:
@@ -96,13 +93,12 @@ Invariantes:
 measurement != treatment decision
 treatment decision != treatment authorization
 noise measurement != denoise decision
-denoise decision != denoise authorization
-profile selection != normalization approval
-normalization approval != execution authorization
-technical normalization PASS != human perceptual PASS
-Phase 3 favorable signal != rescue of failed Phase 2E
+denoiser selection != denoise authorization
+portable runtime availability != renderer authorization
+plan != execution authorization
 preserve = default
 auto_apply = false
+original overwrite = forbidden
 ```
 
 ## Portable / ML validado
@@ -116,173 +112,116 @@ Modelo objetivo: **`large-v3-turbo`**.
 
 La estrategia de transcripción de producto sigue siendo `single_pass` por defecto. `deterministic_overlap_12s_3s_repeat_consensus_v1` está expuesta como opt-in explícito y fue la estrategia validada para el close-out 2E.5.
 
-## Artifacts principales
+## Fase 3.6 — Denoise evidence → selection → portable runtime
+
+### 3.6a–c — medición y corpus
+
+`noise_evidence_audit` es measurement-only: ninguna métrica de ruido activa tratamiento.
+
+El corpus denoise congelado es `voicebank_demand_official_test_balanced_v1`, derivado del test oficial VoiceBank+DEMAND, con licencia CC BY 4.0 y hashes de materialización. Contiene **40 pares clean/noisy** a 48 kHz con dos speakers, cinco categorías de ruido y cuatro niveles SNR por bloque seleccionado.
+
+La baseline objetiva usa clean/noisy pareados y política precomprometida `paired_clean_noisy_sisdr_stoi_v1`. Las métricas son evidencia comparativa, no autorización.
+
+### 3.6d — comparación de candidatos
+
+Se evaluaron candidatos sobre los mismos 40 casos y clean controls. Ningún resultado objetivo podía seleccionar por sí solo un filtro ni cambiar `preserve`.
+
+### 3.6e — A/B humano ciego
+
+Guille escuchó el bundle ciego completo. El remapeo validado por código produjo:
 
 ```text
-analysis.json                            schema v9
-promotion_approval.json                  schema v1
-approved_edit_plan_proposal.json         schema v1
-semantic_execution_authorization.json    schema v1
-semantic_edit_plan.json                  schema v1
-semantic_render_verification             schema v1
-semantic_render_human_review             schema v1
-phase2e_closeout_decision                 schema v1
-audiovisual_quality_audit                 schema v1
-audiovisual_treatment_decision            schema v1
-normalization_profile_decision            schema v1
-normalization_approval                    schema v1
-normalization_plan_proposal               schema v1
-normalization_execution_authorization     schema v1
-normalization_render_result               schema v1
-normalization_post_render_verification    schema v1
-noise_evidence_audit                      schema v1
+DeepFilterNet 0.5.6   treatment 10/10 | preserve 0 | empate 0 | gate PASS
+afftdn                treatment  3/10 | preserve 2 | empate 5 | gate FAIL
+speech integrity FAIL = 0
+artifact FAIL         = 0
 ```
 
-## Evidencia principal Fase 2E
+Run final de reconstrucción/revisión: `34150202283` — **398/398 + doctor PASS**.
+
+### 3.6f — selección determinista
+
+Único candidato seleccionado para integration review:
 
 ```text
-33909424933  2E.4 authorization/render-gate core — 201/201 + doctor PASS
-33909625346  2E.4 real FFmpeg semantic render E2E — 202/202 + doctor PASS
-34119952855  2E.5 real AMI technical close-out — 3/3 technical PASS, 2 sources
-human close-out                       — 3/3 perceptual PASS, 0 FAIL, CLOSE_OUT_READY
-34124101770  cleaned Phase 2E branch — 275/275 + doctor PASS
+deepfilternet_0_5_6_compensated_v1
+mean SI-SDR delta vs preserve = +9.870134 dB
+mean STOI delta vs preserve   = +0.0111297
+SI-SDR positive cases         = 40/40
+STOI positive cases           = 27/40
+max |raw duration delta|      = 0.03 s
+clean-control STOI mean       = 0.99542798
+clean-control NRMSE mean      = 0.03238068
 ```
 
-Evidencia permanente: `Validation/phase2e-post-render-closeout.md` y `Validation/phase2e-human-closeout/`.
+No se inventó un threshold numérico post hoc para clean controls. Run final `34150832960`: **410/410 + doctor PASS**.
 
-## Fase 3 — estado actual
+### 3.6g — runtime portable seleccionado
 
-### 3.1–3.3 — measurement / policy foundation
-
-`audiovisual_quality_audit` mide loudness integrado, true peak y LRA sin tratamiento. El baseline focal real reutilizó exactamente los 3 pares ya escuchados en 2E.5:
+DeepFilterNet quedó congelado como dependencia portable de **integration review**, no como tratamiento autorizado:
 
 ```text
-cases = 3
-sources = 2
-human PASS = 3/3
-max observed |Δ loudness| = 0.40 LU
-max observed |Δ true peak| = 0.04 dB
+version                0.5.6
+asset                   deep-filter-0.5.6-x86_64-pc-windows-msvc.exe
+SHA-256                 75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915
+size                    26,912,256 bytes
+portable path           Tools/deepfilter/bin/deep-filter.exe
+CLI                     --compensate-delay --output-dir <output_dir> <input_wav>
+runtime download        forbidden
+PATH lookup              forbidden
+product default          preserve
+denoise_authorized       false
+renderer_authorized      false
+auto_apply               false
 ```
 
-**0.40 LU y 0.04 dB son observaciones del corpus, no thresholds de producto.** Esa muestra no justifica normalización obligatoria, denoise ni smoothing/crossfade por defecto.
-
-El comportamiento por defecto de Fase 3 es `preserve`. Un riesgo sólo abre revisión.
-
-Perfil standards-based disponible únicamente como opt-in:
+Validación Windows final `34211660270`:
 
 ```text
-ebu_r128_programme
-target = -23 LUFS
-max true peak = -1 dBTP
-EBU R 128 v5.0 (November 2023)
-measurement basis = ITU-R BS.1770-5
+focused contract tests  14/14 PASS
+portable build           PASS
+provenance gate          PASS
+offline smoke            PASS — outbound network blocked for exact executable
+timeline smoke           3.00 s → 2.97 s; Δ=-0.03 s ≤ 0.05 s
+tamper fail-closed       PASS
+integrated regression    418 tests OK (13 skipped)
+development doctor       PASS
+portable doctor          PASS
 ```
 
-No se extrapola como target universal de web/YouTube.
+Evidencia: `Validation/phase3-denoiser-portable-runtime.json`. El closeout está además ligado por tests permanentes a la selección 3.6f, policy congelada, asset, run y artifact.
 
-### 3.4–3.5d — normalization technical foundation
+## Normalización
 
-Cadena explícita y stale-safe:
+La vía `ebu_r128_programme` sigue siendo opt-in y técnicamente validada:
 
 ```text
-profile decision
-→ explicit normalization approval
-→ linear normalization plan proposal
-→ normalization execution authorization
-→ gated FFmpeg render
-→ independent technical post-render verification
+target              -23 LUFS
+max true peak        -1 dBTP
+lra policy           preserve_measured_lra
+dynamic fallback     forbidden
+auto_apply           false
 ```
 
-Política de tratamiento:
+Su technical PASS **no equivale a human perceptual PASS**; ese close-out humano sigue pendiente.
+
+## Siguiente trabajo — Fase 3.6h
+
+Diseñar y congelar la cadena **no ejecutable** de denoise:
 
 ```text
-lra_policy = preserve_measured_lra
-dynamic_fallback_allowed = false
-source overwrite = forbidden
-video = stream copy
-auto_apply = false
+selected candidate + selection evidence + portable runtime evidence
++ accredited source/quality/noise bindings
+→ denoise plan proposal
+→ explicit approval / execution authorization
+→ future renderer gate
 ```
 
-El plan sólo queda ready si FFmpeg puede trabajar en modo lineal sin violar el true-peak target. El renderer vuelve a validar toda la cadena inmediatamente antes de FFmpeg y elimina el derivado si `normalization_type != linear`.
+La siguiente etapa debe ser stale/tamper-safe y mantener separados plan, aprobación y autorización. **No implementar todavía un renderer que trate audio ni cambiar el default `preserve`.**
 
-El verificador independiente comprueba además:
+Join smoothing/crossfade continúa bloqueado hasta evidencia A/B perceptual específica.
 
-```text
-Programme Loudness       -23 LUFS ±0.5 LU
-Maximum True Peak        -1 dBTP
-Duration delta           ≤ 0.15 s
-Video streams            1
-Audio streams            1
-Decoded video SHA-256    source == output
-```
-
-Evidencia:
-
-```text
-34136124997  3.4 approval contract — 15/15 PASS
-34136621557  3.5a linear plan foundation — 15/15 PASS
-34138226442  3.5b execution authorization — 15/15 PASS
-34139056626  3.5c real gated normalization render — 25/25 PASS
-34139502187  3.5d independent post-render verification — 16/16 PASS
-34139639280  full regression through 3.5d — 337/337 + doctor PASS
-```
-
-**Technical PASS no equivale a human perceptual PASS.** La normalización sigue siendo opt-in y su close-out perceptual humano está pendiente.
-
-### 3.6a — Noise Evidence Audit
-
-Foundation measurement-only sobre un output 2E acreditado:
-
-```text
-analysis PCM              mono PCM16 @ 16 kHz
-frame size                0.20 s
-non-speech guard          0.15 s
-minimum NS window         0.40 s
-minimum NS windows        2
-minimum total NS coverage 2.0 s
-```
-
-La suficiencia sólo decide si **hay evidencia medible**. No existe threshold de dBFS que active denoise.
-
-Métricas:
-
-```text
-speech/non-speech median RMS dBFS
-p90 RMS dBFS
-max peak dBFS
-digital silence frame count
-speech-to-non-speech median RMS delta (energy proxy only)
-```
-
-Evidencia:
-
-```text
-34141013261  focused noise audit + real MP4/AAC E2E — 9/9 PASS
-34141115293  full regression through 3.6a — 346/346 + doctor PASS
-```
-
-Siempre:
-
-```text
-denoise_evaluated = false
-denoise_authorized = false
-filter_selected = false
-parameters_defined = false
-executable = false
-auto_apply = false
-```
-
-Detalle: `Validation/phase3-noise-audit-foundation.md`.
-
-## Siguiente trabajo — Fase 3.6b
-
-Seleccionar y congelar primero un **corpus de evaluación denoise** con noisy speech + clean/control comparable, provenance/licencia clara y diversidad de ruido. Las métricas objetivas serán evidencia auxiliar; antes de autorizar cualquier filtro deberá existir comparación perceptual humana.
-
-No implementar todavía un renderer de denoise.
-
-Join smoothing/crossfade continúa bloqueado: los joins 2E.5 ya pasaron escucha humana sin smoothing y no existe evidencia A/B que justifique añadir procesamiento.
-
-Después: Fase 4 UX mínima y Fase 5 Portable Release Hardening.
+Después: cierre restante de Fase 3, Fase 4 UX mínima y Fase 5 Portable Release Hardening.
 
 ## Principios
 
