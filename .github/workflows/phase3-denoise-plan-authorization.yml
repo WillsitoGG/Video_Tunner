@@ -1,0 +1,58 @@
+name: Phase 3.6h Denoise Plan and Authorization
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/phase3-denoise-plan-authorization.trigger"
+
+concurrency:
+  group: phase3-denoise-plan-authorization-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  contract-gate:
+    runs-on: windows-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ensure FFmpeg is available for integrated development validation
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --no-progress -y
+          }
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
+
+      - name: Install editable package and lightweight sync dependency
+        run: python -m pip install --disable-pip-version-check -e . numpy==2.5.2
+
+      - name: Validate Phase 3.6h focused contracts
+        run: >-
+          python -m unittest -v
+          tests.test_denoise_plan
+          tests.test_denoise_execution_authorization
+          tests.test_denoise_runtime
+          tests.test_phase3_denoiser_selection_review_evidence
+          tests.test_phase3_denoiser_portable_runtime_evidence
+
+      - name: Run integrated regression
+        run: python -m unittest discover -s tests -v
+
+      - name: Runtime doctor
+        run: video-tunner doctor
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "Phase 3.6h validates only non-executable denoise_plan_proposal plus explicit stale-safe APPROVE/REJECT authorization contracts."
+          Write-Host "No real user media is authorized by this workflow, no denoise renderer exists in 3.6h, no treated media is produced, preserve remains the product default, and auto_apply remains false."
