@@ -162,7 +162,9 @@ class Phase3DenoiseRenderFoundationEvidenceTests(unittest.TestCase):
         for name, content in docs.items():
             with self.subTest(document=name):
                 self.assertIn("3.6i", content)
-                self.assertIn("3.6j", content)
+        for name in ("README", "AGENTS", "ROADMAP", "RELEASE_STATUS"):
+            with self.subTest(planning_document=name):
+                self.assertIn("3.6j", docs[name])
         self.assertIn("Fase 3.6i — Gated Denoise Renderer: ✅ **TECHNICAL FOUNDATION PASS**", docs["README"])
         self.assertIn("Siguiente trabajo — Fase 3.6j", docs["README"])
         self.assertIn("3.6i — gated denoise renderer technical foundation", docs["AGENTS"])
@@ -172,6 +174,7 @@ class Phase3DenoiseRenderFoundationEvidenceTests(unittest.TestCase):
         self.assertIn("3.6j — Independent Denoise Post-Render Technical Verifier — SIGUIENTE", docs["ROADMAP"])
         self.assertIn("Fase 3.6i: **TECHNICAL FOUNDATION PASS", docs["RELEASE_STATUS"])
         self.assertIn("phase3-denoise-render-foundation.json", docs["VALIDATION_README"])
+        self.assertIn("independent denoise post-render technical verifier (NEXT)", docs["VALIDATION_README"])
         self.assertIn("real_user_media_processed_by_denoise_renderer = false", docs["VALIDATION_README"])
 
 
