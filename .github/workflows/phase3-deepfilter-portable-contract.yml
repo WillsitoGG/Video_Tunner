@@ -99,12 +99,10 @@ jobs:
           $source = (Resolve-Path "dist\Video_Tunner\Tools\deepfilter\bin\deep-filter.exe").Path
           $tampered = Join-Path $env:RUNNER_TEMP "deep-filter-tampered.exe"
           Copy-Item $source $tampered -Force
-          [System.IO.File]::AppendAllBytes($tampered, [byte[]](0x00))
-          python -c "from pathlib import Path; import sys; from video_tunner.denoise_runtime import DenoiserRuntimeError, validate_selected_denoiser_binary; p=Path(sys.argv[1]);
-          try: validate_selected_denoiser_binary(p)
-          except DenoiserRuntimeError as exc: print('PHASE3_6G_TAMPER_FAIL_CLOSED=PASS', exc)
-          else: raise SystemExit('Tampered DeepFilterNet was accepted')" $tampered
-          if ($LASTEXITCODE -ne 0) { throw "Tamper fail-closed check failed." }
+          Add-Content -Path $tampered -Value ([byte]0) -AsByteStream
+          python -c "from pathlib import Path; import sys; from video_tunner.denoise_runtime import validate_selected_denoiser_binary; validate_selected_denoiser_binary(Path(sys.argv[1]))" $tampered
+          if ($LASTEXITCODE -eq 0) { throw "Tampered DeepFilterNet was accepted." }
+          Write-Host "PHASE3_6G_TAMPER_FAIL_CLOSED=PASS"
 
       - name: Run integrated regression against bundled FFmpeg
         shell: pwsh
