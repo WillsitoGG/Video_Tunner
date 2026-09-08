@@ -17,7 +17,14 @@
 - Fase 3.4: **COMPLETADA COMO FOUNDATION — Explicit Normalization Approval**
 - Fase 3.5a–d: **TECHNICAL FOUNDATION PASS — human perceptual close-out pendiente**
 - Fase 3.6a: **MEASUREMENT FOUNDATION PASS — Noise Evidence Audit**
-- Denoise ejecutable: **NO AUTORIZADO**
+- Fase 3.6b: **CLOSED — frozen denoise evaluation corpus**
+- Fase 3.6c: **CLOSED — objective noisy baseline**
+- Fase 3.6d: **CLOSED — candidate objective comparison**
+- Fase 3.6e: **CLOSED — blinded human A/B**
+- Fase 3.6f: **CLOSED — DeepFilterNet selected for integration review**
+- Fase 3.6g: **TECHNICAL PASS — immutable/offline portable DeepFilterNet runtime**
+- Denoise plan / ejecución autorizada: **NO**
+- Denoise renderer: **NO IMPLEMENTADO / NO AUTORIZADO**
 - Fase 3 completa: **NO**
 
 ## Evidencia principal
@@ -44,6 +51,15 @@ Phase 3.5d post-render verify    34139502187  PASS — 16/16 + real FFmpeg E2E
 Phase 3 through 3.5d regression  34139639280  PASS — 337/337 + doctor
 Phase 3.6a noise audit           34141013261  PASS — 9/9 + real MP4/AAC E2E
 Phase 3 through 3.6a regression  34141115293  PASS — 346/346 + doctor
+Phase 3.6b corpus materialize    34142222451  PASS — 40 paired noisy/clean cases
+Phase 3.6c objective baseline    34143456746  PASS — 40/40 measured
+DeepFilterNet temporal smoke     34144574712  PASS — 3.00 s → 2.97 s
+Phase 3.6d candidate comparison  34145308485  PASS
+Phase 3.6e human A/B bundle      34148410617  PASS — Guille listening completed
+Phase 3.6e closeout validation   34150202283  PASS — 398/398 + doctor
+Phase 3.6f selection artifact    34150663772  PASS — DeepFilterNet selected for integration review
+Phase 3.6f final validation      34150832960  PASS — 12/12 + 410/410 + doctor
+Phase 3.6g portable runtime      34211660270  PASS — 14/14 focused, 418 integrated, both doctors
 ```
 
 ## Phase 3 focal evidence
@@ -70,43 +86,114 @@ normalization auto-selection            false
 dynamic loudnorm fallback               forbidden
 normalization technical foundation      PASS
 normalization human perceptual closeout PENDING
-denoise                                 not authorized
+denoise renderer                        not authorized
 join smoothing / crossfade              not authorized
 auto_apply                              false
 ```
 
 Detalle: `Validation/phase3-normalization-foundation.md`.
 
-## Noise measurement foundation
+## Denoise evidence and selection state
 
-`noise_evidence_audit` mide únicamente energía sobre ventanas speech/non-speech acreditadas.
+### 3.6a — measurement only
 
-Precommit:
+`noise_evidence_audit` mide energía sobre ventanas speech/non-speech acreditadas. La suficiencia determina únicamente si se puede medir; ningún dBFS activa tratamiento.
+
+### 3.6b — corpus congelado
 
 ```text
-PCM analysis                mono PCM16 @ 16 kHz
-frame                       0.20 s
-non-speech guard            0.15 s
-minimum NS window           0.40 s
-minimum NS windows          2
-minimum total NS coverage   2.0 s
+corpus = voicebank_demand_official_test_balanced_v1
+paired cases = 40
+speakers = p232, p257
+noise classes = bus, cafe, living, office, psquare
+SNR = 17.5 / 12.5 / 7.5 / 2.5 dB
+license = CC BY 4.0
 ```
 
-Estas condiciones determinan si la evidencia es suficiente para **medir**, no si el vídeo necesita denoise.
+### 3.6c–d — objective evidence
 
-Siempre:
+Baseline noisy descriptivo:
 
 ```text
-denoise_evaluated = false
+mean SI-SDR = 9.16548156 dB
+mean STOI   = 0.95070362
+```
+
+DeepFilterNet 0.5.6 vs preserve sobre los 40 casos:
+
+```text
+mean SI-SDR delta = +9.87013412 dB
+positive SI-SDR cases = 40/40
+mean STOI delta = +0.01112968
+positive STOI cases = 27/40
+raw duration delta = -0.03 s
+```
+
+Clean controls DeepFilterNet:
+
+```text
+mean STOI = 0.99542798
+mean normalized RMSE = 0.03238068
+numeric acceptance threshold = none
+```
+
+La evidencia objetiva es auxiliar y no autoriza por sí sola selección ni tratamiento.
+
+### 3.6e — human perceptual A/B
+
+Guille realizó la escucha A/B precomprometida.
+
+```text
+DeepFilterNet: treatment 10 / preserve 0 / no preference 0
+speech integrity failures = 0
+artifact failures = 0
+perceptual gate = PASS
+
+AFFTDN: treatment 3 / preserve 2 / no preference 5
+perceptual gate = FAIL
+```
+
+### 3.6f — selection review
+
+```text
+selected_candidate = deepfilternet_0_5_6_compensated_v1
+selection_status = SELECTED_FOR_INTEGRATION_REVIEW
+```
+
+Esto **no** significa denoise autorizado.
+
+### 3.6g — portable runtime contract
+
+```text
+upstream = DeepFilterNet 0.5.6
+runtime = Tools/deepfilter/bin/deep-filter.exe
+SHA-256 = 75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915
+size = 26912256 bytes
+runtime download = forbidden
+PATH fallback = forbidden
+```
+
+Gate `34211660270` acreditó build portable, provenance exacta, ejecución con outbound network bloqueado, tamper fail-closed, regresión y ambos `doctor`.
+
+Artifact ligero:
+
+```text
+artifact_id = 10050110122
+zip_sha256 = c27f8a0ddfaa88bfdfa36bf8c79d6b4ec74198669f75cbfbb427648c6d04de89
+```
+
+Estado efectivo tras 3.6g:
+
+```text
+selected_candidate = deepfilternet_0_5_6_compensated_v1
+product_default = preserve
+runtime_download_allowed = false
 denoise_authorized = false
-filter_selected = false
-parameters_defined = false
-executable = false
-treatment_authorized = false
+renderer_authorized = false
 auto_apply = false
 ```
 
-Detalle: `Validation/phase3-noise-audit-foundation.md`.
+Detalle: `Validation/phase3-denoiser-portable-runtime.json`.
 
 ## Artifact chain actual
 
@@ -130,6 +217,8 @@ normalization_post_render_verification      schema v1
 noise_evidence_audit                        schema v1
 ```
 
+Aún no existe artifact ejecutable de denoise plan/authorization/renderer en el producto.
+
 ## Safety Fase 3
 
 ```text
@@ -137,26 +226,28 @@ Phase 3 cannot rescue failed Phase 2E evidence
 measurement != treatment decision
 treatment decision != treatment authorization
 noise measurement != denoise decision
-denoise decision != denoise authorization
-risk != automatic filter selection
+denoise evaluation != candidate selection
+candidate selection != denoise authorization
+selected runtime availability != renderer authorization
 profile selection != normalization authorization
 technical normalization PASS != human perceptual PASS
 preserve = default
-denoise = not authorized
+denoise renderer = not authorized
 join smoothing = not authorized
 auto_apply = false
 ```
 
 ## Pendiente antes de Release
 
-1. Fase 3.6b — corpus de evaluación denoise con noisy speech + clean/control y licencias claras;
-2. evaluación objetiva + perceptual antes de cualquier denoise ejecutable;
-3. human perceptual close-out de normalización si se pretende generalizar esa vía;
-4. evaluación específica A/B antes de cualquier join smoothing/crossfade;
-5. resto de Fase 3 quality/audit según evidencia;
-6. Fase 4 UX;
-7. Fase 5 Release Hardening + licencias/notices + Windows limpio real;
-8. estrategia final de distribución/adquisición del modelo.
+1. Fase 3.6h — denoise plan proposal no ejecutable + autorización explícita stale-safe separada;
+2. sólo después, renderer de denoise derivado y verificación técnica independiente;
+3. human perceptual close-out del tratamiento real antes de generalizarlo;
+4. human perceptual close-out de normalización si se pretende generalizar esa vía;
+5. evaluación específica A/B antes de cualquier join smoothing/crossfade;
+6. resto de Fase 3 quality/audit según evidencia;
+7. Fase 4 UX;
+8. Fase 5 Release Hardening + licencias/notices + Windows limpio real;
+9. estrategia final de distribución/adquisición del modelo.
 
 No existe todavía paquete final para `SHA256SUMS.txt` ni versión para `Archive/`.
 
