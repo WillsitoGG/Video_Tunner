@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "record_type": "phase3_denoise_post_render_verifier_precommit",
+  "phase": "3.6j",
+  "status": "PRECOMMITTED_BEFORE_IMPLEMENTATION",
+  "purpose": "Define the independent technical verification contract for a completed authorized denoise render without converting renderer self-reporting or objective/perceptual metrics into acceptance thresholds.",
+  "upstream_required": {
+    "phase3_6i_status": "TECHNICAL_FOUNDATION_PASS",
+    "render_record_type": "denoise_render_result",
+    "render_status": "denoise_render_complete",
+    "complete_phase3_6a_to_3_6h_chain_must_revalidate": true,
+    "render_result_sha256_required": true,
+    "current_source_sha256_required": true,
+    "current_output_sha256_required": true
+  },
+  "invalid_evidence_rules": {
+    "source_output_same_path": true,
+    "missing_source_or_output": true,
+    "stale_or_invalid_authorization_chain": true,
+    "unsupported_or_wrong_render_result_schema": true,
+    "render_result_not_complete": true,
+    "premature_technical_or_human_pass_in_render_result": true,
+    "render_result_auto_apply_true": true,
+    "render_result_bypasses_independent_technical_verification": true,
+    "render_result_bypasses_human_review": true,
+    "binding_or_runtime_snapshot_mismatch": true,
+    "source_or_output_sha_snapshot_mismatch": true,
+    "source_or_output_media_snapshot_mismatch": true,
+    "reported_timeline_internal_inconsistency": true
+  },
+  "technical_pass_contract": {
+    "source_stream_layout": "exactly_one_video_and_one_audio",
+    "output_stream_layout": "exactly_one_video_and_one_audio",
+    "decoded_video_sha256_must_match_source": true,
+    "output_audio_codec": "aac",
+    "output_audio_channels": 1,
+    "output_audio_sample_rate_hz": 48000,
+    "independent_source_audio_decode": "pcm_s16le_mono_48000",
+    "independent_output_audio_decode": "pcm_s16le_mono_48000",
+    "independent_source_decoded_frames_must_equal_reported_input_frames": true,
+    "independent_output_decoded_frames_must_equal_reported_final_frames": true,
+    "reported_final_frames_must_equal_reported_input_frames": true,
+    "raw_duration_delta_max_seconds": 0.05,
+    "timeline_normalization_actions_allowed": [
+      "none",
+      "trim_right_tail",
+      "pad_right_tail_silence"
+    ],
+    "alignment_search_allowed": false,
+    "time_shift_allowed": false,
+    "level_matching_allowed": false,
+    "source_overwrite_allowed": false
+  },
+  "explicit_non_goals": {
+    "no_snr_threshold": true,
+    "no_stoi_threshold": true,
+    "no_si_sdr_threshold": true,
+    "no_loudness_threshold": true,
+    "no_perceptual_quality_claim": true,
+    "technical_pass_does_not_equal_human_pass": true,
+    "technical_pass_does_not_authorize_other_media": true,
+    "product_default": "preserve",
+    "auto_apply": false
+  },
+  "closeout_rule": {
+    "technical_pass_requires_zero_technical_blockers": true,
+    "human_perceptual_review_remains_required_after_technical_pass": true,
+    "real_user_media_processed_in_3_6j_foundation": false
+  }
+}
