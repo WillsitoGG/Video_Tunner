@@ -119,6 +119,32 @@ El URL usado por el script es flotante en el spike. Antes de Release:
 - fijar versión;
 - revisar notices/licencia/obligaciones de distribución.
 
+## Rikorose/DeepFilterNet
+
+- Repo: `Rikorose/DeepFilterNet`.
+- Release seleccionada: `v0.5.6` (publicada 2023-08-31).
+- Licencia upstream observada en ese tag: elección entre Apache-2.0 y MIT.
+- Rol: denoiser seleccionado en Fase 3.6f **sólo para integration review** después de comparación objetiva y A/B perceptual humano.
+- Candidate ID Video_Tunner: `deepfilternet_0_5_6_compensated_v1`.
+- Asset Windows x64 exacto: `deep-filter-0.5.6-x86_64-pc-windows-msvc.exe`.
+- URL congelada: `https://github.com/Rikorose/DeepFilterNet/releases/download/v0.5.6/deep-filter-0.5.6-x86_64-pc-windows-msvc.exe`.
+- SHA-256 congelado: `75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915`.
+- Tamaño congelado: `26912256` bytes.
+- CLI validada: `--compensate-delay --output-dir <output_dir> <input_wav>`.
+- Ruta portable fijada en 3.6g: `Tools/deepfilter/bin/deep-filter.exe`.
+
+Política de integración 3.6g:
+
+- el asset se descarga únicamente durante el build;
+- SHA-256, tamaño, versión y flags CLI se verifican antes de empaquetar;
+- la copia portable se vuelve a validar después de copiarla;
+- no existe búsqueda por PATH ni descarga en runtime;
+- el binario se distribuye sin modificación en la ruta portable fijada;
+- `preserve` sigue siendo el default;
+- `denoise_authorized=false`, `renderer_authorized=false`, `auto_apply=false` hasta una fase de autorización posterior explícita.
+
+La selección de este upstream no convierte Video_Tunner en fork ni autoriza por sí sola tratamiento de audio.
+
 ## Seguimiento
 
 Cuando un upstream evolucione:
