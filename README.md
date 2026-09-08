@@ -37,9 +37,10 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 3.6g — Portable Runtime Contract: ✅ CLOSED
 - Fase 3.6h — Denoise Plan + Explicit Authorization Contract: ✅ **TECHNICAL FOUNDATION PASS**
 - Fase 3.6i — Gated Denoise Renderer: ✅ **TECHNICAL FOUNDATION PASS**
+- Fase 3.6j — Independent Denoise Post-Render Technical Verifier: ✅ **TECHNICAL FOUNDATION PASS**
 - Autorización real por-media de Guille para denoise: 🚫 ninguna emitida
 - Media real de Guille procesada por denoise: 🚫 ninguna
-- Denoise post-render technical verifier independiente: 🚧 siguiente bloque, 3.6j
+- Human denoise treatment closeout: ⏳ pendiente, siguiente bloque 3.6k
 - Fase 3 completa: 🚧 en curso
 - Release pública: ninguna
 
@@ -84,9 +85,9 @@ audiovisual_quality_audit
       ↓
       gated DeepFilterNet denoise renderer [TECHNICAL FOUNDATION]
       ↓
-      independent denoise post-render technical verification [NEXT]
+      independent denoise post-render technical verification [TECHNICAL FOUNDATION]
       ↓
-      human perceptual denoise closeout [LATER]
+      human perceptual denoise treatment closeout [NEXT]
 ```
 
 Invariantes:
@@ -121,7 +122,7 @@ Modelo objetivo: **`large-v3-turbo`**.
 
 La estrategia de transcripción de producto sigue siendo `single_pass` por defecto. `deterministic_overlap_12s_3s_repeat_consensus_v1` está expuesta como opt-in explícito y fue la estrategia validada para el close-out 2E.5.
 
-## Fase 3.6 — Denoise evidence → selection → portable runtime → authorization → renderer
+## Fase 3.6 — Denoise evidence → selection → portable runtime → authorization → renderer → verification
 
 ### 3.6a–c — medición y corpus
 
@@ -245,8 +246,6 @@ product default                     preserve
 auto_apply                          false
 ```
 
-El CLI ejecutado se materializa desde el `arguments_template` del plan previamente reconstruido y validado; un template alterado o extendido falla cerrado.
-
 Gate final 3.6i `34231340544` / job `102077969922`:
 
 ```text
@@ -270,20 +269,81 @@ final frames                        144000
 alignment/time-shift/level-match    false / false / false
 ```
 
-Esto acredita la **technical foundation del renderer**, no una autorización real ni un PASS perceptual. En 3.6i:
+Post-persistence final 3.6i `34240028080`:
+
+```text
+57/57 focused PASS
+1/1 real DeepFilter synthetic E2E PASS
+474/474 integrated PASS
+0 skips
+doctor PASS
+```
+
+Evidencia: `Validation/phase3-denoise-render-foundation.json`.
+
+### 3.6j — independent denoise post-render technical verifier
+
+`Source/video_tunner/denoise_post_render_verification.py` es una capa independiente del renderer. Revalida la cadena autorizada actual y distingue **evidencia inválida/stale** de **technical quality FAIL** y de **technical PASS**.
+
+El contrato fue precomprometido antes de implementar en `Validation/phase3-denoise-post-render-verifier-precommit.json`. No se añadieron después de ver resultados thresholds de SNR, STOI, SI-SDR o loudness.
+
+Verificaciones principales:
+
+```text
+render result SHA/current source/current output    required
+premature renderer technical/human PASS            invalid evidence
+source overwrite / same source-output path         forbidden
+source/output layout                                exactly 1 video + 1 audio
+decoded video SHA                                  source == output
+output audio                                        AAC, mono, 48 kHz
+independent audio decode                            PCM16 mono 48 kHz
+independent source/output decoded frames            must match
+timeline                                            internally consistent
+reported final frames                               == reported input frames
+raw duration delta limit                            ±0.05 s
+alignment search / time shift / level matching      forbidden
+human perceptual review after technical PASS        still required
+product default                                     preserve
+auto_apply                                          false
+```
+
+Gate técnico 3.6j `34241518206` / job `102112597551`:
+
+```text
+immutable FFmpeg + DeepFilterNet                    PASS
+focused contracts                                   63/63 PASS
+real DeepFilter render + independent verifier E2E   1/1 PASS
+integrated regression                               488/488 PASS
+integrated skips                                    0
+doctor                                              PASS
+```
+
+Observación del E2E sintético del verifier:
+
+```text
+status                 technical_denoise_pass
+technical_pass         true
+blockers               []
+decoded_video_equal    true
+source_frames          144000
+output_frames          144000
+human_pass             false
+```
+
+Esto acredita únicamente la **technical foundation del verifier independiente**. No acredita calidad perceptual ni generaliza denoise a otra media. En 3.6j:
 
 ```text
 real_user_authorization_record_created = false
 real_user_media_authorized_for_denoise = false
 real_user_media_processed              = false
 real_user_treated_media_generated      = false
+human_denoise_treatment_closeout       = false
 stereo_or_multichannel_generalized     = false
-independent_post_render_verifier       = false
 product_default                        = preserve
 auto_apply                             = false
 ```
 
-Evidencia: `Validation/phase3-denoise-render-foundation.json`.
+Evidencia: `Validation/phase3-denoise-post-render-verifier-foundation.json`.
 
 ## Normalización
 
@@ -299,26 +359,23 @@ auto_apply       false
 
 Su technical PASS **no equivale a human perceptual PASS**; ese close-out humano sigue pendiente.
 
-## Siguiente trabajo — Fase 3.6j
+## Siguiente trabajo — Fase 3.6k
 
-Implementar el **independent denoise post-render technical verifier**.
+Diseñar el **human denoise treatment closeout** sobre evidencia real y precomprometida.
 
-Debe verificar de forma independiente, sin confiar en el `denoise_render_result` para declarar calidad:
+Ese bloque deberá mantener como mínimo:
 
-- binding exacto a source, authorization, plan y output derivados;
-- hashes vigentes y ausencia de overwrite;
-- media layout y timeline/duración;
-- preservación del vídeo esperada para `stream copy`;
-- output de audio válido y auditable;
-- cumplimiento del contrato temporal precomprometido;
-- ausencia de claims prematuros de technical/human PASS;
-- fail-closed ante evidencia stale/tampered.
+- technical PASS 3.6j como precondición, nunca sustituto de escucha;
+- decisiones humanas explícitas y auditables;
+- criterios perceptuales congelados antes de escuchar;
+- no convertir el A/B histórico 3.6e del corpus en aprobación automática de un render concreto;
+- ninguna media real de Guille tratada sin autorización per-media explícita y vigente;
+- ningún human PASS atribuido a Guille hasta que realmente haya escuchado el material correspondiente;
+- `preserve` como default y `auto_apply=false`.
 
-Después de 3.6j seguirá siendo necesaria la ruta humana de close-out antes de generalizar denoise. **No se tratará media real de Guille sin una autorización per-media explícita y vigente.**
+Join smoothing/crossfade continúa bloqueado hasta evidencia A/B perceptual específica. El human perceptual close-out de normalización también sigue pendiente.
 
-Join smoothing/crossfade continúa bloqueado hasta evidencia A/B perceptual específica.
-
-Después: human denoise treatment closeout, human normalization closeout pendiente, cierre restante de Fase 3, Fase 4 UX mínima y Fase 5 Portable Release Hardening.
+Después: cierre restante de Fase 3, Fase 4 UX mínima y Fase 5 Portable Release Hardening.
 
 ## Principios
 
