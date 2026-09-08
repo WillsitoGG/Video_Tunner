@@ -1,0 +1,54 @@
+name: Phase 3.6h Post-persistence One-shot
+
+on:
+  push:
+    paths:
+      - ".github/phase3-denoise-plan-authorization-post-persistence.trigger"
+
+jobs:
+  contract-gate:
+    runs-on: windows-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ensure FFmpeg is available for integrated development validation
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --no-progress -y
+          }
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
+
+      - name: Install editable package and lightweight sync dependency
+        run: python -m pip install --disable-pip-version-check -e . numpy==2.5.2
+
+      - name: Validate Phase 3.6h focused contracts and persisted closeout
+        run: >-
+          python -m unittest -v
+          tests.test_denoise_plan
+          tests.test_denoise_execution_authorization
+          tests.test_denoise_runtime
+          tests.test_phase3_denoiser_selection_review_evidence
+          tests.test_phase3_denoiser_portable_runtime_evidence
+          tests.test_phase3_denoise_plan_authorization_evidence
+
+      - name: Run integrated regression
+        run: python -m unittest discover -s tests -v
+
+      - name: Runtime doctor
+        run: video-tunner doctor
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "One-shot validation of the persisted Phase 3.6h foundation while the permanent workflow remains manual-only."
+          Write-Host "No real user media is authorized, no denoise renderer exists, no treated media is produced, preserve remains the product default, and auto_apply remains false."
