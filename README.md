@@ -36,8 +36,10 @@ Sin referencia suficiente, Video_Tunner no inventa la sincronización.
 - Fase 3.6f — Selection Review: ✅ DeepFilterNet 0.5.6 seleccionado para integration review
 - Fase 3.6g — Portable Runtime Contract: ✅ CLOSED
 - Fase 3.6h — Denoise Plan + Explicit Authorization Contract: ✅ **TECHNICAL FOUNDATION PASS**
-- Autorización real por-media para denoise: 🚫 ninguna
-- Denoise renderer: 🚫 no implementado
+- Fase 3.6i — Gated Denoise Renderer: ✅ **TECHNICAL FOUNDATION PASS**
+- Autorización real por-media de Guille para denoise: 🚫 ninguna emitida
+- Media real de Guille procesada por denoise: 🚫 ninguna
+- Denoise post-render technical verifier independiente: 🚧 siguiente bloque, 3.6j
 - Fase 3 completa: 🚧 en curso
 - Release pública: ninguna
 
@@ -78,9 +80,13 @@ audiovisual_quality_audit
       ↓
       denoise_plan_proposal [NON-EXECUTABLE]
       ↓
-      denoise_execution_authorization [EXPLICIT; future gated renderer only]
+      denoise_execution_authorization [EXPLICIT; per-media gate]
       ↓
-      gated denoise renderer [NEXT; not implemented]
+      gated DeepFilterNet denoise renderer [TECHNICAL FOUNDATION]
+      ↓
+      independent denoise post-render technical verification [NEXT]
+      ↓
+      human perceptual denoise closeout [LATER]
 ```
 
 Invariantes:
@@ -94,6 +100,9 @@ denoiser selection != denoise authorization
 portable runtime availability != renderer authorization
 plan proposal != execution authorization
 APPROVE contract capability != actual user authorization record
+authorization record != successful render
+render complete != technical verification PASS
+technical PASS != human perceptual PASS
 preserve = default
 auto_apply = false
 original overwrite = forbidden
@@ -112,7 +121,7 @@ Modelo objetivo: **`large-v3-turbo`**.
 
 La estrategia de transcripción de producto sigue siendo `single_pass` por defecto. `deterministic_overlap_12s_3s_repeat_consensus_v1` está expuesta como opt-in explícito y fue la estrategia validada para el close-out 2E.5.
 
-## Fase 3.6 — Denoise evidence → selection → portable runtime → authorization contract
+## Fase 3.6 — Denoise evidence → selection → portable runtime → authorization → renderer
 
 ### 3.6a–c — medición y corpus
 
@@ -173,96 +182,108 @@ size                    26,912,256 bytes
 portable path           Tools/deepfilter/bin/deep-filter.exe
 CLI                     --compensate-delay --output-dir <output_dir> <input_wav>
 runtime download        forbidden
-PATH lookup              forbidden
+PATH lookup              forbidden en producto
 product default          preserve
 denoise_authorized       false
 renderer_authorized      false
 auto_apply               false
 ```
 
-Run técnico original `34211660270`; post-persistencia `34219441077`:
-
-```text
-20/20 focused PASS
-424 integrated tests OK
-13 skipped
-offline smoke PASS
-tamper fail-closed PASS
-development doctor PASS
-portable doctor PASS
-```
+Run técnico original `34211660270`; post-persistencia `34219441077`.
 
 Evidencia: `Validation/phase3-denoiser-portable-runtime.json`.
 
 ### 3.6h — plan + explicit authorization contract
 
-Nuevos artifacts de foundation:
+Artifacts:
 
 ```text
 denoise_plan_proposal            schema v1
 denoise_execution_authorization  schema v1
 ```
 
-El plan se reconstruye exactamente y queda ligado a:
+El plan se reconstruye exactamente y queda ligado a `noise_evidence_audit`, output SHA actual, selection review 3.6f, candidato/runtimes exactos y sus fingerprints. `evidence_sufficient=true` sólo acredita cobertura de medición suficiente para preparar parámetros; nunca significa que el vídeo necesite denoise.
+
+Un `APPROVE` válido sólo concede permiso estrecho para el gated denoise renderer y debe ser revalidado antes de ejecutar. El artifact de autorización no ejecuta nada por sí mismo.
+
+Cierre limpio 3.6h:
 
 ```text
-noise_evidence_audit + fingerprint
-quality output SHA actual
-selection review 3.6f + fingerprint
-selected candidate exact
-runtime contract 3.6g + fingerprint
-DeepFilterNet asset identity
-CLI --compensate-delay
-temporal tolerance 0.05 s
+34225276990
+45/45 focused PASS
+452/452 integrated PASS
+doctor PASS
 ```
 
-`evidence_sufficient=true` sólo acredita **cobertura de medición suficiente para preparar parámetros**. Nunca significa que el vídeo necesite denoise. Cobertura insuficiente bloquea el plan sin reclasificarse como problema de ruido.
+Evidencia: `Validation/phase3-denoise-plan-authorization-foundation.json`.
 
-Plan ready sigue siendo no ejecutable:
+### 3.6i — gated denoise renderer technical foundation
+
+`Source/video_tunner/denoise_render.py` implementa una ruta de tratamiento derivada y fail-closed. Sólo puede procesar si la cadena 3.6a→h sigue íntegra y existe una autorización `APPROVE` válida para el source SHA actual.
+
+Contrato inicial:
 
 ```text
-parameters_defined = true
-parameters_executable = false
-denoise_authorized = false
-denoise_render_authorization = false
-plan_render_authorization = false
-renderer_available = false
-executable = false
-auto_apply = false
+source overwrite                    forbidden
+source media                        exactly 1 video + 1 audio stream
+source audio                        mono only in 3.6i foundation
+DeepFilter input                    PCM16 mono 48 kHz
+DeepFilter CLI                      from validated plan template
+                                     --compensate-delay
+                                     --output-dir <output_dir> <input_wav>
+raw duration tolerance              |Δ| <= 0.05 s
+alignment search                    forbidden
+time shift                          forbidden
+level matching                      forbidden
+timeline correction                 right-tail trim or digital-silence pad only
+video output                        stream copy
+audio output                        AAC 192k
+-shortest                           forbidden
+render complete                     != technical PASS
+technical PASS                      != human perceptual PASS
+product default                     preserve
+auto_apply                          false
 ```
 
-La autorización exige `APPROVE`/`REJECT`, actor y reason. Un `APPROVE` válido sólo puede conceder una autorización estrecha para un **futuro renderer gated** que deberá revalidar toda la cadena:
+El CLI ejecutado se materializa desde el `arguments_template` del plan previamente reconstruido y validado; un template alterado o extendido falla cerrado.
+
+Gate final 3.6i `34231340544` / job `102077969922`:
 
 ```text
-authorized = true
-denoise_render_authorization = true
-plan_render_authorization = false
-parameters_executable = false
-renderer_available = false
-executable = false
-auto_apply = false
+immutable FFmpeg + DeepFilterNet    PASS
+focused contracts                   49/49 PASS
+real DeepFilter synthetic E2E       1/1 PASS
+integrated regression               466/466 PASS
+integrated skips                    0
+doctor                              PASS
 ```
 
-Esto es una **capability contractual**, no una autorización real ya emitida. En 3.6h:
+Timeline observada en el E2E sintético, no threshold nuevo:
+
+```text
+input frames                        144000
+raw output frames                   142560
+raw frame delta                     -1440
+raw duration delta                  -0.030 s
+normalization                       pad_right_tail_silence
+final frames                        144000
+alignment/time-shift/level-match    false / false / false
+```
+
+Esto acredita la **technical foundation del renderer**, no una autorización real ni un PASS perceptual. En 3.6i:
 
 ```text
 real_user_authorization_record_created = false
 real_user_media_authorized_for_denoise = false
-denoise_renderer_implemented = false
-treated_media_generated = false
-product_default = preserve
-auto_apply = false
+real_user_media_processed              = false
+real_user_treated_media_generated      = false
+stereo_or_multichannel_generalized     = false
+independent_post_render_verifier       = false
+product_default                        = preserve
+auto_apply                             = false
 ```
 
-Run `34220351609`:
-
-```text
-focused contracts = 38/38 PASS
-integrated regression = 445/445 PASS
-doctor = PASS
-```
-
-Evidencia: `Validation/phase3-denoise-plan-authorization-foundation.json`.
+Evidencia: `Validation/phase3-denoise-render-foundation.json`.
 
 ## Normalización
 
@@ -278,25 +299,26 @@ auto_apply       false
 
 Su technical PASS **no equivale a human perceptual PASS**; ese close-out humano sigue pendiente.
 
-## Siguiente trabajo — Fase 3.6i
+## Siguiente trabajo — Fase 3.6j
 
-Diseñar e implementar la **technical foundation del gated denoise renderer**, usando únicamente autorización 3.6h válida y revalidada inmediatamente antes de ejecutar DeepFilterNet.
+Implementar el **independent denoise post-render technical verifier**.
 
-Debe seguir siendo:
+Debe verificar de forma independiente, sin confiar en el `denoise_render_result` para declarar calidad:
 
-- derivado, nunca overwrite;
-- stale/tamper fail-closed;
-- source SHA revalidado;
-- candidate/runtime/CLI exactos;
-- sin runtime download ni PATH fallback;
-- temporal contract `|Δ raw duration| ≤ 0.05 s`;
-- con resultado auditable independiente;
-- sin convertir tests sintéticos en autorización real de media de Guille;
-- `preserve` como default y `auto_apply=false`.
+- binding exacto a source, authorization, plan y output derivados;
+- hashes vigentes y ausencia de overwrite;
+- media layout y timeline/duración;
+- preservación del vídeo esperada para `stream copy`;
+- output de audio válido y auditable;
+- cumplimiento del contrato temporal precomprometido;
+- ausencia de claims prematuros de technical/human PASS;
+- fail-closed ante evidencia stale/tampered.
+
+Después de 3.6j seguirá siendo necesaria la ruta humana de close-out antes de generalizar denoise. **No se tratará media real de Guille sin una autorización per-media explícita y vigente.**
 
 Join smoothing/crossfade continúa bloqueado hasta evidencia A/B perceptual específica.
 
-Después: verificación técnica/human close-out del tratamiento real, cierre restante de Fase 3, Fase 4 UX mínima y Fase 5 Portable Release Hardening.
+Después: human denoise treatment closeout, human normalization closeout pendiente, cierre restante de Fase 3, Fase 4 UX mínima y Fase 5 Portable Release Hardening.
 
 ## Principios
 
