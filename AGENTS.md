@@ -52,8 +52,8 @@ sources → ingest/sync → MASTER AUDIO → Whisper/VAD
       → denoise plan proposal
       → explicit denoise execution authorization
       → gated DeepFilterNet denoise renderer [3.6i TECHNICAL FOUNDATION]
-      → independent denoise post-render technical verifier [3.6j NEXT]
-      → human denoise treatment closeout [LATER]
+      → independent denoise post-render technical verifier [3.6j TECHNICAL FOUNDATION]
+      → human denoise treatment closeout [3.6k NEXT]
 ```
 
 ## 2. Estado
@@ -73,14 +73,14 @@ Completado:
 - Fase 3.6f — DeepFilterNet selected for integration review;
 - Fase 3.6g — immutable/offline portable DeepFilterNet runtime;
 - Fase 3.6h — non-executable denoise plan + explicit authorization technical foundation;
-- Fase 3.6i — gated denoise renderer technical foundation sobre media sintética mono.
+- Fase 3.6i — gated denoise renderer technical foundation sobre media sintética mono;
+- Fase 3.6j — independent denoise post-render technical verifier foundation sobre media sintética.
 
 No completado:
 
 - human perceptual close-out de normalización;
-- autorización real por-media de Guille para denoise;
-- independent denoise post-render technical verifier 3.6j;
-- human denoise treatment closeout;
+- autorización real per-media de Guille para denoise;
+- human denoise treatment closeout 3.6k;
 - generalización del renderer a estéreo/multicanal;
 - join smoothing/crossfade evidence/treatment;
 - Fase 3 closeout;
@@ -110,9 +110,10 @@ human review  2E.5 — 3/3 perceptual PASS / CLOSE_OUT_READY
 34150832960  3.6f final — 410/410 + doctor PASS
 34211660270  3.6g original portable runtime gate PASS
 34219441077  3.6g post-persistence — 20/20 + 424 integrated + both doctors
-34220351609  3.6h base foundation — 38/38 + 445/445 + doctor PASS
 34225276990  3.6h clean closeout — 45/45 + 452/452 + doctor PASS
-34231340544  3.6i final renderer gate — 49/49 + 1/1 real DeepFilter E2E + 466/466, 0 skips + doctor PASS
+34231340544  3.6i base renderer — 49/49 + 1/1 real DeepFilter E2E + 466/466, 0 skips + doctor PASS
+34240028080  3.6i post-persistence — 57/57 + 1/1 E2E + 474/474, 0 skips + doctor PASS
+34241518206  3.6j verifier foundation — 63/63 + 1/1 real render→verifier E2E + 488/488, 0 skips + doctor PASS
 ```
 
 ## 4. Stack / runtime fijado
@@ -130,7 +131,7 @@ VAD: faster-whisper + `silero_vad_v6.onnx`. Modelo objetivo: `large-v3-turbo`.
 
 Transcripción: `single_pass` sigue siendo default. `deterministic_overlap_12s_3s_repeat_consensus_v1` es opt-in explícito validado para 2E.5. No exponer estrategias no validadas.
 
-Denoiser seleccionado para integration review:
+Denoiser seleccionado:
 
 ```text
 candidate_id = deepfilternet_0_5_6_compensated_v1
@@ -166,6 +167,7 @@ noise_evidence_audit                      schema v1
 denoise_plan_proposal                     schema v1
 denoise_execution_authorization           schema v1
 denoise_render_result                     schema v1
+denoise_post_render_verification          schema v1
 ```
 
 No mutar artifacts upstream para registrar decisiones downstream.
@@ -180,19 +182,7 @@ No mutar artifacts upstream para registrar decisiones downstream.
 - 3.6f selecciona `deepfilternet_0_5_6_compensated_v1` para integration review, no ejecución.
 - 3.6g fija runtime portable exacto, offline y tamper-aware; runtime disponible no equivale a renderer autorizado.
 
-DeepFilterNet 3.6d observado:
-
-```text
-mean SI-SDR delta vs preserve = +9.87013412 dB
-positive SI-SDR = 40/40
-mean STOI delta = +0.01112968
-positive STOI = 27/40
-raw duration delta = -0.03 s
-clean-control STOI mean = 0.99542798
-clean-control NRMSE mean = 0.03238068
-```
-
-No convertir estas observaciones en thresholds universales.
+No convertir métricas observadas del corpus en thresholds universales.
 
 ## 7. Fase 3.6h — Denoise Plan + Execution Authorization foundation
 
@@ -205,94 +195,116 @@ Source/video_tunner/denoise_execution_authorization.py
 
 `denoise_plan_proposal` exige noise evidence válido, SHA actual, selection review 3.6f exacto y runtime 3.6g exacto; liga fingerprints completos. `evidence_sufficient` sólo es coverage guard, nunca trigger de tratamiento.
 
-El plan sigue sin capability ejecutable. La autorización es un artifact separado `APPROVE`/`REJECT`, con actor + reason y stale/tamper fail-closed. Un APPROVE válido sólo expresa permiso per-media para la ruta gated; no ejecuta tratamiento por sí mismo.
-
-Los tests APPROVE de foundation usan fixtures sintéticos, no una decisión de Guille.
+La autorización es un artifact separado `APPROVE`/`REJECT`, con actor + reason y stale/tamper fail-closed. Un APPROVE válido sólo expresa permiso per-media para la ruta gated; no ejecuta tratamiento por sí mismo. Los APPROVE de foundation usan fixtures sintéticos, no una decisión de Guille.
 
 Evidencia: `Validation/phase3-denoise-plan-authorization-foundation.json`.
 
 ## 8. Fase 3.6i — Gated Denoise Renderer technical foundation
 
-Código:
+Código: `Source/video_tunner/denoise_render.py`.
 
-```text
-Source/video_tunner/denoise_render.py
-```
-
-Reglas de ejecución:
+Reglas:
 
 - revalidar cadena completa 3.6a→h justo antes de procesar;
-- exigir source SHA actual y `denoise_execution_authorization` APPROVE vigente;
-- verificar binario DeepFilterNet exacto antes de ejecutar;
-- materializar la CLI desde el `arguments_template` del plan validado;
+- exigir source SHA actual y authorization APPROVE vigente;
+- verificar binario DeepFilterNet exacto;
+- materializar CLI desde el plan validado;
 - template CLI alterado/extendido => fail-closed;
 - nunca overwrite del source;
 - exactamente 1 vídeo + 1 audio;
-- foundation inicial: source audio mono; estéreo/multicanal bloqueado;
-- DeepFilter layer: PCM16 mono 48 kHz;
-- `--compensate-delay` obligatorio;
+- foundation inicial mono; estéreo/multicanal bloqueado;
+- DeepFilter layer PCM16 mono 48 kHz;
 - `|raw duration delta| <= 0.05 s`;
-- única corrección temporal: trim/pad de cola derecha;
+- única corrección temporal trim/pad de cola derecha;
 - no alignment search, time shift ni level matching;
-- vídeo `stream copy`, audio AAC 192k, sin `-shortest`;
+- vídeo stream-copy, audio AAC 192k, sin `-shortest`;
 - source SHA revalidado tras render;
 - `denoise_render_complete` no declara technical ni human PASS.
 
-Observación E2E sintética congelada:
+Base `34231340544`: 49/49 + 1/1 E2E + 466/466. Post-persistence `34240028080`: 57/57 + 1/1 E2E + 474/474. Ambos con 0 skips y doctor PASS.
+
+Evidencia: `Validation/phase3-denoise-render-foundation.json`.
+
+## 9. Fase 3.6j — Independent Denoise Post-Render Technical Verifier
+
+Código: `Source/video_tunner/denoise_post_render_verification.py`.
+
+Precommit: `Validation/phase3-denoise-post-render-verifier-precommit.json`.
+
+El verifier:
+
+- revalida la cadena autorizada vigente;
+- exige SHA del render result y SHA actuales de source/output;
+- rechaza claims prematuros de technical/human PASS o `auto_apply=true` en el renderer;
+- distingue `invalid_evidence` de `technical_denoise_fail`;
+- verifica layout exacto de streams;
+- verifica vídeo decodificado idéntico source/output;
+- exige output AAC mono 48 kHz;
+- decodifica independientemente source/output a PCM16 mono 48 kHz y compara frames;
+- revalida coherencia de timeline y límite ±0.05 s;
+- no permite alignment search/time shift/level matching;
+- no añade thresholds SNR/STOI/SI-SDR/loudness;
+- `technical_denoise_pass` continúa exigiendo human perceptual review.
+
+Run `34241518206`:
 
 ```text
-input_frames = 144000
-raw_output_frames = 142560
-raw_frame_delta = -1440
-raw_duration_delta_seconds = -0.03
-timeline_normalization_action = pad_right_tail_silence
-final_frames = 144000
-alignment_search = false
-time_shift = false
-level_matching = false
+63/63 focused PASS
+1/1 real DeepFilter render → independent verifier E2E PASS
+488/488 integrated PASS
+0 skips
+doctor PASS
 ```
 
-Run final `34231340544`: 49/49 focales, 1/1 DeepFilterNet real sintético, 466/466 regresión, 0 skips y doctor PASS.
+E2E:
 
-Estado real tras 3.6i:
+```text
+status = technical_denoise_pass
+blockers = []
+decoded_video_equal = true
+source_frames = 144000
+output_frames = 144000
+human_pass = false
+```
+
+Estado real tras 3.6j:
 
 ```text
 real_user_authorization_record_created = false
 real_user_media_authorized_for_denoise = false
 real_user_media_processed = false
 real_user_treated_media_generated = false
+human_denoise_treatment_closeout = false
 stereo_or_multichannel_generalized = false
-independent_denoise_post_render_verifier = false
 product_default = preserve
 auto_apply = false
 ```
 
-Evidencia: `Validation/phase3-denoise-render-foundation.json`.
-Binder: `tests/test_phase3_denoise_render_foundation_evidence.py`.
-Permanent gate: `.github/workflows/phase3-denoise-render-foundation.yml`, manual-only.
+Evidencia: `Validation/phase3-denoise-post-render-verifier-foundation.json`.
+Binder: `tests/test_phase3_denoise_post_render_verifier_evidence.py`.
+Permanent gate: `.github/workflows/phase3-denoise-post-render-verifier.yml`, manual-only.
 
-## 9. Normalization foundation
+## 10. Normalization foundation
 
 La vía EBU R128 sigue opt-in. El renderer técnico está validado pero el human perceptual close-out de normalización sigue pendiente. No generalizar technical PASS como perceptual PASS.
 
-## 10. Próximo trabajo — Fase 3.6j
+## 11. Próximo trabajo — Fase 3.6k
 
-Independent **denoise post-render technical verifier**.
+Human **denoise treatment closeout**.
 
-Debe ser una capa separada del renderer y fail-closed. Como mínimo:
+Requisitos mínimos:
 
-- validar binding/hash de source, plan, authorization, render result y output actual;
-- no confiar en flags de PASS del render result;
-- comprobar layout/duración y contrato temporal;
-- comprobar preservación del vídeo esperada por `stream copy`;
-- comprobar que el audio derivado es válido y auditable;
-- distinguir evidence invalid/stale de quality FAIL;
-- technical PASS no debe crear human PASS;
-- ningún tratamiento de media real sin autorización explícita per-media vigente de Guille.
+- partir sólo de evidencia con technical PASS 3.6j vigente;
+- congelar criterios perceptuales antes de escuchar;
+- decisiones humanas explícitas/auditables;
+- no reutilizar el A/B histórico 3.6e como aprobación automática de un render concreto;
+- no crear autorización real ni procesar media real sin decisión per-media explícita de Guille;
+- no atribuir human PASS a Guille hasta que realmente escuche el material concreto;
+- `preserve` sigue default y `auto_apply=false`.
 
-Después: human perceptual denoise closeout. Join smoothing/crossfade continúa bloqueado hasta evidencia A/B específica.
+Join smoothing/crossfade continúa bloqueado. Human normalization closeout sigue pendiente.
 
-## 11. GitHub / CI / Release
+## 12. GitHub / CI / Release
 
 - GitHub source of truth;
 - workflows pesados/manual gates sólo cuando aportan evidencia;
