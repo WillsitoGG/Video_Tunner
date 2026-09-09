@@ -17,6 +17,11 @@ def sha256_path(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def canonical_json_sha256(payload: dict) -> str:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
 class Phase3DenoiseTreatmentHumanBundleEvidenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -36,14 +41,18 @@ class Phase3DenoiseTreatmentHumanBundleEvidenceTests(unittest.TestCase):
         self.assertEqual(result["technical_pass_count"], 10)
         self.assertEqual(result["public_bundle_manifest_sha256"], "39499e5349e1ad22def6b8b3c60359f2de2548e924421a363a8d38ebcc8b1b08")
 
-    def test_persisted_serialization_sha_is_frozen_and_documented(self):
-        self.assertEqual(sha256_path(TECHNICAL), "37d11ec3ae4115ba63d38fac5ff27a156c2e46dde7274be5a7c8084f143ec0f0")
+    def test_persisted_serialization_and_canonical_identity_are_frozen(self):
+        private = self.provenance["technical_evidence"]
+        self.assertEqual(sha256_path(TECHNICAL), "9db6ab11a637f772eaa8b848032b692807f591b022de9072409e926d512f0040")
+        self.assertEqual(private["persisted_file_sha256"], sha256_path(TECHNICAL))
+        self.assertTrue(private["canonical_equivalence_required"])
         self.assertEqual(
-            self.provenance["technical_evidence"]["persisted_semantic_equivalent_minified_sha256"],
-            sha256_path(TECHNICAL),
+            canonical_json_sha256(self.technical),
+            "b0fe1de82cd8228fe3dc0511a4a606f58d144b94d2f382332ed034c6ae5aa223",
         )
+        self.assertEqual(private["artifact_canonical_json_sha256"], canonical_json_sha256(self.technical))
         self.assertEqual(
-            self.provenance["technical_evidence"]["artifact_raw_json_sha256"],
+            private["artifact_raw_json_sha256"],
             "54edf6f01ad06828e01b9ae216cfb3f4330f66b4a62f14910ccd3703a84b5c6b",
         )
 
