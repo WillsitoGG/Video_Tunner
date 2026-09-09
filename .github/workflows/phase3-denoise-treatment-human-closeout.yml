@@ -1,0 +1,108 @@
+name: Phase 3.6k Integrated Denoise Human Closeout Bundle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-integrated-human-closeout-bundle:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PHASE3_FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-05-13-10/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-gpl-9.0.zip
+      PHASE3_FFMPEG_SHA256: a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f
+      PHASE3_FFMPEG_VERSION_TOKEN: n9.0.1-26-g5c8e7e2433
+      PHASE3_DEEPFILTER_URL: https://github.com/Rikorose/DeepFilterNet/releases/download/v0.5.6/deep-filter-0.5.6-x86_64-pc-windows-msvc.exe
+      PHASE3_DEEPFILTER_SHA256: 75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915
+      PHASE3_DEEPFILTER_SIZE: "26912256"
+      PHASE3_DEEPFILTER_VERSION: "0.5.6"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install editable package
+        run: python -m pip install --disable-pip-version-check -e .
+
+      - name: Preflight frozen Phase 3.6k contracts and scripts
+        shell: pwsh
+        run: |
+          python -m py_compile Source/video_tunner/denoise_treatment_human_closeout.py
+          python -m py_compile .github/scripts/build_phase3_denoise_treatment_human_closeout_bundle.py
+          python -m py_compile .github/scripts/validate_phase3_denoise_treatment_human_bundle.py
+          python -m unittest -v tests.test_phase3_denoise_treatment_human_closeout_precommit tests.test_denoise_treatment_human_closeout
+          Write-Host "PHASE3_6K_PREFLIGHT=PASS"
+
+      - name: Stage immutable FFmpeg and selected DeepFilterNet
+        shell: pwsh
+        run: |
+          $tools = Join-Path $env:RUNNER_TEMP "phase3-6k-tools"
+          $ffmpegZip = Join-Path $tools "ffmpeg.zip"
+          $ffmpegExtract = Join-Path $tools "ffmpeg"
+          New-Item -ItemType Directory -Force -Path $tools | Out-Null
+          Invoke-WebRequest -Uri $env:PHASE3_FFMPEG_URL -OutFile $ffmpegZip
+          $ffmpegSha = (Get-FileHash $ffmpegZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($ffmpegSha -ne $env:PHASE3_FFMPEG_SHA256) { throw "FFmpeg archive SHA mismatch." }
+          Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtract -Force
+          $ffmpeg = Get-ChildItem $ffmpegExtract -Filter ffmpeg.exe -Recurse | Select-Object -First 1
+          $ffprobe = Get-ChildItem $ffmpegExtract -Filter ffprobe.exe -Recurse | Select-Object -First 1
+          if (-not $ffmpeg -or -not $ffprobe) { throw "Immutable FFmpeg package incomplete." }
+          $version = (& $ffmpeg.FullName -version | Select-Object -First 1)
+          if ($version -notmatch [regex]::Escape($env:PHASE3_FFMPEG_VERSION_TOKEN)) { throw "FFmpeg version token mismatch." }
+          $ffmpegDir = $ffmpeg.Directory.FullName
+          "VIDEO_TUNNER_FFMPEG_DIR=$ffmpegDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $ffmpegDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          $deepfilterDir = Join-Path $env:GITHUB_WORKSPACE "Tools\deepfilter\bin"
+          New-Item -ItemType Directory -Force -Path $deepfilterDir | Out-Null
+          $deepfilter = Join-Path $deepfilterDir "deep-filter.exe"
+          Invoke-WebRequest -Uri $env:PHASE3_DEEPFILTER_URL -OutFile $deepfilter
+          $deepfilterSha = (Get-FileHash $deepfilter -Algorithm SHA256).Hash.ToLowerInvariant()
+          $deepfilterSize = (Get-Item $deepfilter).Length
+          if ($deepfilterSha -ne $env:PHASE3_DEEPFILTER_SHA256) { throw "DeepFilterNet SHA mismatch." }
+          if ($deepfilterSize -ne [int64]$env:PHASE3_DEEPFILTER_SIZE) { throw "DeepFilterNet size mismatch." }
+          $deepfilterVersion = (& $deepfilter --version 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0 -or $deepfilterVersion -notmatch [regex]::Escape($env:PHASE3_DEEPFILTER_VERSION)) { throw "DeepFilterNet version mismatch." }
+          $deepfilterHelp = (& $deepfilter --help 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0 -or $deepfilterHelp -notmatch "--compensate-delay" -or $deepfilterHelp -notmatch "--output-dir") { throw "DeepFilterNet CLI mismatch." }
+          Write-Host "PHASE3_6K_IMMUTABLE_TOOLS=PASS"
+
+      - name: Materialize and verify frozen VoiceBank DEMAND corpus
+        run: python .github/scripts/validate_phase3_denoise_corpus.py
+
+      - name: Build 10-case integrated blinded listening bundle
+        run: python .github/scripts/build_phase3_denoise_treatment_human_closeout_bundle.py
+
+      - name: Independently validate technical evidence and public bundle
+        run: python .github/scripts/validate_phase3_denoise_treatment_human_bundle.py
+
+      - name: Upload blinded human listening bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-denoise-treatment-human-closeout-review-bundle
+          path: phase3-denoise-treatment-human-closeout-bundle/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
+
+      - name: Upload lightweight private technical evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-denoise-treatment-human-closeout-technical-evidence
+          path: phase3-denoise-treatment-human-bundle-technical.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+
+      - name: Scope note
+        shell: pwsh
+        run: |
+          Write-Host "PHASE3_6K_BUNDLE_SCOPE=PASS"
+          Write-Host "Public frozen evaluation media only. Fixture authorization is not Guille authorization. Human review remains PENDING. Product default remains preserve; auto_apply remains false; stereo/multichannel remains unvalidated."
