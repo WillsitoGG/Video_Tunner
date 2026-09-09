@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "record_type": "phase3_denoise_post_render_verifier_closeout",
+  "phase": "3.6j",
+  "status": "TECHNICAL_FOUNDATION_CLOSED",
+  "base_foundation_evidence": "Validation/phase3-denoise-post-render-verifier-foundation.json",
+  "precommit_evidence": "Validation/phase3-denoise-post-render-verifier-precommit.json",
+  "permanent_gate": ".github/workflows/phase3-denoise-post-render-verifier.yml",
+  "validation": {
+    "base_gate": {
+      "run_id": 34241518206,
+      "job_id": 102112597551,
+      "focused_tests": "63/63 PASS",
+      "real_deepfilter_render_plus_independent_verifier_e2e": "1/1 PASS",
+      "integrated_tests": "488/488 PASS",
+      "integrated_skips": 0,
+      "doctor": "PASS"
+    },
+    "persisted_binder_preflight": {
+      "run_id": 34336304799,
+      "job_id": 102416380340,
+      "tests": "21/21 PASS"
+    },
+    "phase3_6_evidence_binder_sweep": {
+      "run_id": 34336891424,
+      "job_id": 102418278380,
+      "tests": "65/65 PASS"
+    },
+    "post_persistence_final": {
+      "run_id": 34337071421,
+      "job_id": 102418854722,
+      "head_sha": "62973db54002d6fe6f379158b9c515c964a6502b",
+      "immutable_tools": "PASS",
+      "focused_tests": "71/71 PASS",
+      "real_deepfilter_render_plus_independent_verifier_e2e": "1/1 PASS",
+      "integrated_tests": "496/496 PASS",
+      "integrated_skips": 0,
+      "doctor": "PASS",
+      "scope_note": "PASS"
+    }
+  },
+  "post_persistence_e2e_observation": {
+    "status": "technical_denoise_pass",
+    "technical_pass": true,
+    "blockers": [],
+    "decoded_video_equal": true,
+    "source_decoded_audio_frames_48k_mono": 144000,
+    "output_decoded_audio_frames_48k_mono": 144000,
+    "human_perceptual_review_required": true,
+    "human_pass": false,
+    "real_user_media": false
+  },
+  "contract_integrity": {
+    "precommit_relaxed_after_results": false,
+    "snr_threshold_added": false,
+    "stoi_threshold_added": false,
+    "si_sdr_threshold_added": false,
+    "loudness_threshold_added": false,
+    "technical_pass_is_human_pass": false,
+    "product_default": "preserve",
+    "auto_apply": false
+  },
+  "actual_product_state": {
+    "independent_denoise_post_render_verifier_implemented": true,
+    "independent_denoise_post_render_verifier_technical_foundation_closed": true,
+    "real_user_authorization_record_created_in_3_6j": false,
+    "real_user_media_authorized_for_denoise_in_3_6j": false,
+    "real_user_media_processed_in_3_6j": false,
+    "real_user_treated_media_generated_in_3_6j": false,
+    "human_denoise_treatment_closeout_completed": false,
+    "denoise_generalized_to_stereo_or_multichannel": false,
+    "product_default": "preserve",
+    "auto_apply": false
+  },
+  "interpretation": {
+    "phase3_6j_technical_foundation_closed": true,
+    "technical_closeout_does_not_substitute_human_perceptual_closeout": true,
+    "no_real_guille_media_processed_or_authorized": true,
+    "next_phase": "3.6k_human_denoise_treatment_closeout"
+  }
+}
