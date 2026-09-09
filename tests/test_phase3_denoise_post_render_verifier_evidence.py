@@ -16,6 +16,13 @@ ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "Validation" / "phase3-denoise-post-render-verifier-foundation.json"
 PRECOMMIT = ROOT / "Validation" / "phase3-denoise-post-render-verifier-precommit.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "phase3-denoise-post-render-verifier.yml"
+MASTER_DOCS = (
+    ROOT / "README.md",
+    ROOT / "AGENTS.md",
+    ROOT / "ROADMAP.md",
+    ROOT / "RELEASE_STATUS.md",
+    ROOT / "Validation" / "README.md",
+)
 
 
 class Phase3DenoisePostRenderVerifierEvidenceTests(unittest.TestCase):
@@ -119,6 +126,25 @@ class Phase3DenoisePostRenderVerifierEvidenceTests(unittest.TestCase):
         self.assertIn("No Guille media is processed or authorized", workflow)
         self.assertIn("Technical PASS remains distinct from human perceptual PASS", workflow)
         self.assertIn("No SNR/STOI/SI-SDR/loudness threshold is introduced", workflow)
+
+    def test_master_docs_are_synchronized_to_3_6j_closed_and_3_6k_next(self):
+        contents = {path.relative_to(ROOT).as_posix(): path.read_text(encoding="utf-8") for path in MASTER_DOCS}
+        self.assertEqual(len(contents), 5)
+        for relative, text in contents.items():
+            with self.subTest(document=relative):
+                self.assertIn("3.6j", text)
+                self.assertIn("3.6k", text)
+                self.assertIn("preserve", text)
+                self.assertIn("auto_apply", text)
+                self.assertNotIn("3.6j NEXT", text)
+                self.assertNotIn("3.6j siguiente", text.lower())
+        self.assertIn("Fase 3.6j — Independent Denoise Post-Render Technical Verifier: ✅ **TECHNICAL FOUNDATION PASS**", contents["README.md"])
+        self.assertIn("independent denoise post-render technical verifier [3.6j TECHNICAL FOUNDATION]", contents["AGENTS.md"])
+        self.assertIn("3.6j — Independent Denoise Post-Render Technical Verifier — COMPLETADA COMO TECHNICAL FOUNDATION", contents["ROADMAP.md"])
+        self.assertIn("Fase 3.6j: **TECHNICAL FOUNDATION PASS — independent denoise post-render verifier**", contents["RELEASE_STATUS.md"])
+        self.assertIn("phase3-denoise-post-render-verifier-foundation.json", contents["Validation/README.md"])
+        for relative in ("README.md", "AGENTS.md", "ROADMAP.md", "RELEASE_STATUS.md", "Validation/README.md"):
+            self.assertIn("human", contents[relative].lower())
 
 
 if __name__ == "__main__":
