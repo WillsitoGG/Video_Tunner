@@ -36,9 +36,11 @@
     "artifact_size_bytes": 3723,
     "artifact_raw_json_sha256": "54edf6f01ad06828e01b9ae216cfb3f4330f66b4a62f14910ccd3703a84b5c6b",
     "artifact_raw_json_size_bytes": 16392,
+    "artifact_canonical_json_sha256": "b0fe1de82cd8228fe3dc0511a4a606f58d144b94d2f382332ed034c6ae5aa223",
     "persisted_file": "Validation/phase3-denoise-treatment-human-bundle-technical.json",
-    "persisted_semantic_equivalent_minified_sha256": "37d11ec3ae4115ba63d38fac5ff27a156c2e46dde7274be5a7c8084f143ec0f0",
-    "note": "The persisted JSON is semantically identical to the artifact raw JSON but minified; byte-level SHA therefore differs by serialization only."
+    "persisted_file_sha256": "9db6ab11a637f772eaa8b848032b692807f591b022de9072409e926d512f0040",
+    "canonical_equivalence_required": true,
+    "note": "Raw artifact and persisted file use different JSON serialization. Semantic identity is bound by canonical sorted JSON SHA-256; persisted byte SHA is frozen separately."
   },
   "bindings": {
     "precommit_sha256": "29e441900efc44cd07de380ac52f2215030a888f3a51789c641105f1ee75bdb5",
