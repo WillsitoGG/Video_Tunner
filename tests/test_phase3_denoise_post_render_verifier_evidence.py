@@ -133,18 +133,19 @@ class Phase3DenoisePostRenderVerifierEvidenceTests(unittest.TestCase):
         for relative, text in contents.items():
             with self.subTest(document=relative):
                 self.assertIn("3.6j", text)
-                self.assertIn("3.6k", text)
                 self.assertIn("preserve", text)
                 self.assertIn("auto_apply", text)
                 self.assertNotIn("3.6j NEXT", text)
                 self.assertNotIn("3.6j siguiente", text.lower())
+                self.assertIn("human", text.lower())
+        for relative in ("README.md", "AGENTS.md", "ROADMAP.md", "RELEASE_STATUS.md"):
+            self.assertIn("3.6k", contents[relative])
         self.assertIn("Fase 3.6j — Independent Denoise Post-Render Technical Verifier: ✅ **TECHNICAL FOUNDATION PASS**", contents["README.md"])
         self.assertIn("independent denoise post-render technical verifier [3.6j TECHNICAL FOUNDATION]", contents["AGENTS.md"])
         self.assertIn("3.6j — Independent Denoise Post-Render Technical Verifier — COMPLETADA COMO TECHNICAL FOUNDATION", contents["ROADMAP.md"])
         self.assertIn("Fase 3.6j: **TECHNICAL FOUNDATION PASS — independent denoise post-render verifier**", contents["RELEASE_STATUS.md"])
         self.assertIn("phase3-denoise-post-render-verifier-foundation.json", contents["Validation/README.md"])
-        for relative in ("README.md", "AGENTS.md", "ROADMAP.md", "RELEASE_STATUS.md", "Validation/README.md"):
-            self.assertIn("human", contents[relative].lower())
+        self.assertIn("human denoise treatment closeout (NEXT)", contents["Validation/README.md"])
 
 
 if __name__ == "__main__":
