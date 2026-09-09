@@ -1,0 +1,24 @@
+name: Phase 3.6k Human Closeout Precommit One-shot
+
+on:
+  push:
+    paths:
+      - ".github/phase3-denoise-treatment-human-closeout-precommit.trigger"
+
+jobs:
+  precommit:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install editable package
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Validate frozen Phase 3.6k human closeout precommit
+        run: python -m unittest -v tests.test_phase3_denoise_treatment_human_closeout_precommit
+      - name: Scope note
+        run: echo PHASE3_6K_HUMAN_CLOSEOUT_PRECOMMIT=PASS
