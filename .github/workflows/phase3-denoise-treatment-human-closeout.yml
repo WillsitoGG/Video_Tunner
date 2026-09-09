@@ -2,9 +2,6 @@ name: Phase 3.6k Integrated Denoise Human Closeout Bundle
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/phase3-denoise-treatment-human-closeout.trigger"
 
 permissions:
   contents: read
