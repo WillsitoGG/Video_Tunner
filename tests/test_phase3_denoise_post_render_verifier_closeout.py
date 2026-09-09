@@ -97,10 +97,10 @@ class Phase3DenoisePostRenderVerifierCloseoutTests(unittest.TestCase):
             self.assertIn("34337071421", text)
             self.assertIn("71/71", text)
             self.assertIn("496/496", text)
-            self.assertIn("3.6k", text if text is release else "3.6k " + text)
+        self.assertIn("3.6k", release)
         self.assertIn("phase3-denoise-post-render-verifier-closeout.json", validation)
         self.assertIn("Fase 3.6j post-persistence: **CLOSED", release)
-        self.assertIn("human denoise treatment closeout", validation.lower())
+        self.assertIn("human denoise treatment closeout (NEXT)", validation)
 
 
 if __name__ == "__main__":
