@@ -1,0 +1,36 @@
+name: Phase 3.6 Evidence Binder Sweep One-shot
+
+on:
+  push:
+    paths:
+      - ".github/phase3-6x-evidence-binder-sweep.trigger"
+
+jobs:
+  evidence-binder-sweep:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install editable package
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Run Phase 3.6 evidence and policy binders
+        run: >-
+          python -m unittest -v
+          tests.test_phase3_denoise_corpus_materialization_evidence
+          tests.test_phase3_denoise_objective_baseline_evidence
+          tests.test_phase3_denoise_plan_authorization_evidence
+          tests.test_phase3_denoise_post_render_precommit
+          tests.test_phase3_denoise_post_render_verifier_evidence
+          tests.test_phase3_denoise_render_foundation_evidence
+          tests.test_phase3_denoiser_candidate_comparison_evidence
+          tests.test_phase3_denoiser_candidate_comparison_policy
+          tests.test_phase3_denoiser_human_ab_policy
+          tests.test_phase3_denoiser_portable_runtime_evidence
+          tests.test_phase3_denoiser_selection_review_evidence
+      - name: Scope note
+        run: echo PHASE3_6X_EVIDENCE_BINDER_SWEEP=PASS
