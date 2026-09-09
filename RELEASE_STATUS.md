@@ -21,6 +21,7 @@
 - Fase 3.6h: **TECHNICAL FOUNDATION PASS — denoise plan + explicit stale-safe authorization contract**
 - Fase 3.6i: **TECHNICAL FOUNDATION PASS — gated DeepFilterNet denoise renderer sobre media sintética mono**
 - Fase 3.6j: **TECHNICAL FOUNDATION PASS — independent denoise post-render verifier**
+- Fase 3.6j post-persistence: **CLOSED — technical foundation revalidated on persisted state**
 - Autorización real de Guille para denoise sobre media concreta: **NO EMITIDA**
 - Media real de Guille autorizada para denoise: **NO**
 - Media real de Guille procesada con denoise: **NO**
@@ -56,6 +57,9 @@ Phase 3.6h clean closeout        34225276990  PASS — 45/45 + 452/452 + doctor
 Phase 3.6i base renderer         34231340544  PASS — 49/49 + 1/1 DeepFilter E2E + 466/466, 0 skips + doctor
 Phase 3.6i post-persistence      34240028080  PASS — 57/57 + 1/1 E2E + 474/474, 0 skips + doctor
 Phase 3.6j verifier foundation   34241518206  PASS — 63/63 + 1/1 render→verifier E2E + 488/488, 0 skips + doctor
+Phase 3.6j persisted preflight   34336304799  PASS — 21/21
+Phase 3.6 evidence binder sweep  34336891424  PASS — 65/65
+Phase 3.6j post-persistence      34337071421  PASS — 71/71 + 1/1 render→verifier E2E + 496/496, 0 skips + doctor
 ```
 
 ## Normalization technical foundation
@@ -136,7 +140,7 @@ SNR/STOI/SI-SDR/loudness thresholds added = none
 technical PASS != human PASS
 ```
 
-Gate `34241518206`:
+Gate base `34241518206`:
 
 ```text
 63/63 focused PASS
@@ -146,7 +150,18 @@ Gate `34241518206`:
 doctor PASS
 ```
 
-E2E observado:
+Cierre post-persistencia `34337071421`:
+
+```text
+71/71 focused PASS
+1/1 real DeepFilter render + independent verifier E2E PASS
+496/496 integrated PASS
+0 skips
+doctor PASS
+scope PASS
+```
+
+E2E post-persistencia observado:
 
 ```text
 status = technical_denoise_pass
@@ -157,14 +172,19 @@ output_frames = 144000
 human_pass = false
 ```
 
-Evidencia persistente: `Validation/phase3-denoise-post-render-verifier-foundation.json`.
+Evidencia persistente:
+
+```text
+Validation/phase3-denoise-post-render-verifier-foundation.json
+Validation/phase3-denoise-post-render-verifier-closeout.json
+```
 
 Estado efectivo:
 
 ```text
 selected_candidate = deepfilternet_0_5_6_compensated_v1
 renderer_technical_foundation = PASS
-independent_verifier_technical_foundation = PASS
+independent_verifier_technical_foundation = CLOSED
 product_default = preserve
 real_user_authorization_record_created = false
 real_user_media_authorized_for_denoise = false
