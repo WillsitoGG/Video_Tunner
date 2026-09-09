@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "record_type": "phase3_denoise_treatment_human_bundle_provenance",
+  "phase": "3.6k",
+  "status": "TECHNICAL_BUNDLE_PERSISTED_PENDING_HUMAN_REVIEW",
+  "workflow": {
+    "run_id": 34342953064,
+    "job_id": 102437776572,
+    "head_sha": "809112e755ded9f4c17388228058c012b473b6b6",
+    "preflight": "17/17 PASS",
+    "immutable_tools": "PASS",
+    "corpus_materialization": "40/40 PASS",
+    "integrated_technical_cases": "10/10 PASS",
+    "technical_fail_count": 0,
+    "invalid_or_stale_count": 0,
+    "independent_bundle_validation": "PASS",
+    "scope_note": "PASS"
+  },
+  "public_bundle": {
+    "artifact_id": 10100571018,
+    "artifact_name": "phase3-denoise-treatment-human-closeout-review-bundle",
+    "artifact_zip_sha256": "b11143f72fc8bc3219dcaf7d4ed82afa6d628febf80b4b6efc444977f8d51c90",
+    "artifact_size_bytes": 9613728,
+    "public_manifest_sha256": "39499e5349e1ad22def6b8b3c60359f2de2548e924421a363a8d38ebcc8b1b08",
+    "public_manifest_size_bytes": 10422,
+    "wav_files": 30,
+    "wav_hashes_verified": "30/30",
+    "ab_frame_match": "10/10",
+    "blinding_leaks": 0,
+    "human_review_status": "PENDING_HUMAN_REVIEW"
+  },
+  "technical_evidence": {
+    "artifact_id": 10100571445,
+    "artifact_name": "phase3-denoise-treatment-human-closeout-technical-evidence",
+    "artifact_zip_sha256": "ac958b8c02c1f8ce7cd7998d2f3f1a0146db259fa59ca0f49186db5147639504",
+    "artifact_size_bytes": 3723,
+    "artifact_raw_json_sha256": "54edf6f01ad06828e01b9ae216cfb3f4330f66b4a62f14910ccd3703a84b5c6b",
+    "artifact_raw_json_size_bytes": 16392,
+    "persisted_file": "Validation/phase3-denoise-treatment-human-bundle-technical.json",
+    "persisted_semantic_equivalent_minified_sha256": "37d11ec3ae4115ba63d38fac5ff27a156c2e46dde7274be5a7c8084f143ec0f0",
+    "note": "The persisted JSON is semantically identical to the artifact raw JSON but minified; byte-level SHA therefore differs by serialization only."
+  },
+  "bindings": {
+    "precommit_sha256": "29e441900efc44cd07de380ac52f2215030a888f3a51789c641105f1ee75bdb5",
+    "selected_candidate_id": "deepfilternet_0_5_6_compensated_v1",
+    "deepfilternet_asset_sha256": "75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915",
+    "ffmpeg_archive_sha256": "a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f"
+  },
+  "actual_human_state": {
+    "human_listening_completed": false,
+    "human_review_persisted": false,
+    "human_closeout_evaluated": false
+  },
+  "capabilities": {
+    "real_guille_authorization_created": false,
+    "real_guille_media_processed": false,
+    "product_default": "preserve",
+    "auto_apply": false,
+    "stereo_or_multichannel_generalized": false
+  }
+}
