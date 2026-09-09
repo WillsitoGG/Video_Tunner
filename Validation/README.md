@@ -17,7 +17,6 @@ No usarla para almacenar vídeos, ZIPs de CI, logs voluminosos, modelos ni outpu
 
 - `phase2-semantic-candidates.md` — Semantic Candidates v1.
 - `phase2-semantic-protection.md` — Semantic Decisions + Protection v1.
-- `phase2c-semantic-validation.md` / `phase2c-audio-backed-validation.md` — validación semántica real.
 - `phase2d-*` — Fase 2D correction scope, fillers, join/acoustic/eligibility y closeout humano.
 - `phase2e-*` + `phase2e-human-closeout/` — Fase 2E promotion→approval→authorization→render→technical/human closeout.
 
@@ -47,6 +46,7 @@ Denoise 3.6b–j:
 - `phase3-denoise-render-foundation.json` — 3.6i gated `denoise_render_result` foundation.
 - `phase3-denoise-post-render-verifier-precommit.json` — criterios 3.6j congelados antes de implementación/resultados.
 - `phase3-denoise-post-render-verifier-foundation.json` — 3.6j independent post-render verifier technical foundation.
+- `phase3-denoise-post-render-verifier-closeout.json` — cierre post-persistencia 3.6j, separado del artifact base y ligado al gate final.
 
 ## Runs principales
 
@@ -70,6 +70,9 @@ Denoise 3.6b–j:
 34240028080  Phase 3.6i post-persistence — 57/57 + 1/1 E2E + 474/474, 0 skips + doctor PASS
 34241148527  Phase 3.6j preflight — 63/63 PASS
 34241518206  Phase 3.6j foundation — 63/63 + 1/1 real render→verifier E2E + 488/488, 0 skips + doctor PASS
+34336304799  Phase 3.6j persisted binder preflight — 21/21 PASS
+34336891424  Phase 3.6 evidence binder sweep — 65/65 PASS
+34337071421  Phase 3.6j post-persistence final — 71/71 + 1/1 real render→verifier E2E + 496/496, 0 skips + doctor PASS
 ```
 
 ## Denoise — interpretación acreditada
@@ -186,7 +189,7 @@ SNR/STOI/SI-SDR/loudness thresholds added = none
 technical PASS != human PASS
 ```
 
-Gate `34241518206`:
+Gate base `34241518206`:
 
 ```text
 63/63 focused PASS
@@ -196,7 +199,18 @@ Gate `34241518206`:
 doctor PASS
 ```
 
-E2E:
+Cierre post-persistencia `34337071421`:
+
+```text
+71/71 focused PASS
+1/1 real DeepFilter render + independent verifier E2E PASS
+496/496 integrated PASS
+0 skips
+doctor PASS
+scope PASS
+```
+
+E2E post-persistencia:
 
 ```text
 status = technical_denoise_pass
@@ -208,9 +222,10 @@ output_frames = 144000
 human_pass = false
 ```
 
-Estado real persistido tras 3.6j:
+Estado real persistido tras el cierre 3.6j:
 
 ```text
+independent_denoise_post_render_verifier_technical_foundation_closed = true
 real_user_authorization_record_created = false
 real_user_media_authorized_for_denoise = false
 real_user_media_processed_by_denoise_renderer = false
@@ -223,6 +238,7 @@ auto_apply = false
 
 Binder: `tests/test_phase3_denoise_post_render_verifier_evidence.py`.
 Permanent gate: `.github/workflows/phase3-denoise-post-render-verifier.yml`, manual-only.
+Closeout: `Validation/phase3-denoise-post-render-verifier-closeout.json`.
 
 ## Regla de interpretación
 
@@ -253,7 +269,7 @@ noise_evidence_audit
 → denoise_plan_proposal
 → denoise_execution_authorization
 → gated denoise renderer technical foundation
-→ independent denoise post-render technical verifier foundation
+→ independent denoise post-render technical verifier foundation [3.6j CLOSED]
 → human denoise treatment closeout (NEXT)
 ```
 
