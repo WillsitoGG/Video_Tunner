@@ -1,0 +1,29 @@
+name: Phase 3.6j Closeout Binder One-shot
+
+on:
+  push:
+    paths:
+      - ".github/phase3-denoise-post-render-closeout-binder.trigger"
+
+jobs:
+  closeout-binder:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install editable package
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Validate persisted closeout and progression-safe binders
+        run: >-
+          python -m unittest -v
+          tests.test_phase3_denoise_post_render_verifier_closeout
+          tests.test_phase3_denoise_post_render_verifier_evidence
+          tests.test_phase3_denoise_post_render_precommit
+          tests.test_phase3_denoise_render_foundation_evidence
+      - name: Scope note
+        run: echo PHASE3_6J_CLOSEOUT_BINDER=PASS
