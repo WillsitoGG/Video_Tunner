@@ -1,0 +1,30 @@
+name: Phase 3.6j Post-Persistence Preflight One-shot
+
+on:
+  push:
+    paths:
+      - ".github/phase3-denoise-post-render-persistence-preflight.trigger"
+
+jobs:
+  persistence-preflight:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install editable package
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Compile persisted binder
+        run: python -m py_compile tests/test_phase3_denoise_post_render_verifier_evidence.py
+      - name: Run persisted 3.6j contracts
+        run: >-
+          python -m unittest -v
+          tests.test_phase3_denoise_post_render_verifier_evidence
+          tests.test_phase3_denoise_post_render_precommit
+          tests.test_denoise_post_render_verification
+      - name: Scope note
+        run: echo PHASE3_6J_PERSISTENCE_PREFLIGHT=PASS
